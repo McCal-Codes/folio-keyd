@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtype_en_gb">English (UK)</string>
+    <string name="setup_title">Folio Keys</string>
+    <string name="setup_intro">Android asks you to allow a keyboard twice: once to add it, and again to choose it. Both steps are below.</string>
+    <string name="setup_step_one">1. Add Folio Keys in Android\'s settings</string>
+    <string name="setup_step_two">2. Choose it as your keyboard</string>
+    <string name="setup_warning">Android warns that a keyboard can see what you type. That is true of every keyboard — the system sends it your keystrokes. Folio Keys asks for no permissions at all, including no Internet permission, so what it sees cannot leave this phone.</string>
+    <string name="setup_try_it">Try it here</string>
+    <string name="setup_try_hint">Type something</string>
+</resources>
