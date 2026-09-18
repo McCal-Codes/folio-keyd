@@ -93,14 +93,23 @@ object Layouts {
             if (toLetters) "ABC" else "123", KeyKind.LAYER, weight = 1.5f,
             output = (if (toLetters) Layer.LETTERS else Layer.NUMBERS).name,
         )
-        val extras = when (rules.kind) {
-            FieldKind.EMAIL -> listOf(Key("@", weight = 0.9f), Key(".com", weight = 1.4f))
-            FieldKind.URL -> listOf(Key("/", weight = 0.9f), Key(".com", weight = 1.4f))
-            else -> listOf(Key(",", weight = 0.9f))
+        // The symbol layers already have . and , in their own row; repeating them here would put the same key on
+        // screen twice. Punctuation keeps a full key's width, so it stays above the 24 dp a fingertip needs.
+        val punctuation = layer == Layer.LETTERS
+        val extras = when {
+            // The numbers and symbols layers already carry @ and /, so the field's own keys belong to the letters.
+            !punctuation -> emptyList()
+            rules.kind == FieldKind.EMAIL -> listOf(Key("@"), Key(".com", weight = 1.4f))
+            rules.kind == FieldKind.URL -> listOf(Key("/"), Key(".com", weight = 1.4f))
+            else -> listOf(Key(","))
         }
-        val tail = if (rules.kind == FieldKind.EMAIL || rules.kind == FieldKind.URL) emptyList() else listOf(Key(".", weight = 0.9f))
+        val tail = when {
+            rules.kind == FieldKind.EMAIL || rules.kind == FieldKind.URL -> emptyList()
+            punctuation -> listOf(Key("."))
+            else -> emptyList()
+        }
         return listOf(layerKey, Key("🌐", KeyKind.GLOBE)) + extras.take(1) +
-            listOf(Key("space", KeyKind.SPACE, weight = 4.6f, output = " ")) +
+            listOf(Key("space", KeyKind.SPACE, weight = 4.2f, output = " ")) +
             extras.drop(1) + tail + Key(rules.actionLabel, KeyKind.ACTION, weight = 1.5f)
     }
 

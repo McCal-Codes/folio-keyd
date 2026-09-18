@@ -1,0 +1,85 @@
+package com.mccal.folio.keys
+
+import kotlin.math.max
+import kotlin.math.min
+
+/** A key's place on the keyboard, in pixels. Plain numbers, so the arithmetic can be tested without a phone. */
+data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+    val width: Float get() = right - left
+    val height: Float get() = bottom - top
+    fun contains(x: Float, y: Float): Boolean = x >= left && x < right && y >= top && y < bottom
+    fun overlaps(other: Box): Boolean =
+        left < other.right && other.left < right && top < other.bottom && other.top < bottom
+}
+
+data class Placement(val key: Key, val box: Box)
+
+/**
+ * Where the keys go, and how tall the keyboard is.
+ *
+ * This is the part that decides whether keys overlap, run off the edge or end up too small to hit, so it is kept clear
+ * of the View: [GeometryTest] checks it at every window size the phone can be, which is cheaper and more thorough than
+ * noticing on a phone.
+ */
+object Geometry {
+    const val GAP_X_DP = 5f
+    const val GAP_Y_DP = 9f
+    const val SIDE_PAD_DP = 3f
+    const val MIN_ROW_DP = 25f
+    const val MAX_ROW_DP = 52f
+
+    /** Android's guidance: a keyboard that isn't fullscreen shouldn't take much more than half the window. */
+    fun height(rowCount: Int, windowHeightDp: Float, density: Float, bottomInset: Float): Int {
+        val rows = max(rowCount, 1)
+        val cap = capPx(windowHeightDp, density)
+        val row = rowHeight(cap, rows, density, bottomInset)
+        val gapY = GAP_Y_DP * density
+        return (rows * row + (rows - 1) * gapY + 2 * gapY + bottomInset).toInt()
+    }
+
+    fun capPx(windowHeightDp: Float, density: Float): Float {
+        val tall = windowHeightDp >= 560
+        return min(windowHeightDp * density * (if (tall) 0.46f else 0.55f), 360 * density)
+    }
+
+    fun rowHeight(cap: Float, rowCount: Int, density: Float, bottomInset: Float): Float {
+        val gapY = GAP_Y_DP * density
+        val room = cap - 2 * gapY - (rowCount - 1) * gapY - bottomInset
+        return max(MIN_ROW_DP * density, min(MAX_ROW_DP * density, room / rowCount))
+    }
+
+    /**
+     * Lays the rows into the space the view was given. Each row spends the width on its keys in proportion to their
+     * weight, so a row of ten letters and a row with a space bar both end flush with the edges.
+     */
+    fun place(
+        rows: List<Row>,
+        width: Int,
+        height: Int,
+        density: Float,
+        sideInset: Float = 0f,
+        bottomInset: Float = 0f,
+    ): List<Placement> {
+        if (rows.isEmpty() || width <= 0 || height <= 0) return emptyList()
+        val gapX = GAP_X_DP * density
+        val gapY = GAP_Y_DP * density
+        val left = SIDE_PAD_DP * density + sideInset
+        val usable = width - 2 * left
+        if (usable <= 0) return emptyList()
+        val rowH = (height - bottomInset - 2 * gapY - (rows.size - 1) * gapY) / rows.size
+        val out = ArrayList<Placement>()
+        var y = gapY
+        for (row in rows) {
+            val weights = row.sumOf { it.weight.toDouble() }.toFloat()
+            val unit = (usable - gapX * (row.size - 1)) / weights
+            var x = left
+            for (key in row) {
+                val w = unit * key.weight
+                out += Placement(key, Box(x, y, x + w, y + rowH))
+                x += w + gapX
+            }
+            y += rowH + gapY
+        }
+        return out
+    }
+}

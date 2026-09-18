@@ -27,6 +27,10 @@ Not to beat Gboard at autocorrect — that's years of data. The things it can do
 JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :app:assembleDebug
 ```
 
+Run the checks with `./gradlew :app:testDebugUnitTest`: 33 of them, over the field rules, where the keys land at
+every window size a phone can give us, word deletion, what a screen reader reads, and the contrast of the colours that
+ship. None of it replaces typing on a real phone, which is still the test that matters.
+
 Install it, then open Folio Keys — it walks through the two steps Android makes you take, and explains the warning on
 the second one.
 

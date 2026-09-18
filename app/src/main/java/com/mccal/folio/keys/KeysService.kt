@@ -32,7 +32,7 @@ class KeysService : InputMethodService(), KeyboardView.Listener {
         rules = Layouts.rulesFor(info)
         layer = if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) Layer.NUMBERS else Layer.LETTERS
         keyboard?.rules = rules
-        keyboard?.shift = if (autoCaps()) KeyboardView.Shift.ONCE else KeyboardView.Shift.OFF
+        keyboard?.shift = if (autoCaps()) Shift.ONCE else Shift.OFF
         refresh()
     }
 
@@ -46,7 +46,7 @@ class KeysService : InputMethodService(), KeyboardView.Listener {
 
     private fun refresh() {
         val view = keyboard ?: return
-        view.rows = Layouts.rows(layer, view.shift != KeyboardView.Shift.OFF, rules)
+        view.rows = Layouts.rows(layer, view.shift != Shift.OFF, rules)
     }
 
     // ---- what the keys do -------------------------------------------------------------------------------------
@@ -56,8 +56,8 @@ class KeysService : InputMethodService(), KeyboardView.Listener {
         // The key already carries the right case: the layout builds an upper-case key when shift is on.
         currentInputConnection?.commitText(text, 1)
         // A one-shot shift falls back to lower case after the letter it capitalised.
-        if (view.shift == KeyboardView.Shift.ONCE) {
-            view.shift = KeyboardView.Shift.OFF
+        if (view.shift == Shift.ONCE) {
+            view.shift = Shift.OFF
             refresh()
         }
     }
@@ -72,19 +72,16 @@ class KeysService : InputMethodService(), KeyboardView.Listener {
     override fun onDeleteWord() {
         val connection = currentInputConnection ?: return
         val before = connection.getTextBeforeCursor(64, 0) ?: return
-        if (before.isEmpty()) return
-        var cut = before.length
-        while (cut > 0 && before[cut - 1].isWhitespace()) cut--
-        while (cut > 0 && !before[cut - 1].isWhitespace()) cut--
-        connection.deleteSurroundingText(before.length - cut, 0)
+        val remove = Words.charsToRemoveForWord(before)
+        if (remove > 0) connection.deleteSurroundingText(remove, 0)
     }
 
     override fun onShift() {
         val view = keyboard ?: return
         view.shift = when (view.shift) {
-            KeyboardView.Shift.OFF -> KeyboardView.Shift.ONCE
-            KeyboardView.Shift.ONCE -> KeyboardView.Shift.LOCKED
-            KeyboardView.Shift.LOCKED -> KeyboardView.Shift.OFF
+            Shift.OFF -> Shift.ONCE
+            Shift.ONCE -> Shift.LOCKED
+            Shift.LOCKED -> Shift.OFF
         }
         refresh()
     }
