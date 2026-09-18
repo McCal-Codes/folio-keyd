@@ -33,6 +33,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    // Robolectric runs the View on the JVM, which is the closest thing to typing on a phone that a laptop can offer.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 // A keyboard has no business on the network, so it asks for no permissions and takes no networking libraries.
@@ -40,6 +46,8 @@ dependencies {
     // The one dependency: ExploreByTouchHelper, so TalkBack can find keys that are drawn rather than laid out.
     implementation("androidx.customview:customview:1.1.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core:1.6.1")
 }
 
 kotlin {

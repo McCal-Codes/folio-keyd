@@ -1,125 +1,57 @@
 package com.mccal.folio.keys
 
 import android.inputmethodservice.InputMethodService
-import android.text.TextUtils
-import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
 
 /**
  * Folio Keys.
  *
- * The keyboard itself: it owns the [KeyboardView], reads what the field asks for, and is the only place that touches
- * the text. Nothing is stored and nothing is sent — the app holds no INTERNET permission, so what it sees while you
- * type cannot leave the phone even if a later version wanted it to.
+ * This is wiring: it owns the view, hands it to [TextActions], and passes along what Android tells it. The behaviour -
+ * what each key does, which layer is showing, how shift behaves - lives in [TextActions], where it can be tested.
+ *
+ * Nothing is stored and nothing is sent. The app holds no permissions at all, so what the keyboard sees while you type
+ * cannot leave the phone even if a later version wanted it to.
  */
-class KeysService : InputMethodService(), KeyboardView.Listener {
+class KeysService : InputMethodService(), Ime {
 
+    private val actions = TextActions(this)
     private var keyboard: KeyboardView? = null
-    private var layer = Layer.LETTERS
-    private var rules = FieldRules()
 
     override fun onCreateInputView(): View =
         KeyboardView(this).also {
-            it.listener = this
+            it.listener = actions
             keyboard = it
-            refresh()
+            actions.refresh()
         }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        rules = Layouts.rulesFor(info)
-        layer = if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) Layer.NUMBERS else Layer.LETTERS
-        keyboard?.rules = rules
-        keyboard?.shift = if (autoCaps()) Shift.ONCE else Shift.OFF
-        refresh()
+        actions.startInput(info)
+        keyboard?.rules = actions.rules   // one reading of the field, not two
     }
 
-    /** Sentence capitals, but only when the field asked for them and there is nothing typed yet. */
-    private fun autoCaps(): Boolean {
-        if (rules.password) return false
-        val info = currentInputEditorInfo ?: return false
-        val connection = currentInputConnection ?: return false
-        return connection.getCursorCapsMode(info.inputType) != 0
-    }
+    // ---- Ime -----------------------------------------------------------------------------------------------------
 
-    private fun refresh() {
-        val view = keyboard ?: return
-        view.rows = Layouts.rows(layer, view.shift != Shift.OFF, rules)
-    }
+    override val connection: InputConnection?
+        get() = currentInputConnection
 
-    // ---- what the keys do -------------------------------------------------------------------------------------
+    override val editorInfo: EditorInfo?
+        get() = currentInputEditorInfo
 
-    override fun onText(text: String) {
-        val view = keyboard ?: return
-        // The key already carries the right case: the layout builds an upper-case key when shift is on.
-        currentInputConnection?.commitText(text, 1)
-        // A one-shot shift falls back to lower case after the letter it capitalised.
-        if (view.shift == Shift.ONCE) {
-            view.shift = Shift.OFF
-            refresh()
+    override fun show(rows: List<Row>, shift: Shift) {
+        keyboard?.let {
+            it.shift = shift
+            it.rows = rows
         }
     }
 
-    override fun onBackspace() {
-        val connection = currentInputConnection ?: return
-        val selected = connection.getSelectedText(0)
-        if (!TextUtils.isEmpty(selected)) connection.commitText("", 1) else connection.deleteSurroundingText(1, 0)
-    }
-
-    /** Swiping the backspace takes a word, which is what every other keyboard does and what hands expect. */
-    override fun onDeleteWord() {
-        val connection = currentInputConnection ?: return
-        val before = connection.getTextBeforeCursor(64, 0) ?: return
-        val remove = Words.charsToRemoveForWord(before)
-        if (remove > 0) connection.deleteSurroundingText(remove, 0)
-    }
-
-    override fun onShift() {
-        val view = keyboard ?: return
-        view.shift = when (view.shift) {
-            Shift.OFF -> Shift.ONCE
-            Shift.ONCE -> Shift.LOCKED
-            Shift.LOCKED -> Shift.OFF
-        }
-        refresh()
-    }
-
-    override fun onLayer(layer: Layer) {
-        this.layer = layer
-        refresh()
-    }
-
-    override fun onAction() {
-        val info = currentInputEditorInfo
-        val connection = currentInputConnection ?: return
-        val action = info?.imeOptions?.and(EditorInfo.IME_MASK_ACTION) ?: EditorInfo.IME_ACTION_UNSPECIFIED
-        when {
-            rules.multiline -> connection.commitText("\n", 1)
-            action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED ->
-                connection.performEditorAction(action)
-            else -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
-        }
-    }
-
-    override fun onSwitchKeyboard() {
+    override fun switchKeyboard() {
         // The globe hands over to whatever the person picked next; Android decides what that is, not Folio.
         if (!switchToNextInputMethod(false)) {
-            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
-                .showInputMethodPicker()
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
         }
-    }
-
-    /** Arrow keys rather than a selection call: they behave the same in an editor, a terminal and a web page. */
-    override fun onCursor(steps: Int) {
-        val connection = currentInputConnection ?: return
-        val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
-        repeat(minOf(kotlin.math.abs(steps), 8)) { sendKey(connection, code) }
-    }
-
-    private fun sendKey(connection: InputConnection, code: Int) {
-        connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
-        connection.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
     }
 }
