@@ -7,7 +7,7 @@
     <string name="setup_step_two">2. Choose it as your keyboard</string>
     <string name="setup_warning">Android warns that a keyboard can see what you type. That is true of every keyboard — the system sends it your keystrokes. Folio Keys asks for no permissions at all, including no Internet permission, so what it sees cannot leave this phone.</string>
     <string name="setup_state_not_added">Not added yet. Step 1 opens the list Android keeps of the keyboards it allows.</string>
-    <string name="setup_state_added">Added, but another keyboard is in use. Step 2 switches to this one.</string>
+    <string name="setup_state_added">Added. Use step 2 to switch to it — some phones put their own keyboard back afterwards, so check it comes up in the field below.</string>
     <string name="setup_state_in_use">Added, and in use. Tap the field below to see it.</string>
     <string name="setup_try_it">Try it here</string>
     <string name="setup_try_hint">Type something</string>

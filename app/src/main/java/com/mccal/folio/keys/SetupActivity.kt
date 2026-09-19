@@ -97,10 +97,16 @@ class SetupActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        val resolver = contentResolver
-        fun secure(key: String) = runCatching { Settings.Secure.getString(resolver, key) }.getOrNull()
+        val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        // Asked of the input-method service rather than read out of Settings: an app is allowed this one.
+        val added = runCatching {
+            manager.enabledInputMethodList.any { it.packageName == packageName }
+        }.getOrDefault(false)
+        val current = runCatching {
+            Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+        }.getOrNull()
         status.setText(
-            when (setupState(secure(Settings.Secure.ENABLED_INPUT_METHODS), secure(Settings.Secure.DEFAULT_INPUT_METHOD), packageName)) {
+            when (setupState(added, current, packageName)) {
                 SetupState.NOT_ADDED -> R.string.setup_state_not_added
                 SetupState.ADDED -> R.string.setup_state_added
                 SetupState.IN_USE -> R.string.setup_state_in_use

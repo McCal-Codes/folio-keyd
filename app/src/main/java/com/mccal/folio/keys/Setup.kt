@@ -11,14 +11,15 @@ package com.mccal.folio.keys
 enum class SetupState { NOT_ADDED, ADDED, IN_USE }
 
 /**
- * The state, from the two system settings that hold it.
+ * The state, from what the system will actually tell an ordinary app.
  *
- * [enabled] is Android's colon-separated list of allowed input methods and [current] the one in use, both of which
- * name a component like `com.example/.SomeService`; a component belongs to us when its package half matches.
+ * [added] comes from `InputMethodManager`, which answers reliably. [current] is
+ * `Settings.Secure.DEFAULT_INPUT_METHOD`, which does not: on some phones an app reading it gets nothing back, so a
+ * null here means "could not tell", never "no". That is why being added is established first and separately -
+ * reading one restricted setting must not be able to make an installed keyboard look uninstalled.
  */
-internal fun setupState(enabled: String?, current: String?, packageName: String): SetupState {
-    fun mine(component: String) = component.substringBefore('/').trim() == packageName
-    if (current != null && mine(current)) return SetupState.IN_USE
-    val added = enabled.orEmpty().split(':').any { it.isNotBlank() && mine(it) }
-    return if (added) SetupState.ADDED else SetupState.NOT_ADDED
+internal fun setupState(added: Boolean, current: String?, packageName: String): SetupState {
+    if (!added) return SetupState.NOT_ADDED
+    val mine = current != null && current.substringBefore('/').trim() == packageName
+    return if (mine) SetupState.IN_USE else SetupState.ADDED
 }
