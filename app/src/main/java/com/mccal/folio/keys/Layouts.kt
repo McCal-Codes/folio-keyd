@@ -9,7 +9,9 @@ import android.view.inputmethod.EditorInfo
  * A layout is plain data: rows of [Key]. Nothing here knows how to draw or what a press does, so the same rows can be
  * measured for a phone, a split half or a one-handed keyboard without a second copy.
  */
-enum class KeyKind { CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE }
+enum class KeyKind {
+    CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, EMOJI,
+}
 
 data class Key(
     val label: String,

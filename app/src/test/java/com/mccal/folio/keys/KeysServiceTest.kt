@@ -40,6 +40,7 @@ class KeysServiceTest {
         var switches = 0
         var shown: List<Row> = emptyList()
         var shift = Shift.OFF
+        var emojiShowing = false
 
         override fun switchKeyboard() { switches++ }
         var hides = 0
@@ -47,6 +48,10 @@ class KeysServiceTest {
         override fun show(rows: List<Row>, shift: Shift) {
             shown = rows
             this.shift = shift
+        }
+
+        override fun showEmoji(showing: Boolean) {
+            emojiShowing = showing
         }
     }
 

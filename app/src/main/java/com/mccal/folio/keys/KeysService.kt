@@ -1,8 +1,11 @@
 package com.mccal.folio.keys
 
+import android.content.Context
 import android.graphics.Region
 import android.inputmethodservice.InputMethodService
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -20,13 +23,55 @@ class KeysService : InputMethodService(), Ime {
 
     private val actions = TextActions(this)
     private var keyboard: KeyboardView? = null
+    private var emoji: EmojiPanel? = null
 
-    override fun onCreateInputView(): View =
-        KeyboardView(this).also {
-            it.listener = actions
-            keyboard = it
-            actions.refresh()
+    private val prefs by lazy { getSharedPreferences("keys", Context.MODE_PRIVATE) }
+
+    /**
+     * Both panels live in the window at once, and only one is visible.
+     *
+     * Building the emoji grid the first time someone taps the smiley would show them an empty keyboard for a frame,
+     * and Android only asks for the input view once, so the pair is made together and swapped.
+     */
+    override fun onCreateInputView(): View {
+        val keys = KeyboardView(this).also { it.listener = actions }
+        val grid = EmojiPanel(this).also {
+            it.visibility = View.GONE
+            it.recents = Emoji.decode(prefs.getString(RECENTS, null))
+            it.listener = object : EmojiPanel.Listener {
+                override fun onEmoji(value: String) {
+                    actions.onEmoji(value)
+                    remember(value)
+                }
+
+                override fun onBackspace() = actions.onBackspace()
+
+                override fun onLetters() = showEmoji(false)
+            }
         }
+        keyboard = keys
+        emoji = grid
+        actions.refresh()
+        return FrameLayout(this).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+            addView(keys)
+            addView(grid)
+        }
+    }
+
+    private fun remember(value: String) {
+        val grid = emoji ?: return
+        val updated = Emoji.remember(grid.recents, value)
+        grid.recents = updated
+        prefs.edit().putString(RECENTS, Emoji.encode(updated)).apply()
+    }
+
+    override fun showEmoji(showing: Boolean) {
+        keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
+        emoji?.visibility = if (showing) View.VISIBLE else View.GONE
+    }
 
     /**
      * Whether to take the whole screen and give the app an extracted field instead.
@@ -65,6 +110,8 @@ class KeysService : InputMethodService(), Ime {
         super.onStartInputView(info, restarting)
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
+        // A new field starts on the letters: nobody opens a password box wanting the emoji they left open.
+        showEmoji(false)
     }
 
     // ---- Ime -----------------------------------------------------------------------------------------------------
@@ -87,6 +134,7 @@ class KeysService : InputMethodService(), Ime {
     private companion object {
         /** Less of the app than this left showing, and an extracted field is more use than a sliver. */
         const val ROOM_FOR_THE_APP_DP = 130f
+        const val RECENTS = "emojiRecents"
 
         /** What is left of the window once the keyboard has taken its share. */
         fun roomAbove(screenHeightDp: Float, keyboardHeightDp: Float) = screenHeightDp - keyboardHeightDp

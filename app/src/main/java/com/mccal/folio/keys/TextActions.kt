@@ -18,6 +18,9 @@ interface Ime {
 
     /** Hands the keys to whatever is drawing them. */
     fun show(rows: List<Row>, shift: Shift)
+
+    /** Swap the letters for the emoji grid, or back again. */
+    fun showEmoji(showing: Boolean)
 }
 
 /**
@@ -107,6 +110,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onSwitchKeyboard() = ime.switchKeyboard()
 
     override fun onHide() = ime.hideKeyboard()
+
+    override fun onEmojiPanel() = ime.showEmoji(true)
+
+    /** An emoji is text like any other, which is the whole reason it can be typed by a keyboard at all. */
+    fun onEmoji(emoji: String) {
+        ime.connection?.commitText(emoji, 1)
+    }
 
     // The editing a field always supports, through Android's own menu actions rather than by reading the text.
     override fun onSelectAll() = menu(android.R.id.selectAll)

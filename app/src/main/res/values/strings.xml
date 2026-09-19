@@ -11,4 +11,7 @@
     <string name="setup_state_in_use">Added, and in use. Tap the field below to see it.</string>
     <string name="setup_try_it">Try it here</string>
     <string name="setup_try_hint">Type something</string>
+    <string name="emoji_letters">ABC</string>
+    <string name="emoji_no_recents">Emoji you use will show up here</string>
+    <string name="emoji_open">Emoji</string>
 </resources>

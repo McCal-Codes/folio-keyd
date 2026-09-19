@@ -88,6 +88,17 @@ object Icons {
         canvas.drawOval(rect, stroke)
     }
 
+    /** A face, for the emoji: drawn rather than set in the emoji font, so it matches the other icons. */
+    fun smiley(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint, fill: Paint) {
+        val r = size * 0.46f
+        canvas.drawCircle(cx, cy, r, stroke)
+        val eye = r * 0.12f
+        canvas.drawCircle(cx - r * 0.34f, cy - r * 0.26f, eye, fill)
+        canvas.drawCircle(cx + r * 0.34f, cy - r * 0.26f, eye, fill)
+        rect.set(cx - r * 0.5f, cy - r * 0.3f, cx + r * 0.5f, cy + r * 0.55f)
+        canvas.drawArc(rect, 20f, 140f, false, stroke)
+    }
+
     /** A chevron pointing down: hide the keyboard. */
     fun chevronDown(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
         val w = size * 0.42f

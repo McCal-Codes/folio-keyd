@@ -59,6 +59,9 @@ class KeyboardView(context: Context) : View(context) {
         fun onSelectAll()
         fun onCopy()
         fun onPaste()
+
+        /** Swap the letters for the emoji. */
+        fun onEmojiPanel()
         fun onHide()
     }
 
@@ -256,6 +259,7 @@ class KeyboardView(context: Context) : View(context) {
         val bottom = top + toolbarHeight
         val items = listOf(
             Key("Hide", KeyKind.HIDE),
+            Key("Emoji", KeyKind.EMOJI),
             Key("Select all", KeyKind.SELECT_ALL),
             Key("Copy", KeyKind.COPY),
             Key("Paste", KeyKind.PASTE),
@@ -264,8 +268,9 @@ class KeyboardView(context: Context) : View(context) {
         // a few buttons someone left there.
         val slot = min((right - left) / items.size, TOOL_SLOT_DP * dp)
         val placed = ArrayList<Placement>(items.size)
-        placed += Placement(items.first(), Box(left, top, left + slot, bottom))
-        val rest = items.drop(1)
+        placed += Placement(items[0], Box(left, top, left + slot, bottom))
+        placed += Placement(items[1], Box(left + slot, top, left + 2 * slot, bottom))
+        val rest = items.drop(2)
         var x = right - rest.size * slot
         for (key in rest) {
             placed += Placement(key, Box(x, top, x + slot, bottom))
@@ -390,6 +395,7 @@ class KeyboardView(context: Context) : View(context) {
             fill.color = theme.label
             when (placement.key.kind) {
                 KeyKind.HIDE -> Icons.chevronDown(canvas, cx, cy, size * 1.2f, stroke)
+                KeyKind.EMOJI -> Icons.smiley(canvas, cx, cy, size, stroke, fill)
                 KeyKind.SELECT_ALL -> Icons.selectAll(canvas, cx, cy, size, stroke, fill)
                 KeyKind.COPY -> Icons.copy(canvas, cx, cy, size, stroke)
                 KeyKind.PASTE -> Icons.paste(canvas, cx, cy, size, stroke, fill)
@@ -604,6 +610,7 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.SELECT_ALL -> l.onSelectAll()
             KeyKind.COPY -> l.onCopy()
             KeyKind.PASTE -> l.onPaste()
+            KeyKind.EMOJI -> l.onEmojiPanel()
         }
     }
 

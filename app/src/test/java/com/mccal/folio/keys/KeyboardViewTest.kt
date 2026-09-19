@@ -58,6 +58,7 @@ class KeyboardViewTest {
             override fun onCopy() { toolbar += "copy" }
             override fun onPaste() { toolbar += "paste" }
             override fun onHide() { toolbar += "hide" }
+            override fun onEmojiPanel() { toolbar += "emoji" }
         }
         show(FieldRules())
     }
@@ -353,7 +354,7 @@ class KeyboardViewTest {
         for (id in keys.size until keys.size + view.toolbarPlacements.size) {
             provider.performAction(id, AccessibilityNodeInfo.ACTION_CLICK, null)
         }
-        assertEquals(listOf("hide", "selectAll", "copy", "paste"), toolbar)
+        assertEquals(listOf("hide", "emoji", "selectAll", "copy", "paste"), toolbar)
     }
 
     @Test

@@ -58,6 +58,39 @@ class RenderTest {
         view.rows = Layouts.rows(layer, false, rules)
     }
 
+    /** The emoji grid, drawn the same way: the picture is the only way to see that the cells line up. */
+    private fun renderEmoji(name: String, widthDp: Int, heightDp: Int, night: Boolean, category: Int) {
+        org.robolectric.RuntimeEnvironment.setQualifiers(
+            "+w${widthDp}dp-h${heightDp}dp-" + (if (night) "night" else "notnight") + "-xhdpi",
+        )
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val panel = EmojiPanel(context)
+        panel.selectCategory(category)
+        val density = context.resources.displayMetrics.density
+        val widthPx = (widthDp * density).toInt()
+        panel.measure(
+            View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        panel.layout(0, 0, panel.measuredWidth, panel.measuredHeight)
+        val bitmap = Bitmap.createBitmap(panel.measuredWidth, panel.measuredHeight, Bitmap.Config.ARGB_8888)
+        Canvas(bitmap).also { canvas ->
+            canvas.drawColor(if (night) 0xFF101014.toInt() else 0xFFF2F2F7.toInt())
+            panel.draw(canvas)
+        }
+        val out = File("build/renders").apply { mkdirs() }.resolve("$name.png")
+        out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        println("rendered $name -> ${out.absolutePath}")
+    }
+
+    @Test
+    fun `the emoji, as a phone would draw them`() {
+        renderEmoji("emoji-phone-dark", 411, 891, night = true, category = 1)
+        renderEmoji("emoji-phone-light", 411, 891, night = false, category = 1)
+        renderEmoji("emoji-fold-dark", 932, 704, night = true, category = 1)
+        renderEmoji("emoji-empty-recents-dark", 411, 891, night = true, category = 0)
+    }
+
     @Test
     fun `the keyboard, as a phone would draw it`() {
         render("phone-dark", 411, 891, night = true) { letters(it) }
