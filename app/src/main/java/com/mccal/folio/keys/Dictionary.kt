@@ -6,14 +6,18 @@ import java.io.InputStream
 /**
  * The word list, held in about a megabyte instead of fifty-seven thousand objects.
  *
+ * Each word carries a score from 0 (the commonest word in the language) to 99 (one no frequency list has seen).
+ *
  * The obvious way to load a dictionary is a list of strings, which for this many words is several megabytes of heap
  * and fifty-seven thousand things for the garbage collector to walk. A keyboard is resident for as long as the phone
  * is on, so it is kept the other way: one block of bytes with the words end to end, an index of where each one
  * starts, and a byte of rank each. Lookups binary-search the index and never build a string until there is one to
  * show someone.
  *
- * The list is SCOWL, cut to US English at its "size 40" band. Its copyright notice ships beside it in the assets and
- * has to stay there - that is the whole of what its licence asks in return.
+ * The words are SCOWL, cut to US English at its "size 40" band. The scores are the OpenSubtitles frequency list,
+ * log-scaled, because SCOWL's own bands are tiers rather than frequencies - its top tier holds four thousand words,
+ * so inside it "the" ties with "tea", and a keyboard that cannot tell those apart suggests the wrong one. Both
+ * licences are permissive and both notices ship beside the list in the assets.
  */
 class Dictionary private constructor(
     private val bytes: ByteArray,
@@ -26,6 +30,7 @@ class Dictionary private constructor(
     override fun word(index: Int): String =
         String(bytes, starts[index], starts[index + 1] - starts[index], Charsets.US_ASCII)
 
+    /** 0 is the commonest word in the language; 99 is one the frequency list has never seen. */
     override fun rank(index: Int): Int = ranks[index].toInt()
 
     /** Case-insensitive, because the list holds `Monday` and someone types `monday`. */
@@ -110,7 +115,7 @@ class Dictionary private constructor(
         }
 
         /**
-         * Reads `word:rank`, one per line, already sorted.
+         * Reads `word:NN`, one per line, already sorted, where NN is a two-digit commonness score.
          *
          * Parsed by hand rather than with `split`: this runs once at startup and the tidy version makes a hundred
          * and fourteen thousand short-lived strings on the way to making none.
@@ -130,10 +135,12 @@ class Dictionary private constructor(
                     if (raw[index] == ':'.code.toByte()) colon = index
                     index++
                 }
-                if (colon > begin) {
+                if (colon > begin && colon + 2 < raw.size) {
                     starts[count] = out
                     for (i in begin until colon) words[out++] = raw[i]
-                    ranks[count] = (raw[colon + 1] - '0'.code.toByte()).toByte()
+                    val tens = raw[colon + 1] - '0'.code.toByte()
+                    val units = raw[colon + 2] - '0'.code.toByte()
+                    ranks[count] = (tens * 10 + units).toByte()
                     count++
                 }
                 index++

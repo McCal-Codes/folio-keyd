@@ -80,7 +80,7 @@ class DictionaryTest {
         for (index in 0 until dictionary.size step 97) {
             val word = dictionary.word(index)
             assertTrue("$previous then $word is out of order", word.lowercase() >= previous)
-            assertTrue("rank ${dictionary.rank(index)} on $word", dictionary.rank(index) in 0..3)
+            assertTrue("score ${dictionary.rank(index)} on $word", dictionary.rank(index) in 0..99)
             previous = word.lowercase()
         }
     }
@@ -113,6 +113,43 @@ class DictionaryTest {
         val each = (System.nanoTime() - started) / (10.0 * words.size) / 1_000_000
         println("a suggestion takes about %.1f ms".format(each))
         assertTrue("a suggestion took %.1f ms".format(each), each < 50)
+    }
+
+    /**
+     * The bug the phone found.
+     *
+     * Typing "teh" on the real keyboard offered "get", "tea" and "ten" - alphabetical order - and never reached
+     * "the". Every one of those words sits in SCOWL's top tier, so they all scored identically and the tie broke on
+     * spelling. The fix was real word frequencies; this is the test that would have caught it, so it checks the
+     * order and not merely that the word is somewhere in the list.
+     */
+    @Test
+    fun `the commonest correction is offered first, not the first alphabetically`() {
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        val proximity = Suggestions.Proximity(Geometry.place(rows, 1080, 700, 3f))
+        val first = mapOf(
+            "teh" to "the",
+            "adn" to "and",
+            "taht" to "that",
+            "jsut" to "just",
+            "yuo" to "you",
+        )
+        val wrong = first.filter { (typed, wanted) ->
+            Suggestions.forWord(typed, dictionary, proximity).firstOrNull() != wanted
+        }.mapValues { (typed, _) -> Suggestions.forWord(typed, dictionary, proximity) }
+        assertEquals("offered the wrong word first: $wrong", emptyMap<String, List<String>>(), wrong)
+    }
+
+    /** The commonest word in the language must not score the same as a word for a hot drink. */
+    @Test
+    fun `commonness tells words in the same tier apart`() {
+        fun scoreOf(word: String): Int {
+            val range = dictionary.startingWith(word)
+            return dictionary.rank(range.first { dictionary.word(it).equals(word, ignoreCase = true) })
+        }
+        assertTrue("the=${scoreOf("the")} tea=${scoreOf("tea")}", scoreOf("the") < scoreOf("tea"))
+        assertTrue(scoreOf("the") < scoreOf("ten"))
+        assertTrue(scoreOf("and") < scoreOf("ant"))
     }
 
     /** The real thing, on the real list: the misspellings everyone makes. */

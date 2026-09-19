@@ -88,7 +88,9 @@ object Suggestions {
         for (index in completions) {
             val word = words.word(index)
             if (word.equals(typed, ignoreCase = true)) continue
-            val cost = words.rank(index) * RANK_WEIGHT + (word.length - typed.length)
+            // A word that starts with what you typed is strong evidence, so completions sit at distance zero and
+            // are separated only by how common they are and how much is left to add.
+            val cost = words.rank(index) + (word.length - typed.length)
             scored.merge(word, cost, ::min)
         }
 
@@ -107,7 +109,10 @@ object Suggestions {
                         if (word.equals(typed, ignoreCase = true)) continue
                         val distance = distance(lower, word.lowercase(), allowed, proximity)
                         if (distance > allowed) continue
-                        val cost = distance * DISTANCE_WEIGHT + words.rank(index) * RANK_WEIGHT
+                        // Distance decides outright; commonness only ever settles a tie between equal distances.
+                        // Before this, every word in the dictionary's top tier scored the same, so "teh" offered
+                        // "get", "tea" and "ten" in alphabetical order and never reached "the".
+                        val cost = distance * DISTANCE_WEIGHT + words.rank(index)
                         scored.merge(word, cost, ::min)
                     }
                 }
@@ -179,6 +184,6 @@ object Suggestions {
 
     /** Below this there is not enough typed for "wrong" to mean anything. */
     private const val SHORTEST_CORRECTABLE = 3
-    private const val RANK_WEIGHT = 2
-    private const val DISTANCE_WEIGHT = 12
+    /** Bigger than any commonness score, so no amount of being common beats being a further edit away. */
+    private const val DISTANCE_WEIGHT = 1000
 }

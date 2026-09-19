@@ -60,10 +60,17 @@ MIT. See [LICENSE](LICENSE).
 
 ### The word list
 
-The US English dictionary in `app/src/main/assets/words-en-us.txt` is built from
-[SCOWL](http://wordlist.aspell.net/) 2020.12.07, cut to its "size 40" band — about 57,000 words, ranked by the
-commonness band each word first appears in. SCOWL is permissively licensed (BSD-style); its notice ships verbatim
-beside the list as `words-en-us-COPYING.txt` and must stay there, which is the whole of what the licence asks.
+The US English dictionary in `app/src/main/assets/words-en-us.txt` is two sources in one file:
+
+- the **words** are [SCOWL](http://wordlist.aspell.net/) 2020.12.07, cut to its "size 40" band — about 57,000 of
+  them. SCOWL is permissively licensed (BSD-style).
+- the **commonness score** on each word is the OpenSubtitles frequency list from
+  [FrequencyWords](https://github.com/hermitdave/FrequencyWords), log-scaled, MIT licensed. SCOWL's own bands are
+  tiers rather than frequencies — its top tier holds 4,434 words, so within it "the" ties with "tea", and a
+  keyboard that cannot tell those apart offers the wrong one.
+
+Both notices ship verbatim beside the list as `words-en-us-COPYING.txt` and must stay there, which is the whole of
+what either licence asks.
 
 Nothing is sent anywhere to produce a suggestion: the list is on the phone, the lookup is on the phone, and the app
 still holds no permissions at all — including no Internet permission.
