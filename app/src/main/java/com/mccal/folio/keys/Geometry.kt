@@ -1,5 +1,6 @@
 package com.mccal.folio.keys
 
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
@@ -8,6 +9,15 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
     val width: Float get() = right - left
     val height: Float get() = bottom - top
     fun contains(x: Float, y: Float): Boolean = x >= left && x < right && y >= top && y < bottom
+    /**
+     * How far a point lies outside this box, and zero inside it.
+     *
+     * Keys are drawn with a gap between them, and a finger landing in that gap belongs to the nearest key rather
+     * than to nobody: a keyboard that only answers [contains] drops a letter every time someone hits a seam.
+     */
+    fun distanceTo(x: Float, y: Float): Float =
+        hypot(max(max(left - x, 0f), x - right), max(max(top - y, 0f), y - bottom))
+
     fun overlaps(other: Box): Boolean =
         left < other.right && other.left < right && top < other.bottom && other.top < bottom
 }

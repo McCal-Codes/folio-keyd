@@ -20,6 +20,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.customview.widget.ExploreByTouchHelper
 import kotlin.math.abs
+import kotlin.math.sign
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -60,6 +61,9 @@ class KeyboardView(context: Context) : View(context) {
     var rows: List<Row> = emptyList()
         set(value) {
             field = value
+            // Fingers already down keep the key they pressed. The board is rebuilt constantly while typing - one
+            // capital letter turns shift off again and replaces every key - and a thumb halfway through the next
+            // letter when that happens must still get the letter it pressed.
             requestLayout()
             invalidate()
         }
@@ -96,7 +100,14 @@ class KeyboardView(context: Context) : View(context) {
     /** One press per finger. A keyboard that tracks a single pointer drops letters the moment someone types fast. */
     private val presses = HashMap<Int, Press>()
 
-    private class Press(val placement: Placement, val downX: Float) {
+    /**
+     * [origin] is the key the finger landed on and owns the press's gestures; [placement] is the key it is over now.
+     * They differ while someone slides, which at speed is most presses: a thumb travelling to the next letter lifts a
+     * few pixels off the one it meant, and a keyboard that insists the lift land back inside the original rectangle
+     * simply loses the letter.
+     */
+    private class Press(val origin: Placement, val downX: Float) {
+        var placement: Placement = origin
         var swiping = false
         var cursorAnchor = downX
         var repeated = false
@@ -381,8 +392,28 @@ class KeyboardView(context: Context) : View(context) {
     internal val placements: List<Placement> get() = placedKeys
     internal val toolbarPlacements: List<Placement> get() = tools
 
-    private fun keyAt(x: Float, y: Float): Placement? =
-        placedKeys.firstOrNull { it.box.contains(x, y) } ?: tools.firstOrNull { it.box.contains(x, y) }
+    private fun keyAt(x: Float, y: Float): Placement? = nearest(placedKeys, x, y) ?: nearest(tools, x, y)
+
+    /**
+     * The key under a point: the one containing it, or failing that the closest one within [HIT_SLOP_DP].
+     *
+     * The gap between keys is real estate a finger lands on constantly, and so is the rounded edge of the panel.
+     * Giving those to the nearest key is what every keyboard does; the slop stops a tap far below the board from
+     * being answered by the bottom row.
+     */
+    private fun nearest(list: List<Placement>, x: Float, y: Float): Placement? {
+        var closest: Placement? = null
+        var best = Float.MAX_VALUE
+        for (placement in list) {
+            if (placement.box.contains(x, y)) return placement
+            val distance = placement.box.distanceTo(x, y)
+            if (distance < best) {
+                best = distance
+                closest = placement
+            }
+        }
+        return if (best <= HIT_SLOP_DP * dp) closest else null
+    }
 
     // ---- touch ------------------------------------------------------------------------------------------------
 
@@ -398,7 +429,9 @@ class KeyboardView(context: Context) : View(context) {
                 down(event.getPointerId(index), event.getX(index), event.getY(index))
             }
             MotionEvent.ACTION_MOVE -> {
-                for (index in 0 until event.pointerCount) move(event.getPointerId(index), event.getX(index))
+                for (index in 0 until event.pointerCount) {
+                    move(event.getPointerId(index), event.getX(index), event.getY(index))
+                }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val index = event.actionIndex
@@ -426,23 +459,44 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     /** Swipe the space bar to move the cursor, and the backspace to take a word at a time. */
-    private fun move(pointer: Int, x: Float) {
+    private fun move(pointer: Int, x: Float, y: Float) {
         val press = presses[pointer] ?: return
         val dx = x - press.downX
-        when {
-            press.placement.key.kind == KeyKind.SPACE && abs(dx) > CURSOR_STEP_DP * dp -> {
-                press.swiping = true
+        when (press.origin.key.kind) {
+            // The space bar is wide and a fast thumb wanders across it. The swipe only begins after a deliberate
+            // journey - a whole key's worth - and counts its characters from there, so a drifted space is a space.
+            KeyKind.SPACE -> if (press.swiping || abs(dx) > CURSOR_START_DP * dp) {
+                if (!press.swiping) {
+                    press.swiping = true
+                    // Anchored a step behind, so crossing the threshold moves one character straight away rather
+                    // than asking for the journey all over again.
+                    press.cursorAnchor = x - sign(dx) * CURSOR_STEP_DP * dp
+                }
                 val steps = ((x - press.cursorAnchor) / (CURSOR_STEP_DP * dp)).toInt()
                 if (steps != 0) {
                     listener?.onCursor(steps)
                     press.cursorAnchor += steps * CURSOR_STEP_DP * dp
                 }
             }
-            press.placement.key.kind == KeyKind.BACKSPACE && dx < -24 * dp && !press.swiping -> {
+            KeyKind.BACKSPACE -> if (dx < -DELETE_WORD_DP * dp && !press.swiping) {
                 press.swiping = true
                 if (repeatingFor === press) stopRepeat()
                 listener?.onDeleteWord()
             }
+            // Sliding from one letter to the next is how a fast typist corrects mid-press, and how they leave a key
+            // at all. Only letters follow the finger: sliding off shift and letting go is how you take it back.
+            KeyKind.CHAR -> {
+                // Not the moment the finger crosses the seam: at speed a thumb is already travelling towards the
+                // next letter as it lifts, and a key that changed on the midpoint would turn "the" into "yjr". The
+                // letter only changes once the finger is properly clear of the one it is on.
+                if (press.placement.box.distanceTo(x, y) <= HYSTERESIS_DP * dp) return
+                val over = keyAt(x, y)
+                if (over != null && over !== press.placement && over.key.kind == KeyKind.CHAR) {
+                    press.placement = over
+                    invalidate()
+                }
+            }
+            else -> Unit
         }
     }
 
@@ -452,7 +506,10 @@ class KeyboardView(context: Context) : View(context) {
         if (repeatingFor === press) stopRepeat()
         invalidate()
         if (press.swiping || press.repeated) return false
-        if (keyAt(x, y) !== press.placement) return false
+        // A letter commits wherever the finger lets go, because [move] has been keeping up with it. Everything else
+        // has to be released on itself: sliding off shift, off a layer key or off the toolbar cancels it, which is
+        // the one escape route someone has once they have pressed the wrong one.
+        if (press.origin.key.kind != KeyKind.CHAR && keyAt(x, y) !== press.origin) return false
         dispatch(press.placement.key)
         return true
     }
@@ -523,7 +580,11 @@ class KeyboardView(context: Context) : View(context) {
     private companion object {
         const val FIRST_REPEAT_MS = 400L
         const val REPEAT_MS = 55L
-        const val CURSOR_STEP_DP = 12f   // travel per character the cursor moves
+        const val CURSOR_STEP_DP = 12f    // travel per character the cursor moves
+        const val CURSOR_START_DP = 30f   // travel before a drifting thumb counts as a swipe at all
+        const val DELETE_WORD_DP = 24f
+        const val HIT_SLOP_DP = 14f       // how far outside a key still belongs to it
+        const val HYSTERESIS_DP = 12f     // how far clear of a key a finger must be to have left it
         const val HANDLE_W_DP = 44f
         const val HANDLE_H_DP = 4f
         const val PANEL_PAD_DP = 6f      // the gap around the panel, so it floats rather than fills

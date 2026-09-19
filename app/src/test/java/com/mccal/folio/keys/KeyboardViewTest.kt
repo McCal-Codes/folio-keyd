@@ -110,14 +110,82 @@ class KeyboardViewTest {
         assertEquals("h i", typed.toString())
     }
 
+    /** Sliding between letters is how a fast thumb corrects itself: the letter it lets go on is the one meant. */
     @Test
-    fun `sliding off a key types nothing`() {
+    fun `sliding from one letter to another types the one you land on`() {
         val (x, y) = centre("q")
         val (farX, farY) = centre("p")
         send(MotionEvent.ACTION_DOWN, x, y)
         send(MotionEvent.ACTION_MOVE, farX, farY)
         send(MotionEvent.ACTION_UP, farX, farY)
+        assertEquals("p", typed.toString())
+    }
+
+    /** Sliding off a modifier is the only way to take back pressing it, so that one still cancels. */
+    @Test
+    fun `sliding off shift takes it back`() {
+        val (x, y) = centre("⇧")
+        val (farX, farY) = centre("z")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        send(MotionEvent.ACTION_MOVE, farX, farY)
+        send(MotionEvent.ACTION_UP, farX, farY)
+        assertEquals(0, shifts)
         assertEquals("", typed.toString())
+    }
+
+    /**
+     * Typing fast, in the way that broke it: a thumb lands a few pixels off the key and lifts a few more pixels
+     * away, often in the seam between two keys, where nothing at all used to be typed.
+     */
+    @Test
+    fun `a drifting thumb still types the letter`() {
+        val gap = 3 * density
+        for (letter in listOf("t", "h", "e")) {
+            val (x, y) = centre(letter)
+            val box = view.placements.first { it.key.label == letter }.box
+            send(MotionEvent.ACTION_DOWN, x, y)
+            send(MotionEvent.ACTION_MOVE, box.right + gap, y)      // into the seam on the right
+            send(MotionEvent.ACTION_UP, box.right + gap, y)
+        }
+        assertEquals("the", typed.toString())
+    }
+
+    /** The seam between two keys, and the rounded corner under the bottom row: a finger lands there all the time. */
+    @Test
+    fun `landing in the gap between keys hits the nearer one`() {
+        val f = view.placements.first { it.key.label == "f" }.box
+        val g = view.placements.first { it.key.label == "g" }.box
+        val seam = (f.right + g.left) / 2
+        val y = (f.top + f.bottom) / 2
+        send(MotionEvent.ACTION_DOWN, seam - 1f, y)
+        send(MotionEvent.ACTION_UP, seam - 1f, y)
+        send(MotionEvent.ACTION_DOWN, seam + 1f, y)
+        send(MotionEvent.ACTION_UP, seam + 1f, y)
+        assertEquals("fg", typed.toString())
+    }
+
+    /** A wide space bar and a moving thumb: a space that turns into a cursor jump is the worst of the lot. */
+    @Test
+    fun `a thumb that drifts across the space bar still types a space`() {
+        val (x, y) = centre("space")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        send(MotionEvent.ACTION_MOVE, x + 20 * density, y)
+        send(MotionEvent.ACTION_UP, x + 20 * density, y)
+        assertEquals(" ", typed.toString())
+        assertEquals(0, cursorSteps)
+    }
+
+    /**
+     * Two thumbs and a capital letter: the board is rebuilt the instant the capital lands, because one-shot shift
+     * turns itself off. The thumb already resting on the next letter must not lose it.
+     */
+    @Test
+    fun `a finger already down survives the board being rebuilt`() {
+        val (hx, hy) = centre("h")
+        send(MotionEvent.ACTION_DOWN, hx, hy)
+        show(FieldRules(), shift = Shift.OFF)   // what onText does after a capital
+        send(MotionEvent.ACTION_UP, hx, hy)
+        assertEquals("h", typed.toString())
     }
 
     @Test
@@ -205,7 +273,8 @@ class KeyboardViewTest {
         val (x, y) = centre("space")
         send(MotionEvent.ACTION_DOWN, x, y)
         send(MotionEvent.ACTION_MOVE, x + 40 * density, y)
-        send(MotionEvent.ACTION_UP, x + 40 * density, y)
+        send(MotionEvent.ACTION_MOVE, x + 70 * density, y)
+        send(MotionEvent.ACTION_UP, x + 70 * density, y)
         assertTrue("cursor should have moved right, got $cursorSteps", cursorSteps >= 2)
         assertEquals("", typed.toString())
     }
