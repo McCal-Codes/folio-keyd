@@ -1,8 +1,10 @@
 package com.mccal.folio.keys
 
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 
 /**
  * The glyphs on the keys that aren't letters, drawn rather than typed.
@@ -16,6 +18,13 @@ import android.graphics.Path
 object Icons {
 
     private val path = Path()
+
+    // The toolbar is redrawn on every frame, so nothing here may allocate: a handful of rectangles per frame is a
+    // thousand objects a second, and the garbage collector takes them back in pauses long enough to see.
+    private val rect = RectF()
+    private val dashed = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var dashedFor = -1f
+    private var dashPattern: DashPathEffect? = null
 
     /** An outline arrow, which is what a modern keyboard shows; a solid one looks like a road sign. */
     fun shift(canvas: Canvas, cx: Float, cy: Float, size: Float, paint: Paint, locked: Boolean) {
@@ -75,8 +84,8 @@ object Icons {
         canvas.drawCircle(cx, cy, r, stroke)
         canvas.drawLine(cx - r, cy, cx + r, cy, stroke)
         // Two meridians, drawn as ovals, which is what makes it read as a globe rather than a target.
-        val oval = android.graphics.RectF(cx - r * 0.48f, cy - r, cx + r * 0.48f, cy + r)
-        canvas.drawOval(oval, stroke)
+        rect.set(cx - r * 0.48f, cy - r, cx + r * 0.48f, cy + r)
+        canvas.drawOval(rect, stroke)
     }
 
     /** A chevron pointing down: hide the keyboard. */
@@ -92,10 +101,10 @@ object Icons {
         val r = size * 0.12f
         val w = size * 0.34f
         val h = size * 0.42f
-        val back = android.graphics.RectF(cx - w, cy - h, cx + w * 0.4f, cy + h * 0.55f)
-        val front = android.graphics.RectF(cx - w * 0.4f, cy - h * 0.55f, cx + w, cy + h)
-        canvas.drawRoundRect(back, r, r, stroke)
-        canvas.drawRoundRect(front, r, r, stroke)
+        rect.set(cx - w, cy - h, cx + w * 0.4f, cy + h * 0.55f)
+        canvas.drawRoundRect(rect, r, r, stroke)
+        rect.set(cx - w * 0.4f, cy - h * 0.55f, cx + w, cy + h)
+        canvas.drawRoundRect(rect, r, r, stroke)
     }
 
     /** A clipboard with a tab: paste. */
@@ -103,32 +112,30 @@ object Icons {
         val r = size * 0.12f
         val w = size * 0.36f
         val h = size * 0.46f
-        canvas.drawRoundRect(android.graphics.RectF(cx - w, cy - h, cx + w, cy + h), r, r, stroke)
+        rect.set(cx - w, cy - h, cx + w, cy + h)
+        canvas.drawRoundRect(rect, r, r, stroke)
         val tabW = w * 0.5f
-        canvas.drawRoundRect(
-            android.graphics.RectF(cx - tabW, cy - h - size * 0.08f, cx + tabW, cy - h + size * 0.14f),
-            r * 0.8f, r * 0.8f, fill,
-        )
+        rect.set(cx - tabW, cy - h - size * 0.08f, cx + tabW, cy - h + size * 0.14f)
+        canvas.drawRoundRect(rect, r * 0.8f, r * 0.8f, fill)
     }
 
     /** A dashed marquee around two lines of text: select all. A filled square reads as a stop button. */
     fun selectAll(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint, fill: Paint) {
         val w = size * 0.46f
-        val dashed = Paint(stroke).apply {
-            pathEffect = android.graphics.DashPathEffect(floatArrayOf(size * 0.16f, size * 0.12f), 0f)
+        // The dashes only have to be remade when the icon changes size, which is when the keyboard is laid out.
+        dashed.set(stroke)
+        if (size != dashedFor) {
+            dashedFor = size
+            dashPattern = DashPathEffect(floatArrayOf(size * 0.16f, size * 0.12f), 0f)
         }
-        canvas.drawRoundRect(
-            android.graphics.RectF(cx - w, cy - w, cx + w, cy + w), size * 0.14f, size * 0.14f, dashed,
-        )
+        dashed.pathEffect = dashPattern
+        rect.set(cx - w, cy - w, cx + w, cy + w)
+        canvas.drawRoundRect(rect, size * 0.14f, size * 0.14f, dashed)
         val line = w * 0.5f
         val thick = size * 0.09f
-        canvas.drawRoundRect(
-            android.graphics.RectF(cx - line, cy - thick * 1.8f, cx + line, cy - thick * 0.4f),
-            thick, thick, fill,
-        )
-        canvas.drawRoundRect(
-            android.graphics.RectF(cx - line, cy + thick * 0.4f, cx + line * 0.3f, cy + thick * 1.8f),
-            thick, thick, fill,
-        )
+        rect.set(cx - line, cy - thick * 1.8f, cx + line, cy - thick * 0.4f)
+        canvas.drawRoundRect(rect, thick, thick, fill)
+        rect.set(cx - line, cy + thick * 0.4f, cx + line * 0.3f, cy + thick * 1.8f)
+        canvas.drawRoundRect(rect, thick, thick, fill)
     }
 }

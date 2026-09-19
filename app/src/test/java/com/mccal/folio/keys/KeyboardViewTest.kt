@@ -110,6 +110,47 @@ class KeyboardViewTest {
         assertEquals("h i", typed.toString())
     }
 
+    /** The keycap prints a number in its corner; holding the key has to actually produce it. */
+    @Test
+    fun `holding a key types the alternate printed on it`() {
+        val (x, y) = centre("q")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        assertEquals("1", typed.toString())
+        send(MotionEvent.ACTION_UP, x, y)
+        assertEquals("holding it should not also type the letter", "1", typed.toString())
+    }
+
+    @Test
+    fun `a quick tap is still the letter, not the alternate`() {
+        tap("q")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        assertEquals("q", typed.toString())
+    }
+
+    @Test
+    fun `a finger that moves on is no longer holding`() {
+        val (x, y) = centre("q")
+        val (farX, farY) = centre("p")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        send(MotionEvent.ACTION_MOVE, farX, farY)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        assertEquals("nothing should have been typed while still held", "", typed.toString())
+        send(MotionEvent.ACTION_UP, farX, farY)
+        assertEquals("p", typed.toString())
+    }
+
+    /** A letter with nothing in its corner promises nothing, and must do nothing when held. */
+    @Test
+    fun `holding a key with no alternate types nothing extra`() {
+        val (x, y) = centre("a")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        assertEquals("", typed.toString())
+        send(MotionEvent.ACTION_UP, x, y)
+        assertEquals("a", typed.toString())
+    }
+
     /** Sliding between letters is how a fast thumb corrects itself: the letter it lets go on is the one meant. */
     @Test
     fun `sliding from one letter to another types the one you land on`() {

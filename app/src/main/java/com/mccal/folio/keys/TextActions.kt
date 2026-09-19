@@ -60,8 +60,14 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onBackspace() {
         val connection = ime.connection ?: return
+        // Asking for the selection is a blocking call into the app. Worth it once, to delete a selection whole.
         val selected = connection.getSelectedText(0)
         if (!selected.isNullOrEmpty()) connection.commitText("", 1) else connection.deleteSurroundingText(1, 0)
+    }
+
+    /** Holding the key down: whatever was selected went with the first delete, so don't ask again. */
+    override fun onBackspaceRepeat() {
+        ime.connection?.deleteSurroundingText(1, 0)
     }
 
     /** Swiping the backspace takes a word, which is what every other keyboard does and what hands expect. */

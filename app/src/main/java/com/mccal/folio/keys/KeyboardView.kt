@@ -13,6 +13,7 @@ import android.os.Looper
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -41,6 +42,14 @@ class KeyboardView(context: Context) : View(context) {
     interface Listener {
         fun onText(text: String)
         fun onBackspace()
+
+        /**
+         * A repeat from holding the key down. Separate from [onBackspace] because the first delete answers the
+         * expensive question - is anything selected? - and asking the app again eighteen times a second costs a
+         * blocking round trip per character.
+         */
+        fun onBackspaceRepeat() = onBackspace()
+
         fun onDeleteWord()
         fun onShift()
         fun onLayer(layer: Layer)
@@ -79,15 +88,16 @@ class KeyboardView(context: Context) : View(context) {
         // The weight every phone keyboard uses for its letters; the regular face looks washed out on a key.
         typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
     }
-    private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.RIGHT }
+    private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.RIGHT
+        textSize = 11 * context.resources.displayMetrics.density
+    }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
     private val scratch = RectF()        // reused: a keyboard shouldn't allocate while it draws
-    private val heldKeys = HashSet<Placement>()
-
     private var theme = Theme.of(context)
     private var placedKeys: List<Placement> = emptyList()
     private var tools: List<Placement> = emptyList()
@@ -110,7 +120,12 @@ class KeyboardView(context: Context) : View(context) {
         var placement: Placement = origin
         var swiping = false
         var cursorAnchor = downX
-        var repeated = false
+
+        /** The press has already produced what it was going to: a repeat, or the alternate from holding it. */
+        var handled = false
+
+        /** Pending hold, cancelled the moment the finger lifts or moves on. */
+        var hold: Runnable? = null
     }
 
     private val repeat = Handler(Looper.getMainLooper())
@@ -118,13 +133,14 @@ class KeyboardView(context: Context) : View(context) {
     private val repeatBackspace = object : Runnable {
         override fun run() {
             val press = repeatingFor ?: return
-            press.repeated = true
-            listener?.onBackspace()
+            press.handled = true
+            listener?.onBackspaceRepeat()
             repeat.postDelayed(this, REPEAT_MS)
         }
     }
 
     private val keyNodes = KeyNodes()
+    private val feedback = Feedback(context)
 
     init {
         isHapticFeedbackEnabled = true
@@ -140,6 +156,7 @@ class KeyboardView(context: Context) : View(context) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         stopRepeat()   // a keyboard hidden mid-hold must not keep deleting
+        for (press in presses.values) cancelHold(press)
         presses.clear()
     }
 
@@ -266,13 +283,11 @@ class KeyboardView(context: Context) : View(context) {
 
         drawToolbar(canvas)
 
-        heldKeys.clear()
-        if (presses.isNotEmpty()) for (press in presses.values) heldKeys.add(press.placement)
         val radius = KEY_RADIUS_DP * dp
         for (placement in placedKeys) {
             val box = placement.box
             val key = placement.key
-            val held = placement in heldKeys
+            val held = isHeld(placement)
             fill.color = when {
                 key.kind == KeyKind.ACTION -> theme.accent
                 key.kind != KeyKind.CHAR && key.kind != KeyKind.SPACE -> theme.altKey
@@ -284,6 +299,13 @@ class KeyboardView(context: Context) : View(context) {
             drawKeyFace(canvas, placement, held)
         }
         drawPreview(canvas)
+    }
+
+    /** Whether a finger is on this key. A handful of identity checks, rather than hashing every key every frame. */
+    private fun isHeld(placement: Placement): Boolean {
+        if (presses.isEmpty()) return false
+        for (press in presses.values) if (press.placement === placement) return true
+        return false
     }
 
     /** The pill in the band below the keys: Samsung's grab handle, and where resizing will live. */
@@ -325,17 +347,36 @@ class KeyboardView(context: Context) : View(context) {
         // The corner hint is the long-press alternate; a password field keeps its own counsel.
         val cornerHint = key.hint
         if (cornerHint != null && !rules.password && !held) {
-            hint.textSize = 11 * dp
             hint.color = theme.hint
             canvas.drawText(cornerHint, box.right - 6 * dp, box.top + 14 * dp, hint)
         }
     }
 
+    private var sizedAt = -1f
+    private var baseline = 0f
+
+    /**
+     * Sets the label size and returns how far the baseline sits below the middle.
+     *
+     * Asking a Paint for its ascent and descent means asking the font for its metrics, and setting a text size throws
+     * away what it knew. Keys in a row are all the same height, so the answer is worked out about once per row rather
+     * than thirty times a frame.
+     */
+    private fun sizeLabel(size: Float): Float {
+        if (size != sizedAt) {
+            text.textSize = size
+            sizedAt = size
+            baseline = -(text.descent() + text.ascent()) / 2
+        }
+        return baseline
+    }
+
     private fun drawLabel(canvas: Canvas, label: String, cx: Float, cy: Float, box: Box, ink: Int) {
-        text.textSize = if (label.length == 1) box.height * 0.52f else
-            max(12 * dp, min(box.height * 0.30f, 16 * dp))
+        val offset = sizeLabel(
+            if (label.length == 1) box.height * 0.52f else max(12 * dp, min(box.height * 0.30f, 16 * dp)),
+        )
         text.color = ink
-        canvas.drawText(label, cx, cy - (text.descent() + text.ascent()) / 2, text)
+        canvas.drawText(label, cx, cy + offset, text)
     }
 
     private fun drawToolbar(canvas: Canvas) {
@@ -388,6 +429,10 @@ class KeyboardView(context: Context) : View(context) {
         )
     }
 
+    /** The margin the floating panel leaves around itself, so the service can say what it really covers. */
+    internal val panelTop: Int get() = panelPad.toInt()
+    internal val panelSide: Int get() = panelPad.toInt()
+
     /** Where the keys and the toolbar actually ended up. A test should ask rather than work it out a second time. */
     internal val placements: List<Placement> get() = placedKeys
     internal val toolbarPlacements: List<Placement> get() = tools
@@ -438,6 +483,7 @@ class KeyboardView(context: Context) : View(context) {
                 if (up(event.getPointerId(index), event.getX(index), event.getY(index))) performClick()
             }
             MotionEvent.ACTION_CANCEL -> {
+                for (press in presses.values) cancelHold(press)
                 presses.clear()
                 stopRepeat()
                 invalidate()
@@ -451,11 +497,38 @@ class KeyboardView(context: Context) : View(context) {
         val press = Press(placement, x)
         presses[pointer] = press
         performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        feedback.play(placement.key.kind)
         if (placement.key.kind == KeyKind.BACKSPACE) {
             repeatingFor = press
             repeat.postDelayed(repeatBackspace, FIRST_REPEAT_MS)
         }
+        startHold(press)
         invalidate()
+    }
+
+    /**
+     * Holding a key types the alternate printed in its corner.
+     *
+     * The corner of every top-row key says what holding it gives you, which until now it did not: a keyboard that
+     * prints a promise on the keycap has to keep it. The delay is the system's own, so it follows whatever someone
+     * has set for touch and hold in accessibility.
+     */
+    private fun startHold(press: Press) {
+        val alternate = press.origin.key.hint ?: return
+        if (press.origin.key.kind != KeyKind.CHAR) return
+        val task = Runnable {
+            press.handled = true
+            listener?.onText(alternate)
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            invalidate()
+        }
+        press.hold = task
+        repeat.postDelayed(task, ViewConfiguration.getLongPressTimeout().toLong())
+    }
+
+    private fun cancelHold(press: Press) {
+        press.hold?.let { repeat.removeCallbacks(it) }
+        press.hold = null
     }
 
     /** Swipe the space bar to move the cursor, and the backspace to take a word at a time. */
@@ -466,6 +539,7 @@ class KeyboardView(context: Context) : View(context) {
             // The space bar is wide and a fast thumb wanders across it. The swipe only begins after a deliberate
             // journey - a whole key's worth - and counts its characters from there, so a drifted space is a space.
             KeyKind.SPACE -> if (press.swiping || abs(dx) > CURSOR_START_DP * dp) {
+                cancelHold(press)
                 if (!press.swiping) {
                     press.swiping = true
                     // Anchored a step behind, so crossing the threshold moves one character straight away rather
@@ -479,6 +553,7 @@ class KeyboardView(context: Context) : View(context) {
                 }
             }
             KeyKind.BACKSPACE -> if (dx < -DELETE_WORD_DP * dp && !press.swiping) {
+                cancelHold(press)
                 press.swiping = true
                 if (repeatingFor === press) stopRepeat()
                 listener?.onDeleteWord()
@@ -490,6 +565,7 @@ class KeyboardView(context: Context) : View(context) {
                 // next letter as it lifts, and a key that changed on the midpoint would turn "the" into "yjr". The
                 // letter only changes once the finger is properly clear of the one it is on.
                 if (press.placement.box.distanceTo(x, y) <= HYSTERESIS_DP * dp) return
+                cancelHold(press)
                 val over = keyAt(x, y)
                 if (over != null && over !== press.placement && over.key.kind == KeyKind.CHAR) {
                     press.placement = over
@@ -503,9 +579,10 @@ class KeyboardView(context: Context) : View(context) {
     /** True when the lift was a press on a key, which is what [performClick] is for. */
     private fun up(pointer: Int, x: Float, y: Float): Boolean {
         val press = presses.remove(pointer) ?: return false
+        cancelHold(press)
         if (repeatingFor === press) stopRepeat()
         invalidate()
-        if (press.swiping || press.repeated) return false
+        if (press.swiping || press.handled) return false
         // A letter commits wherever the finger lets go, because [move] has been keeping up with it. Everything else
         // has to be released on itself: sliding off shift, off a layer key or off the toolbar cancels it, which is
         // the one escape route someone has once they have pressed the wrong one.
