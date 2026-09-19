@@ -452,6 +452,16 @@ class EmojiPanel(context: Context) : View(context) {
     internal val cellSizeDp: Float get() = cell / dp
     internal val tabCount: Int get() = tabSlots().size
     internal fun showing(): List<String> = items()
+    /**
+     * Opened: show the recents if there are any, and the faces if there are not.
+     *
+     * On a new install the recents are empty, so opening straight onto them means the first thing anyone sees of the
+     * emoji keyboard is a sentence explaining that it is empty. The faces are what they came for.
+     */
+    fun opened() {
+        if (category == 0 && recents.isEmpty()) selectCategory(1)
+    }
+
     internal fun selectCategory(which: Int) {
         category = which
         scroll = 0f

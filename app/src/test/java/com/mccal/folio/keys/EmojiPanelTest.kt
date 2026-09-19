@@ -140,6 +140,24 @@ class EmojiPanelTest {
         assertEquals(emptyList<String>(), picked)
     }
 
+    /** Opening onto a sentence saying the list is empty is not what anyone came to the emoji keyboard for. */
+    @Test
+    fun `opening with no recents shows the faces instead`() {
+        panel.selectCategory(0)
+        panel.opened()
+        lay(411)
+        assertEquals(Emoji.CATEGORIES.first().items, panel.showing())
+    }
+
+    @Test
+    fun `opening with recents shows the recents`() {
+        panel.recents = listOf("\uD83D\uDE00", "\uD83D\uDE01")
+        panel.selectCategory(0)
+        panel.opened()
+        lay(411)
+        assertEquals(listOf("\uD83D\uDE00", "\uD83D\uDE01"), panel.showing())
+    }
+
     @Test
     fun `recents show what was remembered`() {
         panel.recents = listOf("😀", "😁")

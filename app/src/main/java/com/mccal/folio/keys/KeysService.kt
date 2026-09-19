@@ -116,6 +116,7 @@ class KeysService : InputMethodService(), Ime {
     override fun showEmoji(showing: Boolean) {
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         emoji?.visibility = if (showing) View.VISIBLE else View.GONE
+        if (showing) emoji?.opened()
     }
 
     /**
