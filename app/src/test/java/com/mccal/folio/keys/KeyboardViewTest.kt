@@ -59,6 +59,7 @@ class KeyboardViewTest {
             override fun onPaste() { toolbar += "paste" }
             override fun onHide() { toolbar += "hide" }
             override fun onEmojiPanel() { toolbar += "emoji" }
+            override fun onSuggestion(word: String) { toolbar += "suggestion:$word" }
         }
         show(FieldRules())
     }
@@ -109,6 +110,66 @@ class KeyboardViewTest {
         tap("space")
         tap("i")
         assertEquals("h i", typed.toString())
+    }
+
+    // ---- the suggestion strip -------------------------------------------------------------------------------
+
+    private fun stripLabels() = view.toolbarPlacements.map { it.key.label }
+
+    @Test
+    fun `with nothing to suggest the toolbar is what shows`() {
+        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste"), stripLabels())
+    }
+
+    @Test
+    fun `suggestions take the toolbar's place, with the literal first`() {
+        view.suggestions = listOf("teh", "the", "ten", "tea")
+        assertEquals(listOf("teh", "the", "ten", "tea"), stripLabels())
+    }
+
+    @Test
+    fun `tapping a suggestion reports the word`() {
+        view.suggestions = listOf("teh", "the", "ten")
+        val box = view.toolbarPlacements[1].box
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_UP, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        assertEquals(listOf("suggestion:the"), toolbar)
+    }
+
+    @Test
+    fun `the toolbar comes back when the word is finished`() {
+        view.suggestions = listOf("teh", "the")
+        view.suggestions = emptyList()
+        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste"), stripLabels())
+    }
+
+    /** The strip is the same height as the toolbar, so nothing below it moves as words start and finish. */
+    @Test
+    fun `the strip does not change the keyboard's height`() {
+        val before = view.height
+        val keyBefore = centre("a")
+        view.suggestions = listOf("teh", "the", "ten")
+        assertEquals(before, view.height)
+        assertEquals(keyBefore, centre("a"))
+    }
+
+    /** Nothing typed into a password field is offered back on screen. */
+    @Test
+    fun `a password field shows the toolbar, never suggestions`() {
+        show(FieldRules(password = true))
+        view.suggestions = listOf("hunter2", "hunter")
+        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste"), stripLabels())
+    }
+
+    @Test
+    fun `every suggestion is big enough to tap`() {
+        view.suggestions = listOf("teh", "the", "ten", "tea")
+        for (placement in view.toolbarPlacements) {
+            assertTrue(
+                "${placement.key.label} is ${placement.box.width / density} dp",
+                placement.box.width / density >= 24f && placement.box.height / density >= 24f,
+            )
+        }
     }
 
     /** The keycap prints a number in its corner; holding the key has to actually produce it. */

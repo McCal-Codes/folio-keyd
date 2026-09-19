@@ -57,3 +57,13 @@ Design, decisions and the practices checklist: `docs/folio-keys.md` in the Folio
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
+
+### The word list
+
+The US English dictionary in `app/src/main/assets/words-en-us.txt` is built from
+[SCOWL](http://wordlist.aspell.net/) 2020.12.07, cut to its "size 40" band — about 57,000 words, ranked by the
+commonness band each word first appears in. SCOWL is permissively licensed (BSD-style); its notice ships verbatim
+beside the list as `words-en-us-COPYING.txt` and must stay there, which is the whole of what the licence asks.
+
+Nothing is sent anywhere to produce a suggestion: the list is on the phone, the lookup is on the phone, and the app
+still holds no permissions at all — including no Internet permission.

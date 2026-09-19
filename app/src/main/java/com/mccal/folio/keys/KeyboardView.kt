@@ -62,10 +62,28 @@ class KeyboardView(context: Context) : View(context) {
 
         /** Swap the letters for the emoji. */
         fun onEmojiPanel()
+
+        /** A word from the strip, tapped. */
+        fun onSuggestion(word: String)
         fun onHide()
     }
 
     var listener: Listener? = null
+
+    /**
+     * What to offer above the keys: the word as typed first, then what it might have been.
+     *
+     * Empty whenever there is no word in progress, and the toolbar comes back in its place - the row is one height
+     * either way, so nothing on the screen moves as you start and finish a word.
+     */
+    var suggestions: List<String> = emptyList()
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
 
     var rules: FieldRules = FieldRules()
         set(value) { field = value; invalidate() }
@@ -253,6 +271,7 @@ class KeyboardView(context: Context) : View(context) {
     /** The toolbar: hide the keyboard, and the three editing actions a field always supports. */
     private fun placeToolbar(): List<Placement> {
         if (width == 0) return emptyList()
+        if (suggestions.isNotEmpty() && !rules.password) return placeSuggestions()
         val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
         val right = width - left
         val top = panelPad
@@ -277,6 +296,26 @@ class KeyboardView(context: Context) : View(context) {
             x += slot
         }
         return placed
+    }
+
+    /**
+     * The strip: what was typed, then the alternatives, in equal shares of the row.
+     *
+     * Equal shares rather than shares by word length, because a strip whose buttons move as you type is a strip
+     * people mis-tap. The first is always the literal, so taking back a suggestion is always in the same place.
+     */
+    private fun placeSuggestions(): List<Placement> {
+        val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        val right = width - left
+        val top = panelPad
+        val bottom = top + toolbarHeight
+        val slot = (right - left) / suggestions.size
+        return suggestions.mapIndexed { index, word ->
+            Placement(
+                Key(word, KeyKind.SUGGESTION, output = word),
+                Box(left + index * slot, top, left + (index + 1) * slot, bottom),
+            )
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -393,6 +432,22 @@ class KeyboardView(context: Context) : View(context) {
             stroke.color = theme.label
             stroke.strokeWidth = max(1.5f * dp, size * 0.072f)
             fill.color = theme.label
+            if (placement.key.kind == KeyKind.SUGGESTION) {
+                // The first is what was actually typed, and is drawn quieter than the alternatives so the eye goes
+                // to what is being offered rather than to what it already knows it wrote.
+                val literal = placement === tools.first()
+                text.textSize = min(box.height * 0.40f, 17 * dp)
+                sizedAt = -1f
+                text.color = if (literal) theme.hint else theme.label
+                canvas.drawText(
+                    placement.key.label, cx, cy - (text.descent() + text.ascent()) / 2, text,
+                )
+                if (!literal) {
+                    fill.color = theme.hint
+                    canvas.drawRect(box.left, cy - size * 0.5f, box.left + max(1f, dp * 0.5f), cy + size * 0.5f, fill)
+                }
+                continue
+            }
             when (placement.key.kind) {
                 KeyKind.HIDE -> Icons.chevronDown(canvas, cx, cy, size * 1.2f, stroke)
                 KeyKind.EMOJI -> Icons.smiley(canvas, cx, cy, size, stroke, fill)
@@ -611,6 +666,7 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.COPY -> l.onCopy()
             KeyKind.PASTE -> l.onPaste()
             KeyKind.EMOJI -> l.onEmojiPanel()
+            KeyKind.SUGGESTION -> l.onSuggestion(key.output)
         }
     }
 

@@ -2,6 +2,9 @@ package com.mccal.folio.keys
 
 import android.content.Context
 import android.graphics.Region
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
 import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.ViewGroup
@@ -26,6 +29,48 @@ class KeysService : InputMethodService(), Ime {
     private var emoji: EmojiPanel? = null
 
     private val prefs by lazy { getSharedPreferences("keys", Context.MODE_PRIVATE) }
+
+    /**
+     * Looking a word up takes long enough to drop a frame, so it happens on a thread of its own.
+     *
+     * One thread, one pending job: every keystroke replaces the one before it, so a fast typist is never queueing
+     * up suggestions for words they have already finished. The short delay is what makes that true - mid-word
+     * keystrokes arrive closer together than this, so most of them cost nothing at all.
+     */
+    private val thinking = HandlerThread("suggestions").apply { start() }
+    private val background by lazy { Handler(thinking.looper) }
+    private val main = Handler(Looper.getMainLooper())
+    private var dictionary: Dictionary? = null
+    private var proximity: Suggestions.Proximity? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
+        background.post { dictionary = runCatching { Dictionary.load(this) }.getOrNull() }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        thinking.quitSafely()
+    }
+
+    override fun suggest(word: String) {
+        background.removeCallbacksAndMessages(null)
+        if (word.length < 2) {
+            keyboard?.suggestions = emptyList()
+            return
+        }
+        val keys = keyboard?.placements
+        background.postDelayed({
+            val words = dictionary ?: return@postDelayed
+            if (proximity == null && keys != null) proximity = Suggestions.Proximity(keys)
+            val found = runCatching { Suggestions.forWord(word, words, proximity) }.getOrDefault(emptyList())
+            main.post {
+                // The word may have moved on while this was being worked out; only answer the question asked.
+                keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
+            }
+        }, THINK_MS)
+    }
 
     /**
      * Both panels live in the window at once, and only one is visible.
@@ -135,6 +180,9 @@ class KeysService : InputMethodService(), Ime {
         /** Less of the app than this left showing, and an extracted field is more use than a sliver. */
         const val ROOM_FOR_THE_APP_DP = 130f
         const val RECENTS = "emojiRecents"
+
+        /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
+        const val THINK_MS = 40L
 
         /** What is left of the window once the keyboard has taken its share. */
         fun roomAbove(screenHeightDp: Float, keyboardHeightDp: Float) = screenHeightDp - keyboardHeightDp

@@ -41,6 +41,7 @@ class KeysServiceTest {
         var shown: List<Row> = emptyList()
         var shift = Shift.OFF
         var emojiShowing = false
+        var suggestedFor = mutableListOf<String>()
 
         override fun switchKeyboard() { switches++ }
         var hides = 0
@@ -52,6 +53,10 @@ class KeysServiceTest {
 
         override fun showEmoji(showing: Boolean) {
             emojiShowing = showing
+        }
+
+        override fun suggest(word: String) {
+            suggestedFor += word
         }
     }
 
@@ -80,6 +85,99 @@ class KeysServiceTest {
     }
 
     private fun type(word: String) = word.forEach { actions.onText(it.toString()) }
+
+    // ---- the word being typed -----------------------------------------------------------------------------------
+
+    /** The last thing the strip was asked about, which is what it would be showing. */
+    private val asked get() = ime.suggestedFor.last()
+
+    @Test
+    fun `the word grows as it is typed`() {
+        type("hel")
+        assertEquals("hel", asked)
+    }
+
+    @Test
+    fun `a space ends the word`() {
+        type("hello ")
+        assertEquals("", asked)
+    }
+
+    /** A full stop or a bracket ends a word just as a space does. */
+    @Test
+    fun `punctuation ends the word`() {
+        type("hello.")
+        assertEquals("", asked)
+        type("again)")
+        assertEquals("", asked)
+    }
+
+    @Test
+    fun `an apostrophe is part of the word`() {
+        type("don't")
+        assertEquals("don't", asked)
+    }
+
+    @Test
+    fun `backspace shortens the word`() {
+        type("hello")
+        actions.onBackspace()
+        assertEquals("hell", asked)
+        actions.onBackspaceRepeat()
+        assertEquals("hel", asked)
+    }
+
+    @Test
+    fun `moving the cursor means we no longer know the word`() {
+        type("hello")
+        actions.onCursor(-2)
+        assertEquals("", asked)
+    }
+
+    @Test
+    fun `a new field starts with no word`() {
+        type("hello")
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        assertEquals("", asked)
+    }
+
+    /** Nothing about a password goes to the dictionary, not even to be looked up. */
+    @Test
+    fun `a password field is never asked about`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("hunter2")
+        assertTrue("asked about ${ime.suggestedFor}", ime.suggestedFor.all { it.isEmpty() })
+    }
+
+    // ---- taking a suggestion ------------------------------------------------------------------------------------
+
+    @Test
+    fun `taking a suggestion replaces the word and adds a space`() {
+        type("teh")
+        actions.onSuggestion("the")
+        assertEquals("the ", text)
+    }
+
+    @Test
+    fun `taking a suggestion leaves the text before it alone`() {
+        type("well teh")
+        actions.onSuggestion("the")
+        assertEquals("well the ", text)
+    }
+
+    @Test
+    fun `there is nothing to replace when no word is being typed`() {
+        type("hello ")
+        actions.onSuggestion("hello")
+        assertEquals("a suggestion with no word must do nothing", "hello ", text)
+    }
+
+    @Test
+    fun `the word is finished with after it is taken`() {
+        type("teh")
+        actions.onSuggestion("the")
+        assertEquals("", asked)
+    }
 
     // ---- typing -------------------------------------------------------------------------------------------------
 

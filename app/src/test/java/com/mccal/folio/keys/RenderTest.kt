@@ -103,6 +103,14 @@ class RenderTest {
         render("symbols-dark", 411, 891, night = true) { letters(it, layer = Layer.NUMBERS) }
         render("tablet-capped-dark", 540, 860, night = true) { letters(it) }
         render("phone-landscape-dark", 891, 411, night = true) { letters(it) }
+        render("suggestions-dark", 411, 891, night = true) {
+            letters(it)
+            it.suggestions = listOf("teh", "the", "ten", "tea")
+        }
+        render("suggestions-light", 411, 891, night = false) {
+            letters(it)
+            it.suggestions = listOf("recieve", "receive", "relieve", "reprieve")
+        }
         render("password-light", 411, 891, night = false) {
             letters(it, FieldRules(password = true, actionLabel = "Done"))
         }
