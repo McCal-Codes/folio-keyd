@@ -42,6 +42,8 @@ class KeysServiceTest {
         var shift = Shift.OFF
 
         override fun switchKeyboard() { switches++ }
+        var hides = 0
+        override fun hideKeyboard() { hides++ }
         override fun show(rows: List<Row>, shift: Shift) {
             shown = rows
             this.shift = shift
@@ -208,6 +210,16 @@ class KeysServiceTest {
         loose.onAction()
         loose.onCursor(2)
         loose.onShift()
+    }
+
+    @Test
+    fun `the toolbar asks the field to do the editing`() {
+        type("hello")
+        actions.onSelectAll()
+        actions.onCopy()
+        actions.onHide()
+        assertEquals(1, ime.hides)
+        assertEquals("the toolbar must not type anything", "hello", text)
     }
 
     @Test

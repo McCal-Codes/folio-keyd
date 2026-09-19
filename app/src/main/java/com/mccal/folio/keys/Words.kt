@@ -35,6 +35,10 @@ object Spoken {
             Layer.SYMBOLS.name -> "More symbols"
             else -> "Numbers and symbols"
         }
+        KeyKind.HIDE -> "Hide the keyboard"
+        KeyKind.SELECT_ALL -> "Select all"
+        KeyKind.COPY -> "Copy"
+        KeyKind.PASTE -> "Paste"
         KeyKind.ACTION, KeyKind.CHAR -> key.label
     }
 }

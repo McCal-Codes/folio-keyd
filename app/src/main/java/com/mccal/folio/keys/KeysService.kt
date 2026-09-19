@@ -48,6 +48,8 @@ class KeysService : InputMethodService(), Ime {
         }
     }
 
+    override fun hideKeyboard() = requestHideSelf(0)
+
     override fun switchKeyboard() {
         // The globe hands over to whatever the person picked next; Android decides what that is, not Folio.
         if (!switchToNextInputMethod(false)) {

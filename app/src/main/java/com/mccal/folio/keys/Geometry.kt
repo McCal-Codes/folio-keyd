@@ -22,19 +22,19 @@ data class Placement(val key: Key, val box: Box)
  * noticing on a phone.
  */
 object Geometry {
-    const val GAP_X_DP = 5f
-    const val GAP_Y_DP = 9f
+    const val GAP_X_DP = 4f
+    const val GAP_Y_DP = 8f
     const val SIDE_PAD_DP = 3f
     const val MIN_ROW_DP = 25f
     const val MAX_ROW_DP = 52f
 
     /** Android's guidance: a keyboard that isn't fullscreen shouldn't take much more than half the window. */
-    fun height(rowCount: Int, windowHeightDp: Float, density: Float, bottomInset: Float): Int {
+    fun height(rowCount: Int, windowHeightDp: Float, density: Float, bottomInset: Float, extra: Float = 0f): Int {
         val rows = max(rowCount, 1)
         val cap = capPx(windowHeightDp, density)
         val row = rowHeight(cap, rows, density, bottomInset)
         val gapY = GAP_Y_DP * density
-        return (rows * row + (rows - 1) * gapY + 2 * gapY + bottomInset).toInt()
+        return (rows * row + (rows - 1) * gapY + 2 * gapY + bottomInset + extra).toInt()
     }
 
     fun capPx(windowHeightDp: Float, density: Float): Float {
@@ -59,16 +59,22 @@ object Geometry {
         density: Float,
         sideInset: Float = 0f,
         bottomInset: Float = 0f,
+        /** Room taken above the keys, by a toolbar or a suggestion strip. */
+        top: Float = 0f,
+        /** The left edge of the area to fill, for one half of a split keyboard. */
+        startX: Float = 0f,
+        /** The width to fill, when it isn't the whole view: a split half, or a capped width on a wide window. */
+        fillWidth: Float = 0f,
     ): List<Placement> {
         if (rows.isEmpty() || width <= 0 || height <= 0) return emptyList()
         val gapX = GAP_X_DP * density
         val gapY = GAP_Y_DP * density
-        val left = SIDE_PAD_DP * density + sideInset
-        val usable = width - 2 * left
+        val left = if (fillWidth > 0f) startX else SIDE_PAD_DP * density + sideInset
+        val usable = if (fillWidth > 0f) fillWidth else width - 2 * left
         if (usable <= 0) return emptyList()
-        val rowH = (height - bottomInset - 2 * gapY - (rows.size - 1) * gapY) / rows.size
+        val rowH = (height - top - bottomInset - 2 * gapY - (rows.size - 1) * gapY) / rows.size
         val out = ArrayList<Placement>()
-        var y = gapY
+        var y = top + gapY
         for (row in rows) {
             val weights = row.sumOf { it.weight.toDouble() }.toFloat()
             val unit = (usable - gapX * (row.size - 1)) / weights

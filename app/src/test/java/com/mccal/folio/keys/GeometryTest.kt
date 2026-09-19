@@ -130,6 +130,88 @@ class GeometryTest {
         assertTrue("keys reach into the gesture bar", lowest <= height - inset + 0.5f)
     }
 
+    /** A split keyboard is two keyboards: neither half may wander into the other's side of the gap. */
+    @Test
+    fun `the halves of a split keyboard keep to their own side`() {
+        val density = 2.5f
+        val widthPx = (932 * density).toInt()
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        val (left, right) = Layouts.split(rows)
+        val gutter = 120 * density
+        val half = (widthPx - 2 * Geometry.SIDE_PAD_DP * density - gutter) / 2
+        val start = Geometry.SIDE_PAD_DP * density
+        val height = Geometry.height(rows.size, 704f, density, 0f)
+        val placedLeft = Geometry.place(left, widthPx, height, density, startX = start, fillWidth = half)
+        val placedRight = Geometry.place(right, widthPx, height, density, startX = start + half + gutter, fillWidth = half)
+
+        assertTrue(placedLeft.isNotEmpty() && placedRight.isNotEmpty())
+        assertTrue("a left key crosses the gap", placedLeft.all { it.box.right <= start + half + 0.5f })
+        assertTrue("a right key crosses the gap", placedRight.all { it.box.left >= start + half + gutter - 0.5f })
+        for (placement in placedLeft + placedRight) {
+            assertTrue(
+                "${placement.key.label} is ${placement.box.width / density} dp wide",
+                placement.box.width / density >= 24f,
+            )
+        }
+    }
+
+    @Test
+    fun `splitting keeps every key, and gives each half a space bar`() {
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        val (left, right) = Layouts.split(rows)
+        val before = rows.flatten().filter { it.kind != KeyKind.SPACE }.map { it.label }
+        val after = (left + right).flatten().filter { it.kind != KeyKind.SPACE }.map { it.label }
+        assertEquals(before.sorted(), after.sorted())
+        assertEquals("each thumb needs its own space bar", 1, left.flatten().count { it.kind == KeyKind.SPACE })
+        assertEquals(1, right.flatten().count { it.kind == KeyKind.SPACE })
+    }
+
+    /** The band under the keys: buttons bring their own room, gestures don't, and Folio's Big Buttons sit on top. */
+    @Test
+    fun `the room under the keys suits what is down there`() {
+        val d = 3f
+        val gestureInset = 24 * d
+        val buttonInset = 48 * d
+
+        val gestures = BottomRoom.band(BottomRoom.NAV_GESTURE, gestureInset, 0f, d)
+        assertTrue("gestures should keep a band of their own", gestures >= BottomRoom.GESTURE_BAND_DP * d)
+
+        val buttons = BottomRoom.band(BottomRoom.NAV_THREE_BUTTON, buttonInset, 0f, d)
+        assertEquals("buttons already leave room; don't add to it", buttonInset.toDouble(), buttons.toDouble(), 0.5)
+
+        val withBig = BottomRoom.band(BottomRoom.NAV_GESTURE, gestureInset, 56f, d)
+        assertEquals(
+            "Folio's Big Buttons sit above the navigation, so their height adds",
+            (gestures + 56 * d).toDouble(), withBig.toDouble(), 0.5,
+        )
+    }
+
+    /** Whatever is under the keys, the keys stay above it and the rows stay out of each other's way. */
+    @Test
+    fun `nothing overlaps the band, whatever is down there`() {
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        for ((w, h, d) in windows) {
+            for (mode in listOf(BottomRoom.NAV_GESTURE, BottomRoom.NAV_THREE_BUTTON)) {
+                for (big in listOf(0f, 56f)) {
+                    val band = BottomRoom.band(mode, if (mode == BottomRoom.NAV_GESTURE) 24 * d else 48 * d, big, d)
+                    val height = Geometry.height(rows.size, h, d, band)
+                    val placed = Geometry.place(rows, (w * d).toInt(), height, d, bottomInset = band)
+                    val lowest = placed.maxOf { it.box.bottom }
+                    assertTrue(
+                        "keys reach into the band at ${w}x$h, mode $mode, big $big",
+                        lowest <= height - band + 0.5f,
+                    )
+                    for (i in placed.indices) for (j in i + 1 until placed.size) {
+                        assertTrue(
+                            "${placed[i].key.label} overlaps ${placed[j].key.label}",
+                            !placed[i].box.overlaps(placed[j].box),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     fun `nothing is placed when there is nowhere to place it`() {
         val rows = Layouts.rows(Layer.LETTERS, false, FieldRules())

@@ -14,6 +14,7 @@ interface Ime {
     val connection: InputConnection?
     val editorInfo: EditorInfo?
     fun switchKeyboard()
+    fun hideKeyboard()
 
     /** Hands the keys to whatever is drawing them. */
     fun show(rows: List<Row>, shift: Shift)
@@ -98,6 +99,19 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     override fun onSwitchKeyboard() = ime.switchKeyboard()
+
+    override fun onHide() = ime.hideKeyboard()
+
+    // The editing a field always supports, through Android's own menu actions rather than by reading the text.
+    override fun onSelectAll() = menu(android.R.id.selectAll)
+
+    override fun onCopy() = menu(android.R.id.copy)
+
+    override fun onPaste() = menu(android.R.id.paste)
+
+    private fun menu(action: Int) {
+        ime.connection?.performContextMenuAction(action)
+    }
 
     /** Arrow keys rather than a selection call: they behave the same in an editor, a terminal and a web page. */
     override fun onCursor(steps: Int) {

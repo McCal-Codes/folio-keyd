@@ -37,6 +37,7 @@ class KeyboardViewTest {
     private var switches = 0
     private var layers = mutableListOf<Layer>()
     private var shifts = 0
+    private val toolbar = mutableListOf<String>()
 
     private val density get() = view.resources.displayMetrics.density
 
@@ -53,6 +54,10 @@ class KeyboardViewTest {
             override fun onAction() { actions++ }
             override fun onSwitchKeyboard() { switches++ }
             override fun onCursor(steps: Int) { cursorSteps += steps }
+            override fun onSelectAll() { toolbar += "selectAll" }
+            override fun onCopy() { toolbar += "copy" }
+            override fun onPaste() { toolbar += "paste" }
+            override fun onHide() { toolbar += "hide" }
         }
         show(FieldRules())
     }
@@ -69,10 +74,9 @@ class KeyboardViewTest {
         view.layout(0, 0, view.measuredWidth, view.measuredHeight)
     }
 
-    /** Where a key sits, worked out the same way the view works it out. */
+    /** Where a key sits, according to the view that placed it. */
     private fun centre(label: String): Pair<Float, Float> {
-        val placement = Geometry.place(view.rows, view.width, view.height, density)
-            .firstOrNull { it.key.label == label }
+        val placement = view.placements.firstOrNull { it.key.label == label }
         assertNotNull("no key labelled $label", placement)
         val box = placement!!.box
         return (box.left + box.right) / 2 to (box.top + box.bottom) / 2
@@ -230,12 +234,23 @@ class KeyboardViewTest {
 
     // ---- screen readers ------------------------------------------------------------------------------------------
 
+    /** The toolbar above the keys: hide, and the editing every field supports. */
+    @Test
+    fun `the toolbar reaches the listener`() {
+        val provider = view.accessibilityNodeProvider!!
+        // The toolbar's virtual views come after the keys, in the order the view places them.
+        val keys = view.placements
+        for (id in keys.size until keys.size + view.toolbarPlacements.size) {
+            provider.performAction(id, AccessibilityNodeInfo.ACTION_CLICK, null)
+        }
+        assertEquals(listOf("hide", "selectAll", "copy", "paste"), toolbar)
+    }
+
     @Test
     fun `every key is offered to a screen reader, and can be pressed by one`() {
         val provider = view.accessibilityNodeProvider
         assertNotNull("no accessibility node provider", provider)
-        val keys = Geometry.place(view.rows, view.width, view.height, density)
-        val letterQ = keys.indexOfFirst { it.key.label == "q" }
+        val letterQ = view.placements.indexOfFirst { it.key.label == "q" }
 
         val node = provider!!.createAccessibilityNodeInfo(letterQ)
         assertEquals("q", node?.contentDescription)
@@ -247,8 +262,7 @@ class KeyboardViewTest {
     @Test
     fun `a screen reader hears names, not glyphs`() {
         val provider = view.accessibilityNodeProvider!!
-        val keys = Geometry.place(view.rows, view.width, view.height, density)
-        val backspace = keys.indexOfFirst { it.key.kind == KeyKind.BACKSPACE }
+        val backspace = view.placements.indexOfFirst { it.key.kind == KeyKind.BACKSPACE }
         val description = provider.createAccessibilityNodeInfo(backspace)?.contentDescription.toString()
         assertTrue("backspace reads as $description", description.startsWith("Backspace"))
     }

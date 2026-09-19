@@ -16,17 +16,20 @@ data class Theme(
     val accent: Int,
     val onAccent: Int,
     val pressTint: Int,
+    /** The bubble that pops above the key under a finger. */
+    val preview: Int,
 ) {
     companion object {
         private val DARK = Theme(
             board = 0xFF1B1B1D.toInt(),
-            key = 0xFF4B4B50.toInt(),
-            altKey = 0xFF2E2E32.toInt(),
+            key = 0xFF54545A.toInt(),
+            altKey = 0xFF3A3A40.toInt(),
             label = 0xFFFFFFFF.toInt(),
             hint = 0xFFD6D6DA.toInt(),
             accent = 0xFF0071E3.toInt(),
             onAccent = 0xFFFFFFFF.toInt(),
             pressTint = 0x33FFFFFF.toInt(),
+            preview = 0xFF5A5A60.toInt(),
         )
 
         private val LIGHT = Theme(
@@ -38,6 +41,7 @@ data class Theme(
             accent = 0xFF0066CC.toInt(),
             onAccent = 0xFFFFFFFF.toInt(),
             pressTint = 0x33000000.toInt(),
+            preview = 0xFFFFFFFF.toInt(),
         )
 
         /** Both themes, for the contrast test: the colours that ship are the colours that get checked. */

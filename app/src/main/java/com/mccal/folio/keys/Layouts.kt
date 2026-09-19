@@ -9,7 +9,7 @@ import android.view.inputmethod.EditorInfo
  * A layout is plain data: rows of [Key]. Nothing here knows how to draw or what a press does, so the same rows can be
  * measured for a phone, a split half or a one-handed keyboard without a second copy.
  */
-enum class KeyKind { CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE }
+enum class KeyKind { CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE }
 
 data class Key(
     val label: String,
@@ -120,6 +120,40 @@ object Layouts {
         listOf(Key(","), Key("0"), Key("⌫", KeyKind.BACKSPACE)),
         listOf(Key(rules.actionLabel, KeyKind.ACTION)),
     )
+
+    /**
+     * The same rows, cut into two halves for a wide window.
+     *
+     * A phone keyboard stretched across an unfolded Fold gives 90 dp keys that no thumb can reach: Samsung splits,
+     * Gboard splits, every keyboard that takes foldables seriously splits. Each row is divided near its middle by
+     * weight, and a space bar that would straddle the gap becomes one space bar per half.
+     */
+    fun split(rows: List<Row>): Pair<List<Row>, List<Row>> {
+        val left = ArrayList<Row>()
+        val right = ArrayList<Row>()
+        for (row in rows) {
+            val total = row.sumOf { it.weight.toDouble() }.toFloat()
+            val l = ArrayList<Key>()
+            val r = ArrayList<Key>()
+            var used = 0f
+            for (key in row) {
+                val straddles = key.kind == KeyKind.SPACE && used < total / 2 && used + key.weight > total / 2
+                when {
+                    // A space bar across the gap becomes one on each side, so both thumbs have one.
+                    straddles -> {
+                        l += key.copy(weight = key.weight / 2)
+                        r += key.copy(weight = key.weight / 2)
+                    }
+                    used + key.weight / 2 <= total / 2 -> l += key
+                    else -> r += key
+                }
+                used += key.weight
+            }
+            left += if (l.isEmpty()) listOf(row.first()) else l
+            right += if (r.isEmpty()) listOf(row.last()) else r
+        }
+        return left to right
+    }
 
     /** Reads the field. Everything the keyboard changes for a field is decided here, in one place. */
     fun rulesFor(info: EditorInfo?): FieldRules {

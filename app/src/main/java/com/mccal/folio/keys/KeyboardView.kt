@@ -21,15 +21,19 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.customview.widget.ExploreByTouchHelper
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Draws the keys and turns touches into presses. Everything it knows about the text being edited arrives as
- * [FieldRules]; everything it does leaves through [listener]; where the keys go is [Geometry]'s business, so that part
- * can be tested without a phone.
+ * Draws the keyboard and turns touches into presses. What it knows about the field arrives as [FieldRules]; what it
+ * does leaves through [listener]; where the keys go is [Geometry]'s business, so that part is tested without a phone.
  *
- * Key labels are sized from the key, the way AOSP does it, rather than from the system font scale: at 200% text the
- * alternative is a keyboard that tears itself apart. The settings screens scale; the keys don't.
+ * The look follows what phone keyboards actually do rather than what is easiest to draw: a rounded panel inset from
+ * the edges instead of a full-bleed slab, a toolbar above the keys so the board isn't a naked grid, drawn icons
+ * instead of Unicode glyphs in whatever font the system hands over, and a preview above the key under your finger.
+ *
+ * Key labels are sized from the key, the way AOSP does it, not from the system font scale: at 200% text the
+ * alternative is a keyboard that tears itself apart.
  */
 class KeyboardView(context: Context) : View(context) {
 
@@ -42,6 +46,10 @@ class KeyboardView(context: Context) : View(context) {
         fun onAction()
         fun onSwitchKeyboard()
         fun onCursor(steps: Int)
+        fun onSelectAll()
+        fun onCopy()
+        fun onPaste()
+        fun onHide()
     }
 
     var listener: Listener? = null
@@ -62,15 +70,28 @@ class KeyboardView(context: Context) : View(context) {
     private val dp = resources.displayMetrics.density
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        // The weight every phone keyboard uses for its letters; the regular face looks washed out on a key.
+        typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+    }
     private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.RIGHT }
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
     private val scratch = RectF()        // reused: a keyboard shouldn't allocate while it draws
-    private val heldKeys = HashSet<Placement>()   // likewise: filled each frame, never rebuilt
+    private val heldKeys = HashSet<Placement>()
 
     private var theme = Theme.of(context)
     private var placedKeys: List<Placement> = emptyList()
-    private var bottomInset = 0f
+    private var tools: List<Placement> = emptyList()
+    private var bottomInset = BottomRoom.GESTURE_BAND_DP * resources.displayMetrics.density
     private var sideInset = 0f
+
+    private val panelPad get() = PANEL_PAD_DP * dp
+    private val toolbarHeight get() = TOOLBAR_DP * dp
 
     /** One press per finger. A keyboard that tracks a single pointer drops letters the moment someone types fast. */
     private val presses = HashMap<Int, Press>()
@@ -112,9 +133,15 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
-        // Above the gesture bar, and clear of a cutout when the phone is on its side. Not systemGestures(): its left
-        // and right are the back-swipe strips, and padding by those would pull the keys in for no reason.
-        bottomInset = insets.getInsets(WindowInsets.Type.navigationBars()).bottom.toFloat()
+        // Always leave a strip at the bottom, even when the system reports no navigation inset: that is where the
+        // hide-keyboard button and the home gesture live, and a keyboard flush to the edge takes both away.
+        val navigation = insets.getInsets(WindowInsets.Type.navigationBars()).bottom.toFloat()
+        bottomInset = BottomRoom.band(
+            BottomRoom.navigationMode(context),
+            navigation,
+            BottomRoom.folioButtonsDp(context.contentResolver),
+            dp,
+        )
         val cutout = insets.getInsets(WindowInsets.Type.displayCutout())
         sideInset = max(cutout.left, cutout.right).toFloat()
         requestLayout()
@@ -128,58 +155,216 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     override fun onMeasure(widthSpec: Int, heightSpec: Int) {
-        // The window usually lets the keyboard say how tall it is; when it insists, the keyboard does as it's told.
         val height = if (MeasureSpec.getMode(heightSpec) == MeasureSpec.EXACTLY) {
             MeasureSpec.getSize(heightSpec)
         } else {
-            Geometry.height(rows.size, resources.configuration.screenHeightDp.toFloat(), dp, bottomInset)
+            Geometry.height(
+                rows.size, resources.configuration.screenHeightDp.toFloat(), dp, bottomInset,
+                extra = toolbarHeight + panelPad,
+            )
         }
         setMeasuredDimension(MeasureSpec.getSize(widthSpec), height)
     }
 
+    /**
+     * How the keyboard sits in the window it was given. A phone keyboard stretched across an unfolded Fold gives keys
+     * no thumb can reach, so a wide window splits (as Samsung's does), a middling one is capped and centred (as a
+     * tablet keyboard is), and a phone fills the width.
+     */
+    private enum class Shape { FULL, CAPPED, SPLIT }
+
+    private var shape = Shape.FULL
+
+    private fun shapeFor(widthDp: Float) = when {
+        widthDp >= SPLIT_AT_DP -> Shape.SPLIT
+        widthDp >= CAP_AT_DP -> Shape.CAPPED
+        else -> Shape.FULL
+    }
+
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
-        placedKeys = Geometry.place(rows, width, height, dp, sideInset, bottomInset)
-        keyNodes.invalidateRoot()   // the keys moved, so what a screen reader holds about them is stale
+        shape = shapeFor(width / dp)
+        val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        val usable = width - 2 * edge
+        val top = toolbarHeight + panelPad
+        val bottom = bottomInset + panelPad
+
+        placedKeys = when (shape) {
+            Shape.FULL -> Geometry.place(
+                rows, width, height, dp,
+                sideInset = sideInset + panelPad, bottomInset = bottom, top = top,
+            )
+            Shape.CAPPED -> {
+                // Centred and no wider than a large phone: the keys stay the size hands expect.
+                val capped = min(usable, CAP_WIDTH_DP * dp)
+                Geometry.place(
+                    rows, width, height, dp, bottomInset = bottom, top = top,
+                    startX = (width - capped) / 2, fillWidth = capped,
+                )
+            }
+            Shape.SPLIT -> {
+                val gutter = min(max(usable * 0.16f, 80 * dp), 220 * dp)
+                val half = (usable - gutter) / 2
+                val (leftRows, rightRows) = Layouts.split(rows)
+                Geometry.place(
+                    leftRows, width, height, dp, bottomInset = bottom, top = top,
+                    startX = edge, fillWidth = half,
+                ) + Geometry.place(
+                    rightRows, width, height, dp, bottomInset = bottom, top = top,
+                    startX = edge + half + gutter, fillWidth = half,
+                )
+            }
+        }
+        tools = placeToolbar()
+        keyNodes.invalidateRoot()
+    }
+
+    /** The toolbar: hide the keyboard, and the three editing actions a field always supports. */
+    private fun placeToolbar(): List<Placement> {
+        if (width == 0) return emptyList()
+        val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        val right = width - left
+        val top = panelPad
+        val bottom = top + toolbarHeight
+        val items = listOf(
+            Key("Hide", KeyKind.HIDE),
+            Key("Select all", KeyKind.SELECT_ALL),
+            Key("Copy", KeyKind.COPY),
+            Key("Paste", KeyKind.PASTE),
+        )
+        // Even across the whole width: a row of icons bunched in one corner is the difference between a toolbar and
+        // a few buttons someone left there.
+        val slot = min((right - left) / items.size, TOOL_SLOT_DP * dp)
+        val placed = ArrayList<Placement>(items.size)
+        placed += Placement(items.first(), Box(left, top, left + slot, bottom))
+        val rest = items.drop(1)
+        var x = right - rest.size * slot
+        for (key in rest) {
+            placed += Placement(key, Box(x, top, x + slot, bottom))
+            x += slot
+        }
+        return placed
     }
 
     override fun onDraw(canvas: Canvas) {
-        canvas.drawColor(theme.board)
-        val radius = 8 * dp
+        // The panel floats: the app shows through around it, the way a phone keyboard looks.
+        scratch.set(panelPad, panelPad, width - panelPad, height - panelPad)
+        fill.color = theme.board
+        canvas.drawRoundRect(scratch, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
+        drawHandle(canvas)
+
+        drawToolbar(canvas)
+
         heldKeys.clear()
         if (presses.isNotEmpty()) for (press in presses.values) heldKeys.add(press.placement)
+        val radius = KEY_RADIUS_DP * dp
         for (placement in placedKeys) {
             val box = placement.box
             val key = placement.key
-            val special = key.kind != KeyKind.CHAR && key.kind != KeyKind.SPACE
+            val held = placement in heldKeys
             fill.color = when {
                 key.kind == KeyKind.ACTION -> theme.accent
-                special -> theme.altKey
+                key.kind != KeyKind.CHAR && key.kind != KeyKind.SPACE -> theme.altKey
                 else -> theme.key
             }
-            if (placement in heldKeys) fill.color = blend(fill.color, theme.pressTint)
+            if (held) fill.color = blend(fill.color, theme.pressTint)
             scratch.set(box.left, box.top, box.right, box.bottom)
             canvas.drawRoundRect(scratch, radius, radius, fill)
+            drawKeyFace(canvas, placement, held)
+        }
+        drawPreview(canvas)
+    }
 
-            text.textSize = if (key.kind == KeyKind.CHAR) box.height * 0.46f else
-                max(11 * dp, minOf(box.height * 0.30f, 15 * dp))
-            text.color = if (key.kind == KeyKind.ACTION) theme.onAccent else theme.label
-            val baseline = (box.top + box.bottom) / 2 - (text.descent() + text.ascent()) / 2
-            canvas.drawText(label(key), (box.left + box.right) / 2, baseline, text)
+    /** The pill in the band below the keys: Samsung's grab handle, and where resizing will live. */
+    private fun drawHandle(canvas: Canvas) {
+        val bandTop = height - bottomInset - panelPad
+        val centre = (bandTop + height - panelPad) / 2
+        val w = HANDLE_W_DP * dp / 2
+        val h = HANDLE_H_DP * dp / 2
+        scratch.set(width / 2f - w, centre - h, width / 2f + w, centre + h)
+        fill.color = theme.hint
+        canvas.drawRoundRect(scratch, h, h, fill)
+    }
 
-            // The corner hint is the long-press alternate; a password field keeps its own counsel.
-            val cornerHint = key.hint
-            if (cornerHint != null && !rules.password) {
-                hint.textSize = 11 * dp
-                hint.color = theme.hint
-                canvas.drawText(cornerHint, box.right - 5 * dp, box.top + 13 * dp, hint)
+    private fun drawKeyFace(canvas: Canvas, placement: Placement, held: Boolean) {
+        val box = placement.box
+        val key = placement.key
+        val cx = (box.left + box.right) / 2
+        val cy = (box.top + box.bottom) / 2
+        val icon = min(box.height, box.width) * 0.46f
+        val onAction = key.kind == KeyKind.ACTION
+        val ink = if (onAction) theme.onAccent else theme.label
+        fill.color = ink
+        stroke.color = ink
+        stroke.strokeWidth = max(1.6f * dp, icon * 0.085f)
+
+        when (key.kind) {
+            KeyKind.SHIFT -> {
+                // Off and one-shot are outlines; caps lock fills, so the three states can be told apart.
+                val pen = if (shift == Shift.OFF) stroke else fill
+                Icons.shift(canvas, cx, cy, icon * 0.92f, pen, shift == Shift.LOCKED)
+            }
+            KeyKind.BACKSPACE -> Icons.backspace(canvas, cx, cy, icon, stroke, stroke)
+            KeyKind.GLOBE -> Icons.globe(canvas, cx, cy, icon, stroke)
+            KeyKind.ACTION -> if (key.label.length > 4) drawLabel(canvas, key.label, cx, cy, box, ink)
+                else Icons.enter(canvas, cx, cy, icon * 1.1f, stroke)
+            else -> drawLabel(canvas, key.label, cx, cy, box, ink)
+        }
+
+        // The corner hint is the long-press alternate; a password field keeps its own counsel.
+        val cornerHint = key.hint
+        if (cornerHint != null && !rules.password && !held) {
+            hint.textSize = 11 * dp
+            hint.color = theme.hint
+            canvas.drawText(cornerHint, box.right - 6 * dp, box.top + 14 * dp, hint)
+        }
+    }
+
+    private fun drawLabel(canvas: Canvas, label: String, cx: Float, cy: Float, box: Box, ink: Int) {
+        text.textSize = if (label.length == 1) box.height * 0.52f else
+            max(12 * dp, min(box.height * 0.30f, 16 * dp))
+        text.color = ink
+        canvas.drawText(label, cx, cy - (text.descent() + text.ascent()) / 2, text)
+    }
+
+    private fun drawToolbar(canvas: Canvas) {
+        for (placement in tools) {
+            val box = placement.box
+            val cx = (box.left + box.right) / 2
+            val cy = (box.top + box.bottom) / 2
+            val size = min(box.height * 0.62f, 26 * dp)
+            stroke.color = theme.label
+            stroke.strokeWidth = max(1.5f * dp, size * 0.072f)
+            fill.color = theme.label
+            when (placement.key.kind) {
+                KeyKind.HIDE -> Icons.chevronDown(canvas, cx, cy, size * 1.2f, stroke)
+                KeyKind.SELECT_ALL -> Icons.selectAll(canvas, cx, cy, size, stroke, fill)
+                KeyKind.COPY -> Icons.copy(canvas, cx, cy, size, stroke)
+                KeyKind.PASTE -> Icons.paste(canvas, cx, cy, size, stroke, fill)
+                else -> Unit
             }
         }
     }
 
-    private fun label(key: Key): String = when (key.kind) {
-        KeyKind.SHIFT -> if (shift == Shift.LOCKED) "⇪" else "⇧"
-        else -> key.label
+    /** The character above the finger, so a thumb can see what it just hit. Never in a password field. */
+    private fun drawPreview(canvas: Canvas) {
+        if (rules.password) return
+        for (press in presses.values) {
+            val key = press.placement.key
+            if (key.kind != KeyKind.CHAR) continue
+            val box = press.placement.box
+            val w = max(box.width * 1.25f, 34 * dp)
+            val h = box.height * 1.05f
+            val cx = (box.left + box.right) / 2
+            val bottom = box.top - 6 * dp
+            if (bottom - h < 0) continue      // the top row has nowhere to put it
+            scratch.set(cx - w / 2, bottom - h, cx + w / 2, bottom)
+            fill.color = theme.preview
+            canvas.drawRoundRect(scratch, KEY_RADIUS_DP * dp, KEY_RADIUS_DP * dp, fill)
+            text.textSize = h * 0.54f
+            text.color = theme.label
+            canvas.drawText(key.label, cx, (scratch.top + scratch.bottom) / 2 - (text.descent() + text.ascent()) / 2, text)
+        }
     }
 
     private fun blend(color: Int, tint: Int): Int {
@@ -192,7 +377,12 @@ class KeyboardView(context: Context) : View(context) {
         )
     }
 
-    private fun keyAt(x: Float, y: Float): Placement? = placedKeys.firstOrNull { it.box.contains(x, y) }
+    /** Where the keys and the toolbar actually ended up. A test should ask rather than work it out a second time. */
+    internal val placements: List<Placement> get() = placedKeys
+    internal val toolbarPlacements: List<Placement> get() = tools
+
+    private fun keyAt(x: Float, y: Float): Placement? =
+        placedKeys.firstOrNull { it.box.contains(x, y) } ?: tools.firstOrNull { it.box.contains(x, y) }
 
     // ---- touch ------------------------------------------------------------------------------------------------
 
@@ -261,8 +451,8 @@ class KeyboardView(context: Context) : View(context) {
         val press = presses.remove(pointer) ?: return false
         if (repeatingFor === press) stopRepeat()
         invalidate()
-        if (press.swiping || press.repeated) return false    // the swipe or the held repeat already did the work
-        if (keyAt(x, y) !== press.placement) return false    // slid off the key: no press
+        if (press.swiping || press.repeated) return false
+        if (keyAt(x, y) !== press.placement) return false
         dispatch(press.placement.key)
         return true
     }
@@ -276,6 +466,10 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.LAYER -> l.onLayer(Layer.valueOf(key.output))
             KeyKind.ACTION -> l.onAction()
             KeyKind.GLOBE -> l.onSwitchKeyboard()
+            KeyKind.HIDE -> l.onHide()
+            KeyKind.SELECT_ALL -> l.onSelectAll()
+            KeyKind.COPY -> l.onCopy()
+            KeyKind.PASTE -> l.onPaste()
         }
     }
 
@@ -284,25 +478,26 @@ class KeyboardView(context: Context) : View(context) {
     override fun dispatchHoverEvent(event: MotionEvent): Boolean =
         keyNodes.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
 
+    private fun nodeAt(id: Int): Placement? = (placedKeys + tools).getOrNull(id)
+
     /**
      * The keys are drawn, not laid out, so a screen reader would find one blank rectangle. Each key is published as a
-     * virtual view with the name it should be read by: "Backspace", not "⌫".
+     * virtual view with the name it should be read by: "Backspace", not a glyph.
      */
     private inner class KeyNodes : ExploreByTouchHelper(this@KeyboardView) {
         override fun getVirtualViewAt(x: Float, y: Float): Int {
-            val index = placedKeys.indexOfFirst { it.box.contains(x, y) }
+            val all = placedKeys + tools
+            val index = all.indexOfFirst { it.box.contains(x, y) }
             return if (index < 0) HOST_ID else index
         }
 
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
-            for (index in placedKeys.indices) ids.add(index)
+            for (index in (placedKeys + tools).indices) ids.add(index)
         }
 
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
-            val placement = placedKeys.getOrNull(id)
+            val placement = nodeAt(id)
             if (placement == null) {
-                // A stale id can arrive while the rows are being rebuilt. The helper rejects empty bounds, so this
-                // node is given somewhere to be rather than taking the screen reader down with it.
                 node.contentDescription = ""
                 node.setBoundsInParent(Rect(0, 0, 1, 1))
                 return
@@ -318,7 +513,7 @@ class KeyboardView(context: Context) : View(context) {
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: Bundle?): Boolean {
             if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
-            val placement = placedKeys.getOrNull(id) ?: return false
+            val placement = nodeAt(id) ?: return false
             dispatch(placement.key)
             sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)
             return true
@@ -329,5 +524,15 @@ class KeyboardView(context: Context) : View(context) {
         const val FIRST_REPEAT_MS = 400L
         const val REPEAT_MS = 55L
         const val CURSOR_STEP_DP = 12f   // travel per character the cursor moves
+        const val HANDLE_W_DP = 44f
+        const val HANDLE_H_DP = 4f
+        const val PANEL_PAD_DP = 6f      // the gap around the panel, so it floats rather than fills
+        const val PANEL_RADIUS_DP = 22f
+        const val KEY_RADIUS_DP = 14f
+        const val TOOLBAR_DP = 42f
+        const val TOOL_SLOT_DP = 56f
+        const val CAP_AT_DP = 480f      // wider than a large phone: stop stretching, start centring
+        const val CAP_WIDTH_DP = 460f
+        const val SPLIT_AT_DP = 600f    // an unfolded Fold or a tablet: split, the way Samsung does
     }
 }
