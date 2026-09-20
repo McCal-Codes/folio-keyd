@@ -10,7 +10,8 @@ import android.view.inputmethod.EditorInfo
  * measured for a phone, a split half or a one-handed keyboard without a second copy.
  */
 enum class KeyKind {
-    CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, EMOJI, SUGGESTION,
+    CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, CLIPBOARD, EMOJI,
+    SUGGESTION,
 }
 
 data class Key(

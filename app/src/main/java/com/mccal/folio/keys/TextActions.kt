@@ -56,6 +56,9 @@ interface Ime {
 
     /** Swap the letters for the emoji grid, or back again. */
     fun showEmoji(showing: Boolean)
+
+    /** Swap the letters for what has been copied lately, or back. */
+    fun showClipboard(showing: Boolean)
 }
 
 /**
@@ -362,6 +365,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     // The editing a field always supports, through Android's own menu actions rather than by reading the text.
     override fun onSelectAll() = menu(android.R.id.selectAll)
+
+    override fun onClipboardPanel() = ime.showClipboard(true)
 
     override fun onCopy() = menu(android.R.id.copy)
 

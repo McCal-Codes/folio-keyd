@@ -57,6 +57,7 @@ class KeyboardViewTest {
             override fun onSelectAll() { toolbar += "selectAll" }
             override fun onCopy() { toolbar += "copy" }
             override fun onPaste() { toolbar += "paste" }
+            override fun onClipboardPanel() { toolbar += "clipboard" }
             override fun onHide() { toolbar += "hide" }
             override fun onEmojiPanel() { toolbar += "emoji" }
             override fun onSuggestion(word: String) { toolbar += "suggestion:$word" }
@@ -217,7 +218,7 @@ class KeyboardViewTest {
 
     @Test
     fun `with nothing to suggest the toolbar is what shows`() {
-        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test
@@ -239,7 +240,7 @@ class KeyboardViewTest {
     fun `the toolbar comes back when the word is finished`() {
         view.suggestions = listOf("teh", "the")
         view.suggestions = emptyList()
-        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     /** The strip is the same height as the toolbar, so nothing below it moves as words start and finish. */
@@ -257,7 +258,7 @@ class KeyboardViewTest {
     fun `a password field shows the toolbar, never suggestions`() {
         show(FieldRules(password = true))
         view.suggestions = listOf("hunter2", "hunter")
-        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test
@@ -787,7 +788,7 @@ class KeyboardViewTest {
         for (id in keys.size until keys.size + view.toolbarPlacements.size) {
             provider.performAction(id, AccessibilityNodeInfo.ACTION_CLICK, null)
         }
-        assertEquals(listOf("hide", "emoji", "selectAll", "copy", "paste"), toolbar)
+        assertEquals(listOf("hide", "emoji", "selectAll", "copy", "paste", "clipboard"), toolbar)
     }
 
     @Test
