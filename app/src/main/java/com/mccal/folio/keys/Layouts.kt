@@ -47,6 +47,25 @@ data class FieldRules(
     val ephemeral: Boolean get() = password || noLearning
 }
 
+/**
+ * What the space bar says: the language, when the bar is wide enough to read it, and "space" when it isn't.
+ *
+ * Keyd types in six languages and, until now, nothing on screen said which one was on — the globe key switches
+ * them and the only way to find out was to type a word and see what got corrected. Gboard and Samsung both put the
+ * language here, which is where people already look for it.
+ *
+ * Narrow bars keep the plain word rather than shrinking "Português" to something unreadable: a label nobody can read
+ * is worse than a label that says less.
+ */
+internal fun spaceLabel(widthDp: Float, language: Language, plain: String): String =
+    if (widthDp >= SPACE_NAME_MIN_DP && language.ownName.length <= SPACE_NAME_MAX_CHARS) language.ownName else plain
+
+/** Below this the language name crowds the keys either side of it. */
+internal const val SPACE_NAME_MIN_DP = 108f
+
+/** A name longer than this is a language Keyd doesn't ship yet; the plain word is the safe answer. */
+internal const val SPACE_NAME_MAX_CHARS = 12
+
 object Layouts {
     /** English's arrangement. Every other language brings its own, in [Language]. */
     private val LETTER_ROWS = Language.ENGLISH.rows
