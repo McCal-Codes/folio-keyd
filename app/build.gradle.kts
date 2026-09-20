@@ -21,12 +21,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            manifestPlaceholders["appLabel"] = "Folio Keys"
+            manifestPlaceholders["appLabel"] = "Keyd"
         }
         // Its own app id, so a test build sits beside a release instead of replacing the keyboard you rely on.
         getByName("debug") {
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = "Folio Keys Dev"
+            manifestPlaceholders["appLabel"] = "Keyd Dev"
         }
     }
     compileOptions {
