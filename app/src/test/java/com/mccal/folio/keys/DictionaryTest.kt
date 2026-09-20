@@ -176,11 +176,46 @@ class DictionaryTest {
             "recieve" to "receive", "seperate" to "separate", "keybaord" to "keyboard",
             "definately" to "definitely", "becuase" to "because", "freind" to "friend",
             "thier" to "their", "goign" to "going", "wrold" to "world", "pelase" to "please",
+            // A dropped letter: every letter typed is right and one is simply missing, which is the most obvious
+            // kind of slip there is. Pricing it the same as a key from the far side of the keyboard turned "smrt"
+            // into "sort".
+            "smrt" to "smart", "wierd" to "weird", "acheive" to "achieve", "arguement" to "argument",
         )
         val wrong = expected.filter { (typed, wanted) ->
             Suggestions.correction(typed, dictionary, near) != wanted
         }.mapValues { (typed, _) -> Suggestions.correction(typed, dictionary, near) }
         assertEquals("corrected wrongly: $wrong", emptyMap<String, String?>(), wrong)
+    }
+
+    /**
+     * Halfway through a word is not a mistake.
+     *
+     * "keyb" is not a word and "key" is one letter from it, but someone typing "keyboard" who pauses must not have
+     * the keyboard taken off them. Finishing a word is the strip's job.
+     */
+    @Test
+    fun `a word still being typed is not corrected to a shorter one`() {
+        val near = proximity()
+        for (part in listOf("keyb", "somet", "anoth", "tomor", "bec")) {
+            assertEquals(
+                "$part was replaced",
+                null,
+                Suggestions.correction(part, dictionary, near),
+            )
+        }
+        // ...and the strip still offers the finished word.
+        assertTrue("keyboard" in Suggestions.forWord("keyb", dictionary, near))
+    }
+
+    /** What the strip puts first must be what correcting would have chosen; two answers would be one too many. */
+    @Test
+    fun `the strip agrees with what gets corrected`() {
+        val near = proximity()
+        for (typed in listOf("teh", "hte", "smrt", "wnat", "recieve", "keybaord")) {
+            val auto = Suggestions.correction(typed, dictionary, near)
+            val first = Suggestions.forWord(typed, dictionary, near).firstOrNull()
+            assertEquals("$typed: strip says $first, correcting says $auto", auto, first)
+        }
     }
 
     /** Words are never replaced, whatever they are. This is the promise the whole feature rests on. */

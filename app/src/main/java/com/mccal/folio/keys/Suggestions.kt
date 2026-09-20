@@ -96,18 +96,13 @@ object Suggestions {
         for (index in completions) {
             val word = words.word(index)
             if (word.equals(typed, ignoreCase = true)) continue
-            // A word that starts with what you typed is strong evidence, so completions sit at distance zero and
-            // are separated only by how common they are and how much is left to add.
-            val cost = words.rank(index) + (word.length - typed.length)
+            val cost = completionCost(words.rank(index), word.length - typed.length)
             scored.merge(word, cost, ::min)
         }
 
         // Corrections: only worth looking for once there is enough typed to be wrong about.
         if (typed.length >= SHORTEST_CORRECTABLE) {
-            val firsts = buildSet {
-                add(lower.first())
-                proximity?.neighbours(lower.first())?.let { addAll(it) }
-            }
+            val firsts = firstLetters(lower, proximity)
             val allowed = if (typed.length <= 4) 1 else 2
             for (first in firsts) {
                 for (length in typed.length - 1..typed.length + 1) {
@@ -115,12 +110,9 @@ object Suggestions {
                     for (index in words.byShape(first, length)) {
                         val word = words.word(index)
                         if (word.equals(typed, ignoreCase = true)) continue
-                        val distance = distance(lower, word.lowercase(), allowed, proximity)
-                        if (distance > allowed) continue
-                        // Distance decides outright; commonness only ever settles a tie between equal distances.
-                        // Before this, every word in the dictionary's top tier scored the same, so "teh" offered
-                        // "get", "tea" and "ten" in alphabetical order and never reached "the".
-                        val cost = distance * DISTANCE_WEIGHT + words.rank(index)
+                        val edits = cost(lower, word.lowercase(), allowed, proximity)
+                        if (edits > allowed * SCALE) continue
+                        val cost = correctionCost(edits, words.rank(index))
                         scored.merge(word, cost, ::min)
                     }
                 }
@@ -134,13 +126,14 @@ object Suggestions {
                 if (word.equals(typed, ignoreCase = true)) continue
                 val lowerWord = word.lowercase()
                 val cost = when {
-                    lowerWord.startsWith(lower) -> learned.score(word) + (word.length - typed.length)
+                    lowerWord.startsWith(lower) ->
+                        completionCost(learned.score(word), word.length - typed.length)
                     typed.length < SHORTEST_CORRECTABLE -> continue
                     else -> {
                         val allowed = if (typed.length <= 4) 1 else 2
-                        val distance = distance(lower, lowerWord, allowed, proximity)
-                        if (distance > allowed) continue
-                        distance * DISTANCE_WEIGHT + learned.score(word)
+                        val edits = cost(lower, lowerWord, allowed, proximity)
+                        if (edits > allowed * SCALE) continue
+                        correctionCost(edits, learned.score(word))
                     }
                 }
                 scored.merge(word, cost, ::min)
@@ -179,6 +172,10 @@ object Suggestions {
         if (typed.length < SHORTEST_CORRECTABLE) return null
         val lower = typed.lowercase()
         if (words.contains(lower) || (learned?.count(lower) ?: 0) > 0) return null
+        // Halfway through a longer word is not a mistake. "keyb" is not a word, and "key" is one letter away, but
+        // replacing it would take the keyboard off the person typing "keyboard". Where a word could still be
+        // finished, finishing it is the strip's job and there is nothing here to put right.
+        if (words.startingWith(lower).any { words.rank(it) <= COMMON_ENOUGH }) return null
 
         var best: String? = null
         var bestCost = Int.MAX_VALUE
@@ -226,10 +223,13 @@ object Suggestions {
      * What the edits cost, rather than how many there are.
      *
      * Not every single edit is equally likely, and treating them alike loses the difference between a slip and a
-     * guess. Two letters the wrong way round is the strongest evidence there is - both letters are right, only the
-     * order is wrong - so it costs least. A key next to the one meant is next cheapest. Anything else is a whole
-     * edit. Ranking corrections by this rather than by word frequency alone is what keeps "wnat" closer to "want"
-     * than to a commoner word that happens to be one substitution away.
+     * guess.
+     *
+     * Two letters the wrong way round is the strongest evidence there is - both letters are right, only the order
+     * is wrong. A dropped or doubled letter is next: every letter typed is correct, one is simply missing, which
+     * is why "smrt" is so obviously "smart". Then a key next to the one meant. Dearest of all is a key nowhere
+     * near it, because hands do not often reach across the keyboard by accident - and pricing that the same as a
+     * dropped letter was why "smrt" came out as "sort".
      */
     internal fun cost(a: String, b: String, limit: Int, proximity: Proximity?): Int {
         if (abs(a.length - b.length) > limit) return OVER
@@ -248,7 +248,7 @@ object Suggestions {
                     else -> scale
                 }
                 var value = min(
-                    min(previous[j] + scale, current[j - 1] + scale),
+                    min(previous[j] + MISSED, current[j - 1] + MISSED),
                     previous[j - 1] + substitution,
                 )
                 // Two letters the wrong way round is one mistake, not two. It is what fast hands do more than
@@ -282,6 +282,18 @@ object Suggestions {
     }
 
     /**
+     * What a completion and a correction are worth, on one scale so they can be compared.
+     *
+     * Completions used to be free, which meant any word beginning with what you typed beat any correction however
+     * unlikely: "smat" offered "smattering" rather than "smart". Finishing a word is still the stronger answer,
+     * but each extra letter it puts in your mouth costs something, so a long rare word has to be genuinely likely
+     * before it outranks the short word you probably meant.
+     */
+    private fun completionCost(rank: Int, extraLetters: Int) = rank + extraLetters * PER_EXTRA_LETTER
+
+    private fun correctionCost(editCost: Int, rank: Int) = rank + editCost * PER_EDIT
+
+    /**
      * Which letters a correction might start with.
      *
      * The typed letter and the keys around it - and the *second* letter too, because swapping the first two is a
@@ -297,6 +309,9 @@ object Suggestions {
     /** Below this there is not enough typed for "wrong" to mean anything. */
     internal const val SHORTEST_CORRECTABLE = 3
     /** Bigger than any commonness score, so no amount of being common beats being a further edit away. */
+    /** Weighed against each other rather than in separate worlds: see [completionCost]. */
+    private const val PER_EXTRA_LETTER = 12
+    private const val PER_EDIT = 25
     private const val DISTANCE_WEIGHT = 1000
 
     /**
@@ -314,5 +329,6 @@ object Suggestions {
     internal const val SCALE = 4
     private const val NEIGHBOUR = 3       // a key next to the one meant
     private const val SWAP = 2            // two letters the wrong way round
+    private const val MISSED = 3          // a letter dropped or doubled
     private const val OVER = Int.MAX_VALUE / 2
 }
