@@ -141,6 +141,24 @@ class LanguageTest {
         assertEquals("azertyuiop", Language.FRENCH.rows.first())
         assertEquals("qwertzuiop", Language.GERMAN.rows.first())
         assertTrue("Spanish needs an ñ key", Language.SPANISH.rows[1].contains('ñ'))
+        // The same principle, and the same place: a letter a language types constantly is a key, not a long press.
+        assertTrue("Portuguese needs a ç key", Language.PORTUGUESE.rows[1].contains('ç'))
+        assertEquals("Spanish and Portuguese put their extra letter in the same place",
+            Language.SPANISH.rows[1].length, Language.PORTUGUESE.rows[1].length)
+    }
+
+    /**
+     * A letter promoted to a key still has its accents behind it, and is still a letter the dictionary knows.
+     *
+     * Moving ç out of the long-press list would have been the easy mistake: it is where ć and č live, and Portuguese
+     * words are full of it.
+     */
+    @Test
+    fun `a promoted letter keeps its accents and its words`() {
+        assertTrue("ç behind c is still offered", "ç" in Alternates.forKey("c", null, Language.PORTUGUESE))
+        val words = dictionary(Language.PORTUGUESE)
+        val missing = listOf("começar", "ação", "coração").filterNot { words.contains(it) }
+        assertEquals("the Portuguese list is missing $missing", emptyList<String>(), missing)
     }
 
     /** The digit in the corner belongs to the position, not the letter: on AZERTY the first key is "a" and gives 1. */
