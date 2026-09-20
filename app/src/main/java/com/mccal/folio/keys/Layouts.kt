@@ -9,7 +9,9 @@ import android.view.inputmethod.EditorInfo
  * A layout is plain data: rows of [Key]. Nothing here knows how to draw or what a press does, so the same rows can be
  * measured for a phone, a split half or a one-handed keyboard without a second copy.
  */
-enum class KeyKind { CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE }
+enum class KeyKind {
+    CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, EMOJI, SUGGESTION,
+}
 
 data class Key(
     val label: String,
@@ -45,32 +47,48 @@ data class FieldRules(
 }
 
 object Layouts {
-    private val LETTER_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+    /** English's arrangement. Every other language brings its own, in [Language]. */
+    private val LETTER_ROWS = Language.ENGLISH.rows
     private val NUMBER_ROWS = listOf("1234567890", "-/:;()$&@\"", ".,?!'")
     private val SYMBOL_ROWS = listOf("[]{}#%^*+=", "_\\|~<>€£¥•", ".,?!'")
 
-    /** The number a letter key gives on a long press, printed in its corner. */
-    private val ALTERNATES = mapOf(
-        'q' to "1", 'w' to "2", 'e' to "3", 'r' to "4", 't' to "5",
-        'y' to "6", 'u' to "7", 'i' to "8", 'o' to "9", 'p' to "0",
-    )
+    /** The number a top-row key gives on a long press or a downward flick, printed in its corner. */
+    private const val CORNER_DIGITS = "1234567890"
 
-    fun rows(layer: Layer, shifted: Boolean, rules: FieldRules): List<Row> {
+    /**
+     * A row of digits above the letters, for people who would rather not go through the 123 key.
+     *
+     * The digits carry no corner hint, because the hint on a letter key is the digit it gives when held - and a
+     * digit key holding a digit would be telling you something you can already see.
+     */
+    private val DIGITS: Row = "1234567890".map { Key(it.toString()) }
+
+    fun rows(
+        layer: Layer,
+        shifted: Boolean,
+        rules: FieldRules,
+        numberRow: Boolean = false,
+        language: Language = Language.ENGLISH,
+    ): List<Row> {
         if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) return numberPad(rules)
         val source = when (layer) {
-            Layer.LETTERS -> LETTER_ROWS
+            Layer.LETTERS -> language.rows
             Layer.NUMBERS -> NUMBER_ROWS
             Layer.SYMBOLS -> SYMBOL_ROWS
         }
         val letters = layer == Layer.LETTERS
         val rows = source.mapIndexed { index, line ->
-            val keys = line.map { char ->
+            val keys = line.mapIndexed { position, char ->
                 val shown = if (letters && shifted) char.uppercaseChar() else char
-                Key(shown.toString(), hint = if (letters) ALTERNATES[char] else null)
+                // The digit in the corner belongs to the position on the top row, not to the letter: on AZERTY
+                // the first key is "a" and still gives 1, because that is where 1 is.
+                val hint = if (letters && index == 0) CORNER_DIGITS.getOrNull(position) else null
+                Key(shown.toString(), hint = hint?.toString())
             }
             if (index < source.lastIndex) keys else bottomOfLetters(keys, layer)
         }
-        return rows + listOf(spaceRow(layer, rules))
+        val top = if (numberRow && letters) listOf(DIGITS) else emptyList()
+        return top + rows + listOf(spaceRow(layer, rules))
     }
 
     /** The third row carries shift and backspace at its ends, wider than a letter so they're easy to hit. */

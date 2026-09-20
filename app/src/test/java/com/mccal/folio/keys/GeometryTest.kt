@@ -111,6 +111,39 @@ class GeometryTest {
         }
     }
 
+    /**
+     * The window a phone has on its side is the one with least to spare.
+     *
+     * It used to be allowed a bigger share of itself than a tall window, so in landscape the keyboard took two
+     * thirds of the screen and the field being typed into ended up behind it.
+     */
+    @Test
+    fun `a short window does not give the keyboard a bigger share than a tall one`() {
+        val density = 2.75f
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        fun share(heightDp: Float): Float {
+            val extra = 48 * density   // the toolbar and the panel's own margin
+            return Geometry.height(rows.size, heightDp, density, 0f, extra) / (heightDp * density)
+        }
+        // Comparing the two shares directly would be the wrong test: the toolbar, the gaps and the band under the
+        // keys cost the same number of pixels whatever the window, so they are always a bigger slice of a small
+        // one. What matters is that the app is left something worth looking at.
+        // Windows shorter than this cannot be divided usefully at all, and the service goes fullscreen
+        // instead, which is a different answer to the same problem.
+        for (heightDp in listOf(411f, 454f, 475f, 520f)) {
+            val taken = share(heightDp)
+            assertTrue(
+                "a ${heightDp.toInt()} dp window gives the keyboard ${(taken * 100).toInt()}%",
+                taken <= 0.58f,
+            )
+            val leftForTheApp = heightDp * (1 - taken)
+            assertTrue(
+                "only ${leftForTheApp.toInt()} dp left of a ${heightDp.toInt()} dp window",
+                leftForTheApp >= 150f,
+            )
+        }
+    }
+
     @Test
     fun `a taller layout does not make taller keys`() {
         val (w, h, d) = windows[1]
@@ -208,6 +241,29 @@ class GeometryTest {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    /** The number row is an extra row of keys, and everything still has to fit and stay big enough to hit. */
+    @Test
+    fun `a number row still fits at every window size`() {
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules(), numberRow = true)
+        assertEquals("a digits row should have been added", 5, rows.size)
+        assertEquals("1234567890", rows.first().joinToString("") { it.label })
+        for ((w, h, d) in windows) {
+            val placed = layout(w, h, d, rows)
+            for (placement in placed) {
+                assertTrue(
+                    "${placement.key.label} is ${placement.box.width / d} dp at ${w}x$h",
+                    placement.box.width / d >= 24f && placement.box.height / d >= 24f,
+                )
+            }
+            for (i in placed.indices) for (j in i + 1 until placed.size) {
+                assertTrue(
+                    "${placed[i].key.label} overlaps ${placed[j].key.label} at ${w}x$h",
+                    !placed[i].box.overlaps(placed[j].box),
+                )
             }
         }
     }

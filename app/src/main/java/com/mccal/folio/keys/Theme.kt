@@ -45,12 +45,60 @@ data class Theme(
         )
 
         /** Both themes, for the contrast test: the colours that ship are the colours that get checked. */
-        fun bothForTests(): List<Pair<String, Theme>> = listOf("dark" to DARK, "light" to LIGHT)
+        /**
+         * Every palette that ships, for the contrast checks.
+         *
+         * The high-contrast pair is in here deliberately: a palette whose entire purpose is being easier to read
+         * would be a joke if it were the one that failed the contrast test.
+         */
+        fun bothForTests(): List<Pair<String, Theme>> = listOf(
+            "dark" to DARK,
+            "light" to LIGHT,
+            "high contrast dark" to HIGH_CONTRAST_DARK,
+            "high contrast light" to HIGH_CONTRAST_LIGHT,
+        )
 
-        fun of(context: Context): Theme {
-            val night = context.resources.configuration.uiMode and
-                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-            return if (night) DARK else LIGHT
+        /**
+         * Every key outlined and every label at full strength.
+         *
+         * Samsung has one of these under Style and layout, and it is worth having: the ordinary palettes put grey
+         * keys on a grey board, which is fine for most eyes and not for all of them. This pushes both apart as far
+         * as they go - black board, white keys, black labels - rather than merely nudging them.
+         */
+        private val HIGH_CONTRAST_DARK = DARK.copy(
+            board = 0xFF000000.toInt(),
+            key = 0xFFFFFFFF.toInt(),
+            altKey = 0xFFB8B8BD.toInt(),
+            label = 0xFF000000.toInt(),
+            hint = 0xFF000000.toInt(),
+            accent = 0xFFFFD400.toInt(),
+            onAccent = 0xFF000000.toInt(),
+            pressTint = 0x66000000,
+            preview = 0xFFFFFFFF.toInt(),
+        )
+
+        private val HIGH_CONTRAST_LIGHT = LIGHT.copy(
+            board = 0xFFFFFFFF.toInt(),
+            key = 0xFF000000.toInt(),
+            altKey = 0xFF3A3A3F.toInt(),
+            label = 0xFFFFFFFF.toInt(),
+            hint = 0xFFFFFFFF.toInt(),
+            accent = 0xFF00348F.toInt(),
+            onAccent = 0xFFFFFFFF.toInt(),
+            pressTint = 0x66FFFFFF,
+            preview = 0xFF000000.toInt(),
+        )
+
+        fun of(context: Context, appearance: Appearance = Appearance.SYSTEM, highContrast: Boolean = false): Theme {
+            val dark = when (appearance) {
+                Appearance.DARK -> true
+                Appearance.LIGHT -> false
+                Appearance.SYSTEM -> context.resources.configuration.uiMode and
+                    Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            }
+            if (highContrast) return if (dark) HIGH_CONTRAST_DARK else HIGH_CONTRAST_LIGHT
+            return if (dark) DARK else LIGHT
         }
+
     }
 }

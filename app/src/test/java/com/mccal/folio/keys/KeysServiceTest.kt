@@ -40,6 +40,9 @@ class KeysServiceTest {
         var switches = 0
         var shown: List<Row> = emptyList()
         var shift = Shift.OFF
+        var emojiShowing = false
+        var suggestedFor = mutableListOf<String>()
+        var taught = mutableListOf<String>()
 
         override fun switchKeyboard() { switches++ }
         var hides = 0
@@ -47,6 +50,18 @@ class KeysServiceTest {
         override fun show(rows: List<Row>, shift: Shift) {
             shown = rows
             this.shift = shift
+        }
+
+        override fun showEmoji(showing: Boolean) {
+            emojiShowing = showing
+        }
+
+        override fun suggest(word: String) {
+            suggestedFor += word
+        }
+
+        override fun learn(word: String) {
+            taught += word
         }
     }
 
@@ -75,6 +90,375 @@ class KeysServiceTest {
     }
 
     private fun type(word: String) = word.forEach { actions.onText(it.toString()) }
+
+    // ---- the word being typed -----------------------------------------------------------------------------------
+
+    /** The last thing the strip was asked about, which is what it would be showing. */
+    private val asked get() = ime.suggestedFor.last()
+
+    @Test
+    fun `the word grows as it is typed`() {
+        type("hel")
+        assertEquals("hel", asked)
+    }
+
+    @Test
+    fun `a space ends the word`() {
+        type("hello ")
+        assertEquals("", asked)
+    }
+
+    /** A full stop or a bracket ends a word just as a space does. */
+    @Test
+    fun `punctuation ends the word`() {
+        type("hello.")
+        assertEquals("", asked)
+        type("again)")
+        assertEquals("", asked)
+    }
+
+    @Test
+    fun `an apostrophe is part of the word`() {
+        type("don't")
+        assertEquals("don't", asked)
+    }
+
+    @Test
+    fun `backspace shortens the word`() {
+        type("hello")
+        actions.onBackspace()
+        assertEquals("hell", asked)
+        actions.onBackspaceRepeat()
+        assertEquals("hel", asked)
+    }
+
+    @Test
+    fun `moving the cursor means we no longer know the word`() {
+        type("hello")
+        actions.onCursor(-2)
+        assertEquals("", asked)
+    }
+
+    @Test
+    fun `a new field starts with no word`() {
+        type("hello")
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        assertEquals("", asked)
+    }
+
+    /** Nothing about a password goes to the dictionary, not even to be looked up. */
+    @Test
+    fun `a password field is never asked about`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("hunter2")
+        assertTrue("asked about ${ime.suggestedFor}", ime.suggestedFor.all { it.isEmpty() })
+    }
+
+    // ---- what the settings change -------------------------------------------------------------------------------
+
+    @Test
+    fun `turning suggestions off stops the strip being asked at all`() {
+        actions.settings = Settings(suggestions = false)
+        type("hello")
+        assertTrue("asked about ${ime.suggestedFor}", ime.suggestedFor.all { it.isEmpty() })
+    }
+
+    /**
+     * Switching the strip off switches correcting off with it.
+     *
+     * The worst of the four combinations would be a keyboard showing no sign of the feature while still quietly
+     * changing words, so the two are tied together on purpose.
+     */
+    @Test
+    fun `no strip means nothing is corrected either`() {
+        actions.settings = Settings(suggestions = false, autocorrect = true)
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" ")
+        assertEquals("teh ", text)
+    }
+
+    @Test
+    fun `turning correcting off leaves the strip working`() {
+        actions.settings = Settings(suggestions = true, autocorrect = false)
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" ")
+        assertEquals("teh ", text)
+        assertTrue("the strip should still be asked", ime.suggestedFor.any { it == "teh" })
+    }
+
+    @Test
+    fun `turning learning off stops words being kept`() {
+        actions.settings = Settings(learn = false)
+        type("mccal ")
+        assertEquals(emptyList<String>(), ime.taught)
+    }
+
+    // ---- double space -------------------------------------------------------------------------------------------
+
+    @Test
+    fun `two spaces after a word become a full stop`() {
+        type("hello  ")
+        assertEquals("hello. ", text)
+    }
+
+    @Test
+    fun `two spaces on their own stay two spaces`() {
+        type("  ")
+        assertEquals("  ", text)
+    }
+
+    @Test
+    fun `two spaces after punctuation stay two spaces`() {
+        type("hello.  ")
+        assertEquals("hello.  ", text)
+    }
+
+    @Test
+    fun `a full stop is not added when the setting is off`() {
+        actions.settings = Settings(doubleSpaceFullStop = false)
+        type("hello  ")
+        assertEquals("hello  ", text)
+    }
+
+    @Test
+    fun `spaces far apart are not a double space`() {
+        type("a b ")
+        assertEquals("a b ", text)
+    }
+
+    // ---- correcting on its own ----------------------------------------------------------------------------------
+
+    @Test
+    fun `a word the suggestion thread flagged is corrected when it is finished`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" ")
+        assertEquals("the ", text)
+    }
+
+    @Test
+    fun `the ending that finished the word is kept`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(".")
+        assertEquals("the.", text)
+    }
+
+    @Test
+    fun `text before the corrected word is left alone`() {
+        type("well teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" ")
+        assertEquals("well the ", text)
+    }
+
+    /** The one key that undoes it. Without this, correcting on its own would not be worth doing at all. */
+    @Test
+    fun `backspace straight after a correction puts back what was typed`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" ")
+        actions.onBackspace()
+        assertEquals("teh ", text)
+    }
+
+    @Test
+    fun `backspace after anything else deletes as usual`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" ")
+        type("x")
+        actions.onBackspace()
+        assertEquals("the ", text)
+    }
+
+    @Test
+    fun `a word with no correction offered is left alone`() {
+        type("mccal")
+        actions.offered(Verdict("mccal", null, misspelled = false))
+        type(" ")
+        assertEquals("mccal ", text)
+    }
+
+    /** A correction worked out for an earlier word must not be applied to a later one. */
+    @Test
+    fun `a stale correction is not applied`() {
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type("cat ")
+        assertEquals("cat ", text)
+    }
+
+    @Test
+    fun `nothing is corrected in a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" ")
+        assertEquals("teh ", text)
+    }
+
+    // ---- underlining what it has never heard of ------------------------------------------------------------------
+
+    /** The span the editor draws its squiggle from, if there is one on the text. */
+    private fun misspelledSpans(): List<android.text.style.SuggestionSpan> {
+        val editable = field.editable ?: return emptyList()
+        return editable.getSpans(0, editable.length, android.text.style.SuggestionSpan::class.java)
+            .filter { it.flags and android.text.style.SuggestionSpan.FLAG_MISSPELLED != 0 }
+    }
+
+    @Test
+    fun `a word nothing has heard of is underlined`() {
+        type("zxqwv")
+        actions.offered(Verdict("zxqwv", null, misspelled = true, suggestions = listOf("zxqwv")))
+        type(" ")
+        assertEquals("the text itself is unchanged", "zxqwv ", text)
+        assertEquals(1, misspelledSpans().size)
+    }
+
+    @Test
+    fun `an ordinary word is not underlined`() {
+        type("hello")
+        actions.offered(Verdict("hello", null, misspelled = false))
+        type(" ")
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    /** The span carries the answers, so tapping the word offers them in the editor's own menu. */
+    @Test
+    fun `the underline brings the suggestions with it`() {
+        type("teh")
+        actions.offered(Verdict("teh", null, misspelled = true, suggestions = listOf("the", "ten", "tea")))
+        type(" ")
+        val span = misspelledSpans().single()
+        assertEquals(listOf("the", "ten", "tea"), span.suggestions.toList())
+    }
+
+    @Test
+    fun `nothing is underlined in a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("zxqwv")
+        actions.offered(Verdict("zxqwv", null, misspelled = true))
+        type(" ")
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    @Test
+    fun `nothing is underlined when the setting is off`() {
+        actions.settings = Settings(spellCheck = false)
+        type("zxqwv")
+        actions.offered(Verdict("zxqwv", null, misspelled = true))
+        type(" ")
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    /** Correcting and underlining are two answers to one question; a corrected word is not also a wrong one. */
+    @Test
+    fun `a word that was corrected is not also underlined`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = true, suggestions = listOf("the")))
+        type(" ")
+        assertEquals("the ", text)
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    /** A verdict about an earlier word must never be applied to a later one. */
+    @Test
+    fun `a stale verdict does not underline the wrong word`() {
+        actions.offered(Verdict("zxqwv", null, misspelled = true))
+        type("hello ")
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    // ---- learning -----------------------------------------------------------------------------------------------
+
+    @Test
+    fun `a finished word is offered for learning`() {
+        type("mccal ")
+        assertEquals(listOf("mccal"), ime.taught)
+    }
+
+    /** A word still being typed is a prefix, and every prefix of every word is not worth remembering. */
+    @Test
+    fun `a word still being typed is not learned`() {
+        type("mcca")
+        assertEquals(emptyList<String>(), ime.taught)
+    }
+
+    @Test
+    fun `a full stop finishes a word just as a space does`() {
+        type("folio.")
+        assertEquals(listOf("folio"), ime.taught)
+    }
+
+    @Test
+    fun `pressing return finishes the word`() {
+        type("folio")
+        actions.onAction()
+        assertEquals(listOf("folio"), ime.taught)
+    }
+
+    /** Nothing typed into a password field is kept, whatever else is true. */
+    @Test
+    fun `nothing is learned from a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("hunter2 correcthorse ")
+        assertEquals(emptyList<String>(), ime.taught)
+    }
+
+    /** An app can ask not to be learned from, and that is not negotiable by any setting of ours. */
+    @Test
+    fun `nothing is learned when the app asked not to be`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        type("something private ")
+        assertEquals(emptyList<String>(), ime.taught)
+    }
+
+    // ---- taking a suggestion ------------------------------------------------------------------------------------
+
+    @Test
+    fun `taking a suggestion replaces the word and adds a space`() {
+        type("teh")
+        actions.onSuggestion("the")
+        assertEquals("the ", text)
+    }
+
+    @Test
+    fun `taking a suggestion leaves the text before it alone`() {
+        type("well teh")
+        actions.onSuggestion("the")
+        assertEquals("well the ", text)
+    }
+
+    @Test
+    fun `there is nothing to replace when no word is being typed`() {
+        type("hello ")
+        actions.onSuggestion("hello")
+        assertEquals("a suggestion with no word must do nothing", "hello ", text)
+    }
+
+    /**
+     * The replacement deletes by count, so it must first check that the count still means what it meant.
+     *
+     * If something else changed the field while a word was being typed, deleting three characters would eat three
+     * characters of somebody's sentence.
+     */
+    @Test
+    fun `a suggestion is refused when the text is not what we thought`() {
+        type("teh")
+        field.editable?.clear()
+        field.editable?.append("something else entirely")
+        actions.onSuggestion("the")
+        assertEquals("something else entirely", text)
+    }
+
+    @Test
+    fun `the word is finished with after it is taken`() {
+        type("teh")
+        actions.onSuggestion("the")
+        assertEquals("", asked)
+    }
 
     // ---- typing -------------------------------------------------------------------------------------------------
 

@@ -20,6 +20,10 @@ import android.widget.TextView
  */
 class SetupActivity : Activity() {
 
+    /** Refreshed in [onResume], because both steps happen in someone else's screen. */
+    private lateinit var status: TextView
+    private lateinit var forget: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val dp = resources.displayMetrics.density
@@ -45,6 +49,14 @@ class SetupActivity : Activity() {
             setPadding(0, 0, 0, (14 * dp).toInt())
         })
 
+        fun button(text: String, onClick: () -> Unit) = Button(this).apply {
+            this.text = text
+            setOnClickListener { onClick() }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { bottomMargin = (10 * dp).toInt() }
+        }
+
         fun action(text: String, onClick: () -> Unit) = column.addView(Button(this).apply {
             this.text = text
             setOnClickListener { onClick() }
@@ -56,11 +68,21 @@ class SetupActivity : Activity() {
         title(getString(R.string.setup_title))
         body(getString(R.string.setup_intro))
         action(getString(R.string.setup_step_one)) {
-            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+            // A new task, or Android's settings join ours: the screen stays on our back stack, and every later
+            // launch of Folio Keys resumes into Settings instead of this screen.
+            startActivity(
+                Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
         }
         action(getString(R.string.setup_step_two)) {
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
         }
+        status = TextView(this).apply {
+            setTextColor(Color.parseColor("#0A84FF"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setPadding(0, (2 * dp).toInt(), 0, (16 * dp).toInt())
+        }
+        column.addView(status)
         body(getString(R.string.setup_warning))
 
         column.addView(TextView(this).apply {
@@ -76,9 +98,48 @@ class SetupActivity : Activity() {
             setHintTextColor(Color.parseColor("#6E6E73"))
         })
 
+        action(getString(R.string.settings_open)) {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        body(getString(R.string.setup_learning))
+        forget = button(getString(R.string.setup_forget_none)) {
+            getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).apply()
+            forget.text = getString(R.string.setup_forgot)
+            forget.isEnabled = false
+        }
+        column.addView(forget)
+
         setContentView(ScrollView(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(column)
         })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val words = Learned.decode(getSharedPreferences("keys", MODE_PRIVATE).getString(LEARNED, null)).size
+        forget.text =
+            if (words == 0) getString(R.string.setup_forget_none) else getString(R.string.setup_forget, words)
+        forget.isEnabled = words > 0
+        val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        // Asked of the input-method service rather than read out of Settings: an app is allowed this one.
+        val added = runCatching {
+            manager.enabledInputMethodList.any { it.packageName == packageName }
+        }.getOrDefault(false)
+        val current = runCatching {
+            Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+        }.getOrNull()
+        status.setText(
+            when (setupState(added, current, packageName)) {
+                SetupState.NOT_ADDED -> R.string.setup_state_not_added
+                SetupState.ADDED -> R.string.setup_state_added
+                SetupState.IN_USE -> R.string.setup_state_in_use
+            },
+        )
+    }
+
+    private companion object {
+        /** The same place the service keeps them. */
+        const val LEARNED = "learnedWords"
     }
 }

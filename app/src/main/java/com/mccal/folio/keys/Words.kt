@@ -39,6 +39,8 @@ object Spoken {
         KeyKind.SELECT_ALL -> "Select all"
         KeyKind.COPY -> "Copy"
         KeyKind.PASTE -> "Paste"
+        KeyKind.EMOJI -> "Emoji"
+        KeyKind.SUGGESTION -> key.output
         KeyKind.ACTION, KeyKind.CHAR -> key.label
     }
 }

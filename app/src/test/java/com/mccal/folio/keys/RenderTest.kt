@@ -27,8 +27,12 @@ class RenderTest {
     private fun render(name: String, widthDp: Int, heightDp: Int, night: Boolean, build: (KeyboardView) -> Unit) {
         // Qualifiers rather than a hand-built Configuration: this is how a phone describes itself, and it gives the
         // render a real density, so the picture shows what someone would actually see.
+        // "land" is not decoration: without it Robolectric normalises the window back to portrait and swaps the
+        // two numbers, so a landscape render would draw at landscape width while the keyboard sized itself to a
+        // portrait window. The picture looked plausible and was measured against the wrong screen.
+        val side = if (widthDp > heightDp) "-land" else ""
         org.robolectric.RuntimeEnvironment.setQualifiers(
-            "+w${widthDp}dp-h${heightDp}dp-" + (if (night) "night" else "notnight") + "-xhdpi",
+            "w${widthDp}dp-h${heightDp}dp$side-" + (if (night) "night" else "notnight") + "-xhdpi",
         )
         val context = ApplicationProvider.getApplicationContext<Context>()
 
@@ -58,6 +62,40 @@ class RenderTest {
         view.rows = Layouts.rows(layer, false, rules)
     }
 
+    /** The emoji grid, drawn the same way: the picture is the only way to see that the cells line up. */
+    private fun renderEmoji(name: String, widthDp: Int, heightDp: Int, night: Boolean, category: Int) {
+        val side = if (widthDp > heightDp) "-land" else ""
+        org.robolectric.RuntimeEnvironment.setQualifiers(
+            "w${widthDp}dp-h${heightDp}dp$side-" + (if (night) "night" else "notnight") + "-xhdpi",
+        )
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val panel = EmojiPanel(context)
+        panel.selectCategory(category)
+        val density = context.resources.displayMetrics.density
+        val widthPx = (widthDp * density).toInt()
+        panel.measure(
+            View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        panel.layout(0, 0, panel.measuredWidth, panel.measuredHeight)
+        val bitmap = Bitmap.createBitmap(panel.measuredWidth, panel.measuredHeight, Bitmap.Config.ARGB_8888)
+        Canvas(bitmap).also { canvas ->
+            canvas.drawColor(if (night) 0xFF101014.toInt() else 0xFFF2F2F7.toInt())
+            panel.draw(canvas)
+        }
+        val out = File("build/renders").apply { mkdirs() }.resolve("$name.png")
+        out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        println("rendered $name -> ${out.absolutePath}")
+    }
+
+    @Test
+    fun `the emoji, as a phone would draw them`() {
+        renderEmoji("emoji-phone-dark", 411, 891, night = true, category = 1)
+        renderEmoji("emoji-phone-light", 411, 891, night = false, category = 1)
+        renderEmoji("emoji-fold-dark", 932, 704, night = true, category = 1)
+        renderEmoji("emoji-empty-recents-dark", 411, 891, night = true, category = 0)
+    }
+
     @Test
     fun `the keyboard, as a phone would draw it`() {
         render("phone-dark", 411, 891, night = true) { letters(it) }
@@ -70,6 +108,23 @@ class RenderTest {
         render("symbols-dark", 411, 891, night = true) { letters(it, layer = Layer.NUMBERS) }
         render("tablet-capped-dark", 540, 860, night = true) { letters(it) }
         render("phone-landscape-dark", 891, 411, night = true) { letters(it) }
+        render("fold-open-landscape-dark", 932, 704, night = true) { letters(it) }
+        render("suggestions-dark", 411, 891, night = true) {
+            letters(it)
+            it.suggestions = listOf("teh", "the", "ten", "tea")
+        }
+        render("suggestions-light", 411, 891, night = false) {
+            letters(it)
+            it.suggestions = listOf("recieve", "receive", "relieve", "reprieve")
+        }
+        render("accents-dark", 411, 891, night = true) {
+            letters(it)
+            it.holdForRender("e")
+        }
+        render("accents-right-dark", 411, 891, night = true) {
+            letters(it)
+            it.holdForRender("o")
+        }
         render("password-light", 411, 891, night = false) {
             letters(it, FieldRules(password = true, actionLabel = "Done"))
         }

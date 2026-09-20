@@ -1,5 +1,6 @@
 package com.mccal.folio.keys
 
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
@@ -8,6 +9,15 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
     val width: Float get() = right - left
     val height: Float get() = bottom - top
     fun contains(x: Float, y: Float): Boolean = x >= left && x < right && y >= top && y < bottom
+    /**
+     * How far a point lies outside this box, and zero inside it.
+     *
+     * Keys are drawn with a gap between them, and a finger landing in that gap belongs to the nearest key rather
+     * than to nobody: a keyboard that only answers [contains] drops a letter every time someone hits a seam.
+     */
+    fun distanceTo(x: Float, y: Float): Float =
+        hypot(max(max(left - x, 0f), x - right), max(max(top - y, 0f), y - bottom))
+
     fun overlaps(other: Box): Boolean =
         left < other.right && other.left < right && top < other.bottom && other.top < bottom
 }
@@ -29,23 +39,48 @@ object Geometry {
     const val MAX_ROW_DP = 52f
 
     /** Android's guidance: a keyboard that isn't fullscreen shouldn't take much more than half the window. */
-    fun height(rowCount: Int, windowHeightDp: Float, density: Float, bottomInset: Float, extra: Float = 0f): Int {
+    fun height(
+        rowCount: Int,
+        windowHeightDp: Float,
+        density: Float,
+        bottomInset: Float,
+        extra: Float = 0f,
+        /** What the person chose: a hand that wants a taller or shorter keyboard than the default. */
+        share: Float = SHARE,
+    ): Int {
         val rows = max(rowCount, 1)
-        val cap = capPx(windowHeightDp, density)
-        val row = rowHeight(cap, rows, density, bottomInset)
+        val cap = capPx(windowHeightDp, density, share)
+        // The ceiling on a row has to move with the choice too. On a tall phone the rows are already as tall as
+        // they are allowed to get, so raising only the share changed nothing at all and "Tall" did nothing.
+        val row = rowHeight(cap, rows, density, bottomInset, MAX_ROW_DP * (share / SHARE))
         val gapY = GAP_Y_DP * density
         return (rows * row + (rows - 1) * gapY + 2 * gapY + bottomInset + extra).toInt()
     }
 
-    fun capPx(windowHeightDp: Float, density: Float): Float {
-        val tall = windowHeightDp >= 560
-        return min(windowHeightDp * density * (if (tall) 0.46f else 0.55f), 360 * density)
-    }
+    /**
+     * The most of the window the keys may take.
+     *
+     * The same share whatever the window. A short window used to be allowed *more* of itself than a tall one, which
+     * is backwards: a phone on its side has the least room to spare, so taking two thirds of it left the field
+     * being typed into hidden behind the keyboard - the one thing a keyboard must never do.
+     */
+    fun capPx(windowHeightDp: Float, density: Float, share: Float = SHARE): Float =
+        min(windowHeightDp * density * share, MAX_HEIGHT_DP * density * (share / SHARE))
 
-    fun rowHeight(cap: Float, rowCount: Int, density: Float, bottomInset: Float): Float {
+    const val SHARE = 0.46f
+    const val MAX_HEIGHT_DP = 360f
+
+    /** [maxRow] moves with the size someone chose; the floor never does, because it is what a finger needs. */
+    fun rowHeight(
+        cap: Float,
+        rowCount: Int,
+        density: Float,
+        bottomInset: Float,
+        maxRow: Float = MAX_ROW_DP,
+    ): Float {
         val gapY = GAP_Y_DP * density
         val room = cap - 2 * gapY - (rowCount - 1) * gapY - bottomInset
-        return max(MIN_ROW_DP * density, min(MAX_ROW_DP * density, room / rowCount))
+        return max(MIN_ROW_DP * density, min(maxRow * density, room / rowCount))
     }
 
     /**
