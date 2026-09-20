@@ -2,7 +2,8 @@
 """
 Builds the keyboard's word list from its two sources.
 
-    python3 tools/build-dictionary.py <scowl-dir> <en_50k.txt> app/src/main/assets/words-en-us.txt
+    python3 tools/build-dictionary.py <scowl-dir> <en_50k.txt> app/src/main/assets/words-en-US.txt
+    python3 tools/build-dictionary.py --spoken-only <es_50k.txt> app/src/main/assets/words-es-ES.txt
 
 **Words** come from SCOWL (http://wordlist.aspell.net/), US English, cut at its "size 40" band. SCOWL's bands are
 tiers of commonness rather than frequencies, and its top tier alone holds four thousand words - inside it "the" ties
@@ -17,6 +18,15 @@ gaps are exactly the words nobody wants replaced - "arse", "bollocks", "wanker" 
 would have been turned into something the person did not type.
 
 Both licences are permissive and both notices ship beside the list as `words-en-us-COPYING.txt`.
+
+**Other languages have only the second source.** SCOWL is English, and the open word lists for most other
+languages are GPL, which this app cannot use. So `--spoken-only` builds a list from the frequency data alone.
+
+That is a real difference in kind and worth being honest about: an English word is in the list because a
+dictionary says it is a word, while a Spanish one is in the list because it was said often in subtitles. The
+frequency list contains misspellings, and some of them are said often. The cut is therefore tighter for these
+languages, and anything below it is dropped rather than kept at a low score - a rare real word costs someone one
+correction, whereas a common misspelling promoted into a dictionary corrupts every suggestion near it.
 """
 import math
 import os
@@ -30,13 +40,18 @@ NOT_WORDS = {
     "ain", "mustn", "needn", "daren", "shan", "oughtn", "mightn", "usedn",
 }
 
-WORD = re.compile(r"^[A-Za-z][A-Za-z']*$")
+# Letters of any alphabet, not just the twenty-six English happens to use.
+WORD = re.compile("^[^\\W\\d_][^\\W\\d_']*[']?[^\\W\\d_]*$", re.UNICODE)
 SCOWL_BANDS = [10, 20, 35, 40]
 SCOWL_KINDS = [
     "english-words", "american-words", "english-contractions", "american-contractions",
     "english-upper", "american-upper",
 ]
 SPOKEN_CUTOFF = 20_000        # past this the frequency list is mostly noise and misspellings
+
+# For a language with no dictionary to check against, the tail is riskier: nothing rules out a common misspelling.
+SPOKEN_ONLY_CUTOFF = 30_000
+SPOKEN_ONLY_SHORTEST = 2      # "yo", "tu", "je", "il" are words; single letters mostly are not
 
 
 def scowl_words(final_dir):
@@ -90,6 +105,28 @@ def position_of(word, positions):
     return None
 
 
+def spoken_only(frequency_file, destination):
+    """
+    A word list built from frequency data alone, for a language with no usable dictionary.
+
+    Everything here earns its place by being said, which is the best evidence available and not as good as a
+    dictionary. Letters only, so numbers, timestamps and subtitle artefacts do not become words.
+    """
+    positions = frequencies(frequency_file)
+    entries = {}
+    for word, position in positions.items():
+        if position > SPOKEN_ONLY_CUTOFF:
+            continue
+        if not WORD.match(word) or not (SPOKEN_ONLY_SHORTEST <= len(word) <= 20):
+            continue
+        entries[word] = score(position, 0)
+    with open(destination, "w", encoding="utf-8") as out:
+        for word, value in sorted(entries.items(), key=lambda kv: kv[0].lower()):
+            out.write(f"{word}:{value:02d}\n")
+    print(f"{len(entries)} words from the spoken list alone -> {destination} "
+          f"({os.path.getsize(destination)} bytes)")
+
+
 def main(final_dir, frequency_file, destination):
     words = scowl_words(final_dir)
     positions = frequencies(frequency_file)
@@ -113,6 +150,9 @@ def main(final_dir, frequency_file, destination):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
+    if len(sys.argv) == 4 and sys.argv[1] == "--spoken-only":
+        spoken_only(sys.argv[2], sys.argv[3])
+    elif len(sys.argv) == 4:
+        main(*sys.argv[1:])
+    else:
         sys.exit(__doc__)
-    main(*sys.argv[1:])

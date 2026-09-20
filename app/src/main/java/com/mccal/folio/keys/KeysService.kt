@@ -13,6 +13,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InputMethodSubtype
 
 /**
  * Folio Keys.
@@ -52,6 +53,7 @@ class KeysService : InputMethodService(), Ime {
     private val background by lazy { Handler(thinking.looper) }
     private val main = Handler(Looper.getMainLooper())
     private var dictionary: Dictionary? = null
+    private var loadedFor: Language? = null
     private var learned: Learned? = null
     private var shortcuts: Shortcuts? = null
     private var proximity: Suggestions.Proximity? = null
@@ -73,7 +75,7 @@ class KeysService : InputMethodService(), Ime {
         spanTheCutout()
         // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
         background.post {
-            dictionary = runCatching { Dictionary.load(this) }.getOrNull()
+            loadDictionary(actions.language)
             learned = Learned.decode(prefs.getString(LEARNED, null))
             shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
         }
@@ -94,6 +96,37 @@ class KeysService : InputMethodService(), Ime {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             }
         }
+    }
+
+    /**
+     * Reads the word list for a language, and keeps it until the language changes.
+     *
+     * Always on the suggestion thread: it is most of a megabyte of parsing, and doing it when someone taps the
+     * globe would freeze the keyboard at the exact moment they are looking at it.
+     */
+    private fun loadDictionary(language: Language) {
+        if (loadedFor == language && dictionary != null) return
+        dictionary = runCatching { Dictionary.load(this, language) }.getOrNull()
+        loadedFor = if (dictionary != null) language else null
+        // Which keys are where has changed, so what counts as a near miss has changed with it.
+        proximity = null
+        proximityFor = null
+    }
+
+    /**
+     * Android telling us the person picked a different language.
+     *
+     * The layout changes at once, because that is what they are looking at; the word list follows a moment later
+     * on its own thread.
+     */
+    override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
+        super.onCurrentInputMethodSubtypeChanged(newSubtype)
+        val language = Language.of(newSubtype?.languageTag)
+        if (language == actions.language) return
+        actions.language = language
+        keyboard?.language = language
+        actions.refresh()
+        background.post { loadDictionary(language) }
     }
 
     override fun onDestroy() {
@@ -258,6 +291,17 @@ class KeysService : InputMethodService(), Ime {
         // Re-read each time a field opens, so a change on the settings screen takes effect without a restart.
         val chosen = Settings.load(prefs)
         actions.settings = chosen
+        // Asked every time rather than only when it changes: a subtype can be switched while another app is in
+        // front, and the first we hear of it is the next field that opens.
+        val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        val language = Language.of(
+            runCatching { manager.currentInputMethodSubtype?.languageTag }.getOrNull(),
+        )
+        if (language != actions.language) {
+            actions.language = language
+            background.post { loadDictionary(language) }
+        }
+        keyboard?.language = language
         keyboard?.settings = chosen
         emoji?.appearance = chosen.appearance
         emoji?.highContrast = chosen.highContrast

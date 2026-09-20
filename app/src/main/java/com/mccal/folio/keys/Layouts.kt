@@ -47,15 +47,13 @@ data class FieldRules(
 }
 
 object Layouts {
-    private val LETTER_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+    /** English's arrangement. Every other language brings its own, in [Language]. */
+    private val LETTER_ROWS = Language.ENGLISH.rows
     private val NUMBER_ROWS = listOf("1234567890", "-/:;()$&@\"", ".,?!'")
     private val SYMBOL_ROWS = listOf("[]{}#%^*+=", "_\\|~<>€£¥•", ".,?!'")
 
-    /** The number a letter key gives on a long press, printed in its corner. */
-    private val ALTERNATES = mapOf(
-        'q' to "1", 'w' to "2", 'e' to "3", 'r' to "4", 't' to "5",
-        'y' to "6", 'u' to "7", 'i' to "8", 'o' to "9", 'p' to "0",
-    )
+    /** The number a top-row key gives on a long press or a downward flick, printed in its corner. */
+    private const val CORNER_DIGITS = "1234567890"
 
     /**
      * A row of digits above the letters, for people who would rather not go through the 123 key.
@@ -65,18 +63,27 @@ object Layouts {
      */
     private val DIGITS: Row = "1234567890".map { Key(it.toString()) }
 
-    fun rows(layer: Layer, shifted: Boolean, rules: FieldRules, numberRow: Boolean = false): List<Row> {
+    fun rows(
+        layer: Layer,
+        shifted: Boolean,
+        rules: FieldRules,
+        numberRow: Boolean = false,
+        language: Language = Language.ENGLISH,
+    ): List<Row> {
         if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) return numberPad(rules)
         val source = when (layer) {
-            Layer.LETTERS -> LETTER_ROWS
+            Layer.LETTERS -> language.rows
             Layer.NUMBERS -> NUMBER_ROWS
             Layer.SYMBOLS -> SYMBOL_ROWS
         }
         val letters = layer == Layer.LETTERS
         val rows = source.mapIndexed { index, line ->
-            val keys = line.map { char ->
+            val keys = line.mapIndexed { position, char ->
                 val shown = if (letters && shifted) char.uppercaseChar() else char
-                Key(shown.toString(), hint = if (letters) ALTERNATES[char] else null)
+                // The digit in the corner belongs to the position on the top row, not to the letter: on AZERTY
+                // the first key is "a" and still gives 1, because that is where 1 is.
+                val hint = if (letters && index == 0) CORNER_DIGITS.getOrNull(position) else null
+                Key(shown.toString(), hint = hint?.toString())
             }
             if (index < source.lastIndex) keys else bottomOfLetters(keys, layer)
         }

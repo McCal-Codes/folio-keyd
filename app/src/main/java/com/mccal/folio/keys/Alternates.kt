@@ -14,6 +14,21 @@ package com.mccal.folio.keys
  */
 object Alternates {
 
+    /**
+     * What each language puts behind its own keys, from that language's own keyboard data.
+     *
+     * Not the same list in a different order: Spanish leads with á, French with à, German with ä, because those
+     * are the ones each language actually writes. Using one pooled list for everybody would put the right letters
+     * on the keyboard in the wrong order for every language at once.
+     */
+    private val PER_LANGUAGE: Map<Language, Map<Char, String>> = mapOf(
+        Language.SPANISH to mapOf('a' to "áàäâãåąæ", 'c' to "çćč", 'e' to "éèëêęėē", 'i' to "íïìîįī", 'n' to "ñń", 'o' to "óòöôõøœō", 'u' to "úüùûū"),
+        Language.FRENCH to mapOf('a' to "àâæáäãåā", 'c' to "çćč", 'e' to "éèêëęėē", 'i' to "îïìíįī", 'o' to "ôœöòóõøō", 'u' to "ùûüúū", 'y' to "ÿ"),
+        Language.GERMAN to mapOf('a' to "äâàáæãåā", 'e' to "éèêëė", 'n' to "ñń", 'o' to "öôòóõœøō", 's' to "ßśš", 'u' to "üûùúū"),
+        Language.ITALIAN to mapOf('a' to "àáâäæãåā", 'e' to "èéêëęėē", 'i' to "ìíîïįī", 'o' to "òóôöõœøō", 'u' to "ùúûüū"),
+        Language.PORTUGUESE to mapOf('a' to "áãàâäåæª", 'c' to "çčć", 'e' to "éêèęėēë", 'i' to "íîìïįī", 'o' to "óõôòöœøō", 'u' to "úüùûū"),
+    )
+
     /** Base letter to its alternates, commonest first. Lower case; the case of the key is applied later. */
     private val LETTERS: Map<Char, String> = mapOf(
         'a' to "áâäàãæåā",   // á=26 â=26 ä=25 à=24 ã=24 æ=23 å=23 ā=21
@@ -40,9 +55,11 @@ object Alternates {
      * [hint] is what the keycap already promises in its corner - the digit on the top row - and it always comes
      * first, so holding a key and letting go without moving still does exactly what the keycap said it would.
      */
-    fun forKey(label: String, hint: String?): List<String> {
+    fun forKey(label: String, hint: String?, language: Language = Language.ENGLISH): List<String> {
         val base = label.singleOrNull()?.lowercaseChar()
-        val accents = base?.let { LETTERS[it] }.orEmpty()
+        // English has no accents of its own, so it borrows from every language at once - which is why its list is
+        // the pooled vote. Every other language has an answer of its own and uses it.
+        val accents = base?.let { PER_LANGUAGE[language]?.get(it) ?: LETTERS[it] }.orEmpty()
         if (accents.isEmpty()) return listOfNotNull(hint)
         val upper = label.firstOrNull()?.isUpperCase() == true
         return listOfNotNull(hint) + accents.map { if (upper) it.uppercaseChar().toString() else it.toString() }

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="subtype_en_us">English (US)</string>
+    <string name="subtype_es_es">Español</string>
+    <string name="subtype_fr_fr">Français</string>
+    <string name="subtype_de_de">Deutsch</string>
+    <string name="subtype_it_it">Italiano</string>
+    <string name="subtype_pt_pt">Português</string>
     <string name="setup_title">Folio Keys</string>
     <string name="setup_intro">Android asks you to allow a keyboard twice: once to add it, and again to choose it. Both steps are below.</string>
     <string name="setup_step_one">1. Add Folio Keys in Android\'s settings</string>

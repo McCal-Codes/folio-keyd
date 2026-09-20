@@ -27,36 +27,32 @@ class Dictionary private constructor(
 
     override val size: Int get() = starts.size - 1
 
+    /**
+     * UTF-8, not ASCII.
+     *
+     * The moment a second language exists, half the words have a letter in them that does not fit in a byte -
+     * "café", "ñ", "ß" - and reading them as ASCII turns each of those into a pair of question marks.
+     */
     override fun word(index: Int): String =
-        String(bytes, starts[index], starts[index + 1] - starts[index], Charsets.US_ASCII)
+        String(bytes, starts[index], starts[index + 1] - starts[index], Charsets.UTF_8)
 
     /** 0 is the commonest word in the language; 99 is one the frequency list has never seen. */
     override fun rank(index: Int): Int = ranks[index].toInt()
 
-    /** Case-insensitive, because the list holds `Monday` and someone types `monday`. */
-    private fun compare(index: Int, other: String): Int {
-        val from = starts[index]
-        val length = starts[index + 1] - from
-        val shared = minOf(length, other.length)
-        for (i in 0 until shared) {
-            val mine = lower(bytes[from + i])
-            val theirs = lower(other[i].code.toByte())
-            if (mine != theirs) return mine - theirs
-        }
-        return length - other.length
-    }
+    /**
+     * Compared as text, not as bytes.
+     *
+     * Byte comparison was fine while every word was ASCII and one letter was one byte. It is wrong the moment a
+     * letter takes two: a prefix of "cafés" typed as characters can never line up with a word stored as bytes.
+     * A binary search decodes about sixteen words per lookup, which costs nothing worth measuring.
+     */
+    private fun compare(index: Int, other: String): Int = word(index).compareTo(other, ignoreCase = true)
 
     /** Like [compare], but a word that merely starts with [prefix] counts as equal to it. */
     private fun comparePrefix(index: Int, prefix: String): Int {
-        val from = starts[index]
-        val length = starts[index + 1] - from
-        for (i in prefix.indices) {
-            if (i >= length) return -1
-            val mine = lower(bytes[from + i])
-            val theirs = lower(prefix[i].code.toByte())
-            if (mine != theirs) return mine - theirs
-        }
-        return 0
+        val word = word(index)
+        if (word.length < prefix.length) return word.compareTo(prefix, ignoreCase = true).let { if (it == 0) -1 else it }
+        return word.substring(0, prefix.length).compareTo(prefix, ignoreCase = true)
     }
 
     override fun startingWith(prefix: String): IntRange {
@@ -80,7 +76,9 @@ class Dictionary private constructor(
         val lengths = shapes.getOrPut(letter) {
             val range = startingWith(letter.toString())
             val byLength = HashMap<Int, MutableList<Int>>()
-            for (index in range) byLength.getOrPut(starts[index + 1] - starts[index]) { ArrayList() }.add(index)
+            // Length in letters, not in bytes: "café" is four letters and five bytes, and the caller is counting
+            // what they typed.
+            for (index in range) byLength.getOrPut(word(index).length) { ArrayList() }.add(index)
             byLength.mapValues { (_, list) -> list.toIntArray() }
         }
         return lengths[length] ?: EMPTY
@@ -127,17 +125,11 @@ class Dictionary private constructor(
     }
 
     companion object {
-        const val ASSET = "words-en-us.txt"
 
         private val EMPTY = IntArray(0)
 
         /** Common enough that a word one edit away from it is probably a slip. */
         const val COMMON = 35
-
-        private fun lower(b: Byte): Int {
-            val c = b.toInt() and 0xFF
-            return if (c in 'A'.code..'Z'.code) c + 32 else c
-        }
 
         /**
          * Reads `word:NN`, one per line, already sorted, where NN is a two-digit commonness score.
@@ -174,6 +166,7 @@ class Dictionary private constructor(
             return Dictionary(words.copyOf(out), starts.copyOf(count + 1), ranks.copyOf(count))
         }
 
-        fun load(context: Context): Dictionary = read(context.assets.open(ASSET))
+        fun load(context: Context, language: Language = Language.ENGLISH): Dictionary =
+            read(context.assets.open(language.dictionary))
     }
 }

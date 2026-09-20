@@ -60,7 +60,9 @@ MIT. See [LICENSE](LICENSE).
 
 ### The word list
 
-The US English dictionary in `app/src/main/assets/words-en-us.txt` is two sources in one file:
+### English
+
+The US English dictionary in `app/src/main/assets/words-en-US.txt` is two sources in one file:
 
 - the **words** are [SCOWL](http://wordlist.aspell.net/) 2020.12.07, cut to its "size 40" band — about 57,000 of
   them. SCOWL is permissively licensed (BSD-style).
@@ -69,8 +71,21 @@ The US English dictionary in `app/src/main/assets/words-en-us.txt` is two source
   tiers rather than frequencies — its top tier holds 4,434 words, so within it "the" ties with "tea", and a
   keyboard that cannot tell those apart offers the wrong one.
 
-Both notices ship verbatim beside the list as `words-en-us-COPYING.txt` and must stay there, which is the whole of
-what either licence asks.
+Both notices ship verbatim beside the lists as `words-COPYING.txt` and must stay there, which is the whole of what
+either licence asks.
+
+### Everything else
+
+Spanish, French, German, Italian and Portuguese have only the second source. SCOWL is English, and the open word
+lists for most other languages are GPL, which this app cannot use — so those five are built from the OpenSubtitles
+frequency data alone, with `tools/build-dictionary.py --spoken-only`.
+
+That is a real difference in kind, and worth saying plainly: an English word is in the list because a dictionary
+says it is a word, while a Spanish one is in the list because it was said often enough in subtitles. The frequency
+data contains misspellings, and some of them are said often. The cut is therefore tighter for those languages
+(30,000 rather than the full list) and anything below it is dropped rather than kept at a low score — a rare real
+word costs someone one correction, whereas a common misspelling promoted into a dictionary poisons every
+suggestion near it.
 
 Nothing is sent anywhere to produce a suggestion: the list is on the phone, the lookup is on the phone, and the app
 still holds no permissions at all — including no Internet permission.

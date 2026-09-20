@@ -94,6 +94,13 @@ class KeyboardView(context: Context) : View(context) {
             invalidate()
         }
 
+    /** Which language's accents sit behind the keys. */
+    var language: Language = Language.ENGLISH
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     var rules: FieldRules = FieldRules()
         set(value) { field = value; invalidate() }
 
@@ -591,7 +598,7 @@ class KeyboardView(context: Context) : View(context) {
     private fun openPendingHold() {
         val label = pendingHold ?: return
         val placement = placedKeys.firstOrNull { it.key.label == label } ?: return
-        val items = Alternates.forKey(placement.key.label, placement.key.hint)
+        val items = Alternates.forKey(placement.key.label, placement.key.hint, language)
         // The same rule a finger gets: one alternate is taken, not offered.
         if (items.size < 2) return
         popup = openPopup(placement, items)
@@ -698,7 +705,7 @@ class KeyboardView(context: Context) : View(context) {
         if (press.origin.key.kind != KeyKind.CHAR) return
         val hint = press.origin.key.hint
         val items = if (settings.accents) {
-            Alternates.forKey(press.origin.key.label, hint)
+            Alternates.forKey(press.origin.key.label, hint, language)
         } else {
             listOfNotNull(hint)   // the corner digit still works; only the accents are switched off
         }

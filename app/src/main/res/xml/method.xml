@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A language is a subtype with its own layout, not a translated caption on a QWERTY key. One for now. -->
+<!--
+  A language is a subtype with its own layout, not a translated caption on a QWERTY key: AZERTY and QWERTZ really
+  are different keyboards, each language's accents are its own, and each has its own list of what counts as a word.
+
+  Only English is marked ASCII-capable, because only English is. The flag tells the system a subtype can type the
+  characters a password or a URL field may need, and claiming it for a layout with an "ñ" key where an "l" should
+  be would be a lie the system acts on.
+-->
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
     android:settingsActivity="com.mccal.folio.keys.SetupActivity"
     android:supportsSwitchingToNextInputMethod="true">
@@ -9,4 +16,34 @@
         android:languageTag="en-US"
         android:imeSubtypeMode="keyboard"
         android:isAsciiCapable="true" />
+    <subtype
+        android:label="@string/subtype_es_es"
+        android:imeSubtypeLocale="es_ES"
+        android:languageTag="es-ES"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="false" />
+    <subtype
+        android:label="@string/subtype_fr_fr"
+        android:imeSubtypeLocale="fr_FR"
+        android:languageTag="fr-FR"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="false" />
+    <subtype
+        android:label="@string/subtype_de_de"
+        android:imeSubtypeLocale="de_DE"
+        android:languageTag="de-DE"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="false" />
+    <subtype
+        android:label="@string/subtype_it_it"
+        android:imeSubtypeLocale="it_IT"
+        android:languageTag="it-IT"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="false" />
+    <subtype
+        android:label="@string/subtype_pt_pt"
+        android:imeSubtypeLocale="pt_PT"
+        android:languageTag="pt-PT"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="false" />
 </input-method>

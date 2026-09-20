@@ -74,6 +74,9 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     /** What the person has chosen. Re-read whenever a field opens, so a change takes effect without a restart. */
     var settings = Settings()
 
+    /** Which language the keyboard is in. Android decides, through the subtype the person picked. */
+    var language = Language.ENGLISH
+
     /** Whether the last thing typed was the space that ended a word, for the double-space full stop. */
     private var lastWasSpace = false
 
@@ -186,7 +189,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     fun refresh() =
-        ime.show(Layouts.rows(layer, shift != Shift.OFF, rules, settings.numberRow), shift)
+        ime.show(Layouts.rows(layer, shift != Shift.OFF, rules, settings.numberRow, language), shift)
 
     /** Sentence capitals, but only when the field asked for them and there is nothing typed yet. */
     private fun autoCaps(info: EditorInfo?): Boolean {
