@@ -16,7 +16,7 @@ import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
 
 /**
- * Folio Keys.
+ * Keyd.
  *
  * This is wiring: it owns the view, hands it to [TextActions], and passes along what Android tells it. The behaviour -
  * what each key does, which layer is showing, how shift behaves - lives in [TextActions], where it can be tested.
