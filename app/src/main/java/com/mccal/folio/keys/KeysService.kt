@@ -99,6 +99,23 @@ class KeysService : InputMethodService(), Ime {
     }
 
     /**
+     * Takes whatever is on the clipboard now, if the field allows it and the setting is on.
+     *
+     * Called when a field opens and again after the toolbar's Copy, which are the two moments the keyboard is on
+     * screen and the clipboard has just changed. There is no listener: Android only tells the focused app anyway,
+     * and a keyboard that polls in the background would be exactly the thing this app promises not to be.
+     */
+    private fun rememberClip(settings: Settings) {
+        if (!settings.clipboardHistory) return
+        val text = Clipboard.readable(Clipboard.manager(this), actions.rules) ?: return
+        val now = System.currentTimeMillis()
+        val history = Clipboard.load(prefs, now)
+        // Every field that opens would otherwise rewrite the list to say the same thing. A keyboard opens a lot.
+        if (history.firstOrNull()?.text == text) return
+        Clipboard.save(prefs, Clipboard.remembering(history, text, now))
+    }
+
+    /**
      * Reads the word list for a language, and keeps it until the language changes.
      *
      * Always on the suggestion thread: it is most of a megabyte of parsing, and doing it when someone taps the
@@ -307,6 +324,9 @@ class KeysService : InputMethodService(), Ime {
         emoji?.highContrast = chosen.highContrast
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
+        // A keyboard may read the clipboard while it is the one on screen, so this is the moment to look. The field
+        // has just been read, which is what decides whether anything may be kept from it at all.
+        rememberClip(chosen)
         // A new field starts on the letters: nobody opens a password box wanting the emoji they left open.
         showEmoji(false)
         // And with nothing held over from the last one. A touch that never got its release - the window taken

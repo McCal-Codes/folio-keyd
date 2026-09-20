@@ -60,6 +60,11 @@ data class Settings(
     val appearance: Appearance = Appearance.SYSTEM,
     /** Every key outlined and every label at full strength, for eyes the ordinary palette does not suit. */
     val highContrast: Boolean = false,
+    /**
+     * Keep what has been copied lately, so it can be put back without leaving the keyboard. Never from a field that
+     * forbids it, never something its app marked sensitive, and forgotten after an hour unless pinned.
+     */
+    val clipboardHistory: Boolean = true,
     /** The click. Follows the phone's own touch-sound setting as well; this can only turn it further off. */
     val sound: Boolean = true,
     /** The tap you feel. Follows the phone's own vibration setting as well. */
@@ -86,6 +91,7 @@ data class Settings(
             putString(SPLIT, split.name)
             putString(APPEARANCE, appearance.name)
             putBoolean(HIGH_CONTRAST, highContrast)
+            putBoolean(CLIPBOARD, clipboardHistory)
             putBoolean(SOUND, sound)
             putBoolean(VIBRATE, vibrate)
         }.apply()
@@ -110,6 +116,7 @@ data class Settings(
         const val SPLIT = "split"
         const val APPEARANCE = "appearance"
         const val HIGH_CONTRAST = "highContrast"
+        const val CLIPBOARD = "clipboardHistory"
         const val SOUND = "sound"
         const val VIBRATE = "vibrate"
 
@@ -135,6 +142,7 @@ data class Settings(
                 split = choice(prefs, SPLIT, fallback.split),
                 appearance = choice(prefs, APPEARANCE, fallback.appearance),
                 highContrast = read(HIGH_CONTRAST, fallback.highContrast),
+                clipboardHistory = read(CLIPBOARD, fallback.clipboardHistory),
                 sound = read(SOUND, fallback.sound),
                 vibrate = read(VIBRATE, fallback.vibrate),
             )

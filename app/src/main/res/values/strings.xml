@@ -92,4 +92,6 @@
     <string name="settings_high_contrast_note">Pushes the keys and their labels as far apart as they go, rather than the softer greys of the ordinary palette.</string>
     <string name="settings_spell_check">Underline words it does not know</string>
     <string name="settings_spell_check_note">The same squiggle the rest of the phone uses for a misspelling. Tap an underlined word and the editor offers what it thinks you meant. Never in a password field.</string>
+    <string name="settings_clipboard">Clipboard history</string>
+    <string name="settings_clipboard_note">Keeps what you copy so you can put it back without leaving the keyboard. Nothing from a password field, nothing an app marks sensitive, and forgotten after an hour unless you pin it. It stays on this phone: Keyd has no way to send anything anywhere.</string>
 </resources>

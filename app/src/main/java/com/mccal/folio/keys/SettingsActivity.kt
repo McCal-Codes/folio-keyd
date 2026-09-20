@@ -131,6 +131,15 @@ class SettingsActivity : Activity() {
             getString(R.string.settings_learn), getString(R.string.settings_learn_note), settings.learn,
         ) { settings.copy(learn = it) }
         option(
+            getString(R.string.settings_clipboard), getString(R.string.settings_clipboard_note),
+            settings.clipboardHistory,
+        ) { changed ->
+            // Turning it off is also a request to forget: leaving the list on disk would be the opposite of what
+            // the switch says.
+            if (!changed) Clipboard.clear(prefs)
+            settings.copy(clipboardHistory = changed)
+        }
+        option(
             getString(R.string.settings_capitals), getString(R.string.settings_capitals_note),
             settings.autoCapitalise,
         ) { settings.copy(autoCapitalise = it) }
