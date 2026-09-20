@@ -85,4 +85,6 @@
     <string name="shortcuts_rejected">A shortcut needs a single word and something different for it to stand for.</string>
     <string name="settings_high_contrast">High contrast</string>
     <string name="settings_high_contrast_note">Pushes the keys and their labels as far apart as they go, rather than the softer greys of the ordinary palette.</string>
+    <string name="settings_spell_check">Underline words it does not know</string>
+    <string name="settings_spell_check_note">The same squiggle the rest of the phone uses for a misspelling. Tap an underlined word and the editor offers what it thinks you meant. Never in a password field.</string>
 </resources>

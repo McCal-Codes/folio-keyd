@@ -1,8 +1,12 @@
 package com.mccal.folio.keys
 
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.SuggestionSpan
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -10,6 +14,22 @@ import kotlin.math.min
  * The little that editing needs from the keyboard service. Keeping it to this means the behaviour below can be driven
  * without an input method running, which is the only way to check what the keys actually do to someone's text.
  */
+/**
+ * What the suggestion thread worked out about one word, handed over for the moment that word is finished.
+ *
+ * One object rather than a handful of loose values, because every one of them is only meaningful together with
+ * [word]: applying last word's verdict to this one is exactly the bug this shape prevents.
+ */
+data class Verdict(
+    val word: String,
+    /** The one correction confident enough to make unasked, or null. */
+    val correction: String?,
+    /** True when no dictionary, and nothing learned, has ever heard of this word. */
+    val misspelled: Boolean,
+    /** What to offer if the word is tapped after being underlined. */
+    val suggestions: List<String> = emptyList(),
+)
+
 interface Ime {
     val connection: InputConnection?
     val editorInfo: EditorInfo?
@@ -66,9 +86,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     private val word = StringBuilder()
 
-    /** The word the last correction was worked out for, and what to replace it with. Both null when there is none. */
-    private var correctFor: String? = null
-    private var correction: String? = null
+    /** Everything the suggestion thread worked out about the word being typed. Null until it has. */
+    private var verdict: Verdict? = null
 
     /** What the last autocorrect replaced, so the next backspace can put it back. */
     private var undo: Pair<String, String>? = null
@@ -79,9 +98,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * The decision is made there because it needs the dictionary; it is applied here, the instant a space arrives,
      * with no lookup on the typing thread at all.
      */
-    fun offered(forWord: String, replacement: String?) {
-        correctFor = forWord
-        correction = replacement
+    fun offered(answer: Verdict) {
+        verdict = answer
     }
 
     private fun wordChanged() =
@@ -120,7 +138,14 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         word.setLength(0)
         if (done.isEmpty()) return
         if (settings.learn && !rules.ephemeral) ime.learn(done)
-        if (Settings.correcting(settings)) autocorrect(done)
+        // Only this word's verdict counts. A slower answer about the word before it is thrown away here rather
+        // than applied to whatever happens to be under the cursor now.
+        val answer = verdict?.takeIf { it.word == done }
+        verdict = null
+        when {
+            Settings.correcting(settings) && answer?.correction != null -> autocorrect(done, answer.correction)
+            settings.spellCheck && answer?.misspelled == true -> underline(done, answer.suggestions)
+        }
     }
 
     /**
@@ -129,10 +154,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * The ending that finished the word - a space, a full stop - has already been typed, so what comes out is
      * removed and put back with the word corrected and the ending kept exactly as it was.
      */
-    private fun autocorrect(typed: String) {
+    private fun autocorrect(typed: String, replacement: String) {
         undo = null
-        val replacement = correction?.takeIf { correctFor == typed } ?: return
-        correction = null
         val connection = ime.connection ?: return
         if (rules.password) return
         // The ending is whatever was typed after the word: a space, a full stop, a bracket.
@@ -188,6 +211,38 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             shift = Shift.OFF
             refresh()
         }
+    }
+
+    /**
+     * Marks a finished word the dictionary has never heard of.
+     *
+     * The squiggle is the editor's own, drawn from a [SuggestionSpan] - the same mechanism the platform's spell
+     * checker uses, so it looks exactly like a misspelling looks everywhere else on the phone rather than like
+     * something this keyboard invented.
+     *
+     * The span carries our suggestions too, and is flagged so the editor offers them when the word is tapped.
+     * Samsung's underline tells you a word is wrong and leaves you to fix it; this one brings the answers with it.
+     */
+    private fun underline(typed: String, suggestions: List<String>) {
+        val connection = ime.connection ?: return
+        if (rules.ephemeral) return
+        val tail = connection.getTextBeforeCursor(typed.length + 1, 0)?.toString() ?: return
+        if (tail.length != typed.length + 1 || !tail.startsWith(typed)) return
+        val marked = SpannableString(tail)
+        marked.setSpan(
+            SuggestionSpan(
+                Locale.US,
+                suggestions.take(MAX_SUGGESTIONS_IN_SPAN).toTypedArray(),
+                SuggestionSpan.FLAG_MISSPELLED or SuggestionSpan.FLAG_EASY_CORRECT,
+            ),
+            0,
+            typed.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+        connection.beginBatchEdit()
+        connection.deleteSurroundingText(tail.length, 0)
+        connection.commitText(marked, 1)
+        connection.endBatchEdit()
     }
 
     override fun onBackspace() {
@@ -330,5 +385,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     private companion object {
         /** However fast the swipe, one gesture shouldn't fling the cursor across a paragraph. */
         const val MAX_CURSOR_STEPS = 8
+
+        /** Enough for the editor's menu to be useful without becoming a list to read. */
+        const val MAX_SUGGESTIONS_IN_SPAN = 3
     }
 }

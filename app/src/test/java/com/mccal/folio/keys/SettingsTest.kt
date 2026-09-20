@@ -25,6 +25,7 @@ class SettingsTest {
         val fresh = Settings.load(prefs)
         assertTrue(fresh.suggestions)
         assertTrue(fresh.autocorrect)
+        assertTrue(fresh.spellCheck)
         assertTrue(fresh.learn)
         assertTrue(fresh.autoCapitalise)
         assertTrue(fresh.doubleSpaceFullStop)

@@ -105,7 +105,7 @@ class KeysService : InputMethodService(), Ime {
         background.removeCallbacksAndMessages(suggesting)
         val mine = ++asked
         if (word.length < 2) {
-            actions.offered(word, null)
+            actions.offered(Verdict(word, null, misspelled = false))
             keyboard?.suggestions = emptyList()
             return
         }
@@ -125,12 +125,20 @@ class KeysService : InputMethodService(), Ime {
                 val fix = runCatching {
                     Suggestions.correction(word, words, proximity, learned)
                 }.getOrNull()
+                // "Never heard of it" is a different question from "here is what you probably meant", and a word
+                // can be the first without the second - a name, a word in another language, something made up.
+                val unknown = runCatching {
+                    word.length >= Learned.SHORTEST &&
+                        !words.contains(word.lowercase()) &&
+                        (learned?.count(word.lowercase()) ?: 0) == 0 &&
+                        shortcuts?.expand(word) == null
+                }.getOrDefault(false)
                 main.post {
                     // A job already running cannot be cancelled, so it checks on the way out whether the word it
                     // was asked about is still the word being typed. Without this a slow answer for "te" lands
                     // after a fast one for "teh" and the strip shows the wrong thing.
                     if (mine != asked) return@post
-                    actions.offered(word, fix)
+                    actions.offered(Verdict(word, fix, misspelled = unknown, suggestions = found))
                     keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
                 }
             },

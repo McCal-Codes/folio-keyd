@@ -124,6 +124,10 @@ class SettingsActivity : Activity() {
             settings.autocorrect,
         ) { settings.copy(autocorrect = it) }
         option(
+            getString(R.string.settings_spell_check), getString(R.string.settings_spell_check_note),
+            settings.spellCheck,
+        ) { settings.copy(spellCheck = it) }
+        option(
             getString(R.string.settings_learn), getString(R.string.settings_learn_note), settings.learn,
         ) { settings.copy(learn = it) }
         option(

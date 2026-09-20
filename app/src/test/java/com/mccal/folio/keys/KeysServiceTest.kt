@@ -173,7 +173,7 @@ class KeysServiceTest {
     fun `no strip means nothing is corrected either`() {
         actions.settings = Settings(suggestions = false, autocorrect = true)
         type("teh")
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("teh ", text)
     }
@@ -182,7 +182,7 @@ class KeysServiceTest {
     fun `turning correcting off leaves the strip working`() {
         actions.settings = Settings(suggestions = true, autocorrect = false)
         type("teh")
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("teh ", text)
         assertTrue("the strip should still be asked", ime.suggestedFor.any { it == "teh" })
@@ -233,7 +233,7 @@ class KeysServiceTest {
     @Test
     fun `a word the suggestion thread flagged is corrected when it is finished`() {
         type("teh")
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("the ", text)
     }
@@ -241,7 +241,7 @@ class KeysServiceTest {
     @Test
     fun `the ending that finished the word is kept`() {
         type("teh")
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type(".")
         assertEquals("the.", text)
     }
@@ -249,7 +249,7 @@ class KeysServiceTest {
     @Test
     fun `text before the corrected word is left alone`() {
         type("well teh")
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("well the ", text)
     }
@@ -258,7 +258,7 @@ class KeysServiceTest {
     @Test
     fun `backspace straight after a correction puts back what was typed`() {
         type("teh")
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         actions.onBackspace()
         assertEquals("teh ", text)
@@ -267,7 +267,7 @@ class KeysServiceTest {
     @Test
     fun `backspace after anything else deletes as usual`() {
         type("teh")
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         type("x")
         actions.onBackspace()
@@ -277,7 +277,7 @@ class KeysServiceTest {
     @Test
     fun `a word with no correction offered is left alone`() {
         type("mccal")
-        actions.offered("mccal", null)
+        actions.offered(Verdict("mccal", null, misspelled = false))
         type(" ")
         assertEquals("mccal ", text)
     }
@@ -285,7 +285,7 @@ class KeysServiceTest {
     /** A correction worked out for an earlier word must not be applied to a later one. */
     @Test
     fun `a stale correction is not applied`() {
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type("cat ")
         assertEquals("cat ", text)
     }
@@ -294,9 +294,81 @@ class KeysServiceTest {
     fun `nothing is corrected in a password field`() {
         start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
         type("teh")
-        actions.offered("teh", "the")
+        actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("teh ", text)
+    }
+
+    // ---- underlining what it has never heard of ------------------------------------------------------------------
+
+    /** The span the editor draws its squiggle from, if there is one on the text. */
+    private fun misspelledSpans(): List<android.text.style.SuggestionSpan> {
+        val editable = field.editable ?: return emptyList()
+        return editable.getSpans(0, editable.length, android.text.style.SuggestionSpan::class.java)
+            .filter { it.flags and android.text.style.SuggestionSpan.FLAG_MISSPELLED != 0 }
+    }
+
+    @Test
+    fun `a word nothing has heard of is underlined`() {
+        type("zxqwv")
+        actions.offered(Verdict("zxqwv", null, misspelled = true, suggestions = listOf("zxqwv")))
+        type(" ")
+        assertEquals("the text itself is unchanged", "zxqwv ", text)
+        assertEquals(1, misspelledSpans().size)
+    }
+
+    @Test
+    fun `an ordinary word is not underlined`() {
+        type("hello")
+        actions.offered(Verdict("hello", null, misspelled = false))
+        type(" ")
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    /** The span carries the answers, so tapping the word offers them in the editor's own menu. */
+    @Test
+    fun `the underline brings the suggestions with it`() {
+        type("teh")
+        actions.offered(Verdict("teh", null, misspelled = true, suggestions = listOf("the", "ten", "tea")))
+        type(" ")
+        val span = misspelledSpans().single()
+        assertEquals(listOf("the", "ten", "tea"), span.suggestions.toList())
+    }
+
+    @Test
+    fun `nothing is underlined in a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("zxqwv")
+        actions.offered(Verdict("zxqwv", null, misspelled = true))
+        type(" ")
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    @Test
+    fun `nothing is underlined when the setting is off`() {
+        actions.settings = Settings(spellCheck = false)
+        type("zxqwv")
+        actions.offered(Verdict("zxqwv", null, misspelled = true))
+        type(" ")
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    /** Correcting and underlining are two answers to one question; a corrected word is not also a wrong one. */
+    @Test
+    fun `a word that was corrected is not also underlined`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = true, suggestions = listOf("the")))
+        type(" ")
+        assertEquals("the ", text)
+        assertEquals(emptyList<Any>(), misspelledSpans())
+    }
+
+    /** A verdict about an earlier word must never be applied to a later one. */
+    @Test
+    fun `a stale verdict does not underline the wrong word`() {
+        actions.offered(Verdict("zxqwv", null, misspelled = true))
+        type("hello ")
+        assertEquals(emptyList<Any>(), misspelledSpans())
     }
 
     // ---- learning -----------------------------------------------------------------------------------------------

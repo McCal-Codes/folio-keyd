@@ -31,6 +31,8 @@ data class Settings(
     val suggestions: Boolean = true,
     /** Replace a clear typo when the word is finished. Never a real word, and always one backspace from undone. */
     val autocorrect: Boolean = true,
+    /** Underline a finished word the dictionary has never heard of. */
+    val spellCheck: Boolean = true,
     /** Remember words it does not know, so it stops arguing with your own vocabulary. */
     val learn: Boolean = true,
     /** A capital at the start of a sentence. */
@@ -68,6 +70,7 @@ data class Settings(
         prefs.edit().apply {
             putBoolean(SUGGESTIONS, suggestions)
             putBoolean(AUTOCORRECT, autocorrect)
+            putBoolean(SPELL_CHECK, spellCheck)
             putBoolean(LEARN, learn)
             putBoolean(AUTO_CAPITALISE, autoCapitalise)
             putBoolean(DOUBLE_SPACE, doubleSpaceFullStop)
@@ -91,6 +94,7 @@ data class Settings(
     companion object {
         const val SUGGESTIONS = "suggestions"
         const val AUTOCORRECT = "autocorrect"
+        const val SPELL_CHECK = "spellCheck"
         const val LEARN = "learn"
         const val AUTO_CAPITALISE = "autoCapitalise"
         const val DOUBLE_SPACE = "doubleSpace"
@@ -115,6 +119,7 @@ data class Settings(
             return Settings(
                 suggestions = read(SUGGESTIONS, fallback.suggestions),
                 autocorrect = read(AUTOCORRECT, fallback.autocorrect),
+                spellCheck = read(SPELL_CHECK, fallback.spellCheck),
                 learn = read(LEARN, fallback.learn),
                 autoCapitalise = read(AUTO_CAPITALISE, fallback.autoCapitalise),
                 doubleSpaceFullStop = read(DOUBLE_SPACE, fallback.doubleSpaceFullStop),
