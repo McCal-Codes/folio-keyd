@@ -85,6 +85,13 @@ class KeyboardView(context: Context) : View(context) {
             invalidate()
         }
 
+    /** What the person has chosen: which of the keyboard's habits are switched on. */
+    var settings: Settings = Settings()
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     var rules: FieldRules = FieldRules()
         set(value) { field = value; invalidate() }
 
@@ -512,7 +519,7 @@ class KeyboardView(context: Context) : View(context) {
 
     /** The character above the finger, so a thumb can see what it just hit. Never in a password field. */
     private fun drawPreview(canvas: Canvas) {
-        if (rules.password) return
+        if (rules.password || !settings.keyPreview) return
         for (press in presses.values) {
             val key = press.placement.key
             if (key.kind != KeyKind.CHAR) continue
@@ -635,8 +642,8 @@ class KeyboardView(context: Context) : View(context) {
         val placement = keyAt(x, y) ?: return
         val press = Press(placement, x)
         presses[pointer] = press
-        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-        feedback.play(placement.key.kind)
+        if (settings.vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        if (settings.sound) feedback.play(placement.key.kind)
         if (placement.key.kind == KeyKind.BACKSPACE) {
             repeatingFor = press
             repeat.postDelayed(repeatBackspace, FIRST_REPEAT_MS)
@@ -654,7 +661,12 @@ class KeyboardView(context: Context) : View(context) {
      */
     private fun startHold(press: Press) {
         if (press.origin.key.kind != KeyKind.CHAR) return
-        val items = Alternates.forKey(press.origin.key.label, press.origin.key.hint)
+        val hint = press.origin.key.hint
+        val items = if (settings.accents) {
+            Alternates.forKey(press.origin.key.label, hint)
+        } else {
+            listOfNotNull(hint)   // the corner digit still works; only the accents are switched off
+        }
         if (items.isEmpty()) return
         val task = Runnable {
             performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)

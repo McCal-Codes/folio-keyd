@@ -46,8 +46,10 @@ class SuggestionsTest {
             "keyboard" to 30, "keys" to 28, "key" to 20, "keyhole" to 60,
             "hello" to 15, "help" to 16, "held" to 25, "hell" to 26,
             "duck" to 33, "luck" to 30, "lick" to 45, "tea" to 29, "ten" to 27,
-            // Two words equally likely and one edit apart, for the case where there is no confident answer.
-            "wind" to 22, "wine" to 23,
+            // Two words equally likely and the *same kind* of edit away, for the case where there is no
+            // confident answer. "p" is at the far end of the top row, next to neither "e" nor "r", so neither
+            // candidate gets the discount a neighbouring key would earn.
+            "blue" to 20, "blur" to 21,
         ),
     )
 
@@ -177,8 +179,8 @@ class SuggestionsTest {
     /** Two candidates equally close is not a confident answer, and belongs in the strip rather than in the text. */
     @Test
     fun `an ambiguous typo is left for the strip to offer`() {
-        // "wind" and "wine" are both one letter from "winx", and about as common as each other.
-        assertEquals(null, correction("winx"))
+        // "blue" and "blur" are the same single substitution from "blup", and about as common as each other.
+        assertEquals(null, correction("blup"))
     }
 
     @Test

@@ -256,6 +256,10 @@ class KeysService : InputMethodService(), Ime {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        // Re-read each time a field opens, so a change on the settings screen takes effect without a restart.
+        val chosen = Settings.load(prefs)
+        actions.settings = chosen
+        keyboard?.settings = chosen
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
         // A new field starts on the letters: nobody opens a password box wanting the emoji they left open.

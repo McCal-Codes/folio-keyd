@@ -71,10 +71,29 @@ def score(position, band):
     return min(99, 60 + band * 10)
 
 
+def position_of(word, positions):
+    """
+    Where a word sits in the frequency list, looking past the apostrophe problem.
+
+    The list has had its apostrophes stripped, so "don't" is not in it under that spelling - it was counted as
+    "don". Without this, every contraction in English scores as a word nobody has ever used, and "don't", "can't"
+    and "I'm" are never suggested and never used to fix anything. The stem's count came from the contraction, so
+    the stem's position is the contraction's, give or take the handful of times the stem stands alone.
+    """
+    direct = positions.get(word)
+    if direct:
+        return direct
+    if "'" in word:
+        stem = word.split("'")[0]
+        if stem:            # "I'm" has a one-letter stem, and is not a rare word
+            return positions.get(stem)
+    return None
+
+
 def main(final_dir, frequency_file, destination):
     words = scowl_words(final_dir)
     positions = frequencies(frequency_file)
-    entries = {word: score(positions.get(word.lower()), band) for word, band in words.items()}
+    entries = {word: score(position_of(word.lower(), positions), band) for word, band in words.items()}
 
     spoken = 0
     have = {word.lower() for word in entries}

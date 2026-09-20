@@ -183,10 +183,7 @@ object Suggestions {
         var best: String? = null
         var bestCost = Int.MAX_VALUE
         var runnerUp = Int.MAX_VALUE
-        val firsts = buildSet {
-            add(lower.first())
-            proximity?.neighbours(lower.first())?.let { addAll(it) }
-        }
+        val firsts = firstLetters(lower, proximity)
         for (first in firsts) {
             for (length in typed.length - 1..typed.length + 1) {
                 if (length < 1) continue
@@ -194,8 +191,10 @@ object Suggestions {
                     val candidate = words.word(index)
                     if (candidate.equals(typed, ignoreCase = true)) continue
                     if (words.rank(index) > COMMON_ENOUGH) continue
-                    if (distance(lower, candidate.lowercase(), 1, proximity) > 1) continue
-                    val cost = words.rank(index)
+                    val edits = cost(lower, candidate.lowercase(), 1, proximity)
+                    if (edits > SCALE) continue
+                    // How likely the slip was comes first; how common the word is only settles the rest.
+                    val cost = edits * 100 + words.rank(index)
                     if (cost < bestCost) {
                         runnerUp = bestCost
                         bestCost = cost
@@ -219,8 +218,22 @@ object Suggestions {
      * matrix is never needed, so only three rows of it are kept.
      */
     internal fun distance(a: String, b: String, limit: Int, proximity: Proximity?): Int {
-        if (abs(a.length - b.length) > limit) return limit + 1
-        val scale = 2                       // everything is doubled so a near miss can cost half
+        val raw = cost(a, b, limit, proximity)
+        return if (raw > limit * SCALE) limit + 1 else (raw + SCALE - 1) / SCALE
+    }
+
+    /**
+     * What the edits cost, rather than how many there are.
+     *
+     * Not every single edit is equally likely, and treating them alike loses the difference between a slip and a
+     * guess. Two letters the wrong way round is the strongest evidence there is - both letters are right, only the
+     * order is wrong - so it costs least. A key next to the one meant is next cheapest. Anything else is a whole
+     * edit. Ranking corrections by this rather than by word frequency alone is what keeps "wnat" closer to "want"
+     * than to a commoner word that happens to be one substitution away.
+     */
+    internal fun cost(a: String, b: String, limit: Int, proximity: Proximity?): Int {
+        if (abs(a.length - b.length) > limit) return OVER
+        val scale = SCALE
         val cap = limit * scale
         var before = IntArray(b.length + 1)
         var previous = IntArray(b.length + 1) { it * scale }
@@ -231,7 +244,7 @@ object Suggestions {
             for (j in 1..b.length) {
                 val substitution = when {
                     a[i - 1] == b[j - 1] -> 0
-                    proximity?.neighbours(a[i - 1])?.contains(b[j - 1]) == true -> 1
+                    proximity?.neighbours(a[i - 1])?.contains(b[j - 1]) == true -> NEIGHBOUR
                     else -> scale
                 }
                 var value = min(
@@ -241,19 +254,19 @@ object Suggestions {
                 // Two letters the wrong way round is one mistake, not two. It is what fast hands do more than
                 // anything else, and counting it twice puts "the" out of reach of "teh" - which is the whole job.
                 if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) {
-                    value = min(value, before[j - 2] + scale)
+                    value = min(value, before[j - 2] + SWAP)
                 }
                 current[j] = value
                 if (value < best) best = value
             }
-            if (best > cap) return limit + 1
+            if (best > cap) return OVER
             val spare = before
             before = previous
             previous = current
             current = spare
         }
-        val cost = previous[b.length]
-        return if (cost > cap) limit + 1 else (cost + scale - 1) / scale
+        val total = previous[b.length]
+        return if (total > cap) OVER else total
     }
 
     /**
@@ -268,14 +281,38 @@ object Suggestions {
         else -> candidate
     }
 
+    /**
+     * Which letters a correction might start with.
+     *
+     * The typed letter and the keys around it - and the *second* letter too, because swapping the first two is a
+     * real slip and it changes the first letter to something that need not be anywhere near it. Without that,
+     * "hte" could never reach "the" and was corrected to "he" instead.
+     */
+    private fun firstLetters(lower: String, proximity: Proximity?): Set<Char> = buildSet {
+        add(lower.first())
+        if (lower.length > 1) add(lower[1])
+        proximity?.neighbours(lower.first())?.let { addAll(it) }
+    }
+
     /** Below this there is not enough typed for "wrong" to mean anything. */
     internal const val SHORTEST_CORRECTABLE = 3
     /** Bigger than any commonness score, so no amount of being common beats being a further edit away. */
     private const val DISTANCE_WEIGHT = 1000
 
-    /** A correction has to be a word people use, not merely a word that exists. */
-    private const val COMMON_ENOUGH = 30
+    /**
+     * A correction has to be a word people use, not merely a word that exists.
+     *
+     * Set by measurement, not taste: "receive" scores 33 and "keyboard" 31, so a stricter line than this refused to
+     * fix "recieve" and "keybaord" - the two typos most worth fixing. Anything past 50 has no frequency data at all.
+     */
+    private const val COMMON_ENOUGH = 45
 
     /** How much better the best candidate must be than the next one before it is worth acting on alone. */
     private const val MARGIN = 6
+
+    /** An edit is worth this much; the kinds that cost less are the kinds hands actually make. */
+    internal const val SCALE = 4
+    private const val NEIGHBOUR = 3       // a key next to the one meant
+    private const val SWAP = 2            // two letters the wrong way round
+    private const val OVER = Int.MAX_VALUE / 2
 }

@@ -152,6 +152,67 @@ class DictionaryTest {
         assertTrue(scoreOf("and") < scoreOf("ant"))
     }
 
+    // ---- correcting on its own, against the real word list ----------------------------------------------
+
+    private fun proximity(): Suggestions.Proximity {
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        return Suggestions.Proximity(Geometry.place(rows, 1080, 700, 3f))
+    }
+
+    /**
+     * The typos worth fixing without being asked, each one having failed at some point.
+     *
+     * "recieve" and "keybaord" needed the bar for "a word people use" to be set by measurement rather than taste.
+     * "hte" used to be corrected to "he", because a swap of the first two letters changes the first letter to one
+     * that need not be next to it. "wnat" used to give "what", until a swap was made to count as better evidence
+     * than a substitution.
+     */
+    @Test
+    fun `the typos everyone makes are fixed without being asked`() {
+        val near = proximity()
+        val expected = mapOf(
+            "teh" to "the", "hte" to "the", "tje" to "the", "adn" to "and", "taht" to "that",
+            "wnat" to "want", "jsut" to "just", "yuo" to "you", "wiht" to "with", "abotu" to "about",
+            "recieve" to "receive", "seperate" to "separate", "keybaord" to "keyboard",
+            "definately" to "definitely", "becuase" to "because", "freind" to "friend",
+            "thier" to "their", "goign" to "going", "wrold" to "world", "pelase" to "please",
+        )
+        val wrong = expected.filter { (typed, wanted) ->
+            Suggestions.correction(typed, dictionary, near) != wanted
+        }.mapValues { (typed, _) -> Suggestions.correction(typed, dictionary, near) }
+        assertEquals("corrected wrongly: $wrong", emptyMap<String, String?>(), wrong)
+    }
+
+    /** Words are never replaced, whatever they are. This is the promise the whole feature rests on. */
+    @Test
+    fun `real words are left exactly as typed`() {
+        val near = proximity()
+        val words = listOf(
+            "the", "duck", "form", "thing", "here", "wont", "cant",
+            // The ones worth naming: swearing must never be turned into something else.
+            "arse", "bollocks", "wanker", "shit", "damn", "piss", "bastard",
+            // Nor should a name, nor everyday speech the formal dictionary once lacked.
+            "sam", "gonna", "yeah", "okay", "hiya",
+        )
+        val replaced = words.filter { Suggestions.correction(it, dictionary, near) != null }
+            .associateWith { Suggestions.correction(it, dictionary, near) }
+        assertEquals("these were replaced: $replaced", emptyMap<String, String?>(), replaced)
+    }
+
+    /** Contractions are among the commonest words in English and must be scored as such. */
+    @Test
+    fun `contractions are not treated as words nobody uses`() {
+        fun scoreOf(word: String): Int {
+            val range = dictionary.startingWith(word)
+            return dictionary.rank(range.first { dictionary.word(it).equals(word, ignoreCase = true) })
+        }
+        // Anything from 60 up means the frequency list had never heard of it, which was true of every one of
+        // these until the apostrophe was accounted for.
+        for (word in listOf("don't", "can't", "it's", "I'm", "you're", "that's")) {
+            assertTrue("$word scores ${scoreOf(word)}", scoreOf(word) < 50)
+        }
+    }
+
     /** The real thing, on the real list: the misspellings everyone makes. */
     @Test
     fun `the usual misspellings are corrected`() {

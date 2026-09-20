@@ -245,6 +245,29 @@ class GeometryTest {
         }
     }
 
+    /** The number row is an extra row of keys, and everything still has to fit and stay big enough to hit. */
+    @Test
+    fun `a number row still fits at every window size`() {
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules(), numberRow = true)
+        assertEquals("a digits row should have been added", 5, rows.size)
+        assertEquals("1234567890", rows.first().joinToString("") { it.label })
+        for ((w, h, d) in windows) {
+            val placed = layout(w, h, d, rows)
+            for (placement in placed) {
+                assertTrue(
+                    "${placement.key.label} is ${placement.box.width / d} dp at ${w}x$h",
+                    placement.box.width / d >= 24f && placement.box.height / d >= 24f,
+                )
+            }
+            for (i in placed.indices) for (j in i + 1 until placed.size) {
+                assertTrue(
+                    "${placed[i].key.label} overlaps ${placed[j].key.label} at ${w}x$h",
+                    !placed[i].box.overlaps(placed[j].box),
+                )
+            }
+        }
+    }
+
     @Test
     fun `nothing is placed when there is nowhere to place it`() {
         val rows = Layouts.rows(Layer.LETTERS, false, FieldRules())

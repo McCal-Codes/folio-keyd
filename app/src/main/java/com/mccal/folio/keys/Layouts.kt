@@ -57,7 +57,15 @@ object Layouts {
         'y' to "6", 'u' to "7", 'i' to "8", 'o' to "9", 'p' to "0",
     )
 
-    fun rows(layer: Layer, shifted: Boolean, rules: FieldRules): List<Row> {
+    /**
+     * A row of digits above the letters, for people who would rather not go through the 123 key.
+     *
+     * The digits carry no corner hint, because the hint on a letter key is the digit it gives when held - and a
+     * digit key holding a digit would be telling you something you can already see.
+     */
+    private val DIGITS: Row = "1234567890".map { Key(it.toString()) }
+
+    fun rows(layer: Layer, shifted: Boolean, rules: FieldRules, numberRow: Boolean = false): List<Row> {
         if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) return numberPad(rules)
         val source = when (layer) {
             Layer.LETTERS -> LETTER_ROWS
@@ -72,7 +80,8 @@ object Layouts {
             }
             if (index < source.lastIndex) keys else bottomOfLetters(keys, layer)
         }
-        return rows + listOf(spaceRow(layer, rules))
+        val top = if (numberRow && letters) listOf(DIGITS) else emptyList()
+        return top + rows + listOf(spaceRow(layer, rules))
     }
 
     /** The third row carries shift and backspace at its ends, wider than a letter so they're easy to hit. */

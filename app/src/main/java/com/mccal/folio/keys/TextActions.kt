@@ -51,6 +51,12 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     var shift = Shift.OFF
         private set
 
+    /** What the person has chosen. Re-read whenever a field opens, so a change takes effect without a restart. */
+    var settings = Settings()
+
+    /** Whether the last thing typed was the space that ended a word, for the double-space full stop. */
+    private var lastWasSpace = false
+
     /**
      * The word being typed, tracked as it is typed.
      *
@@ -78,7 +84,30 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         correction = replacement
     }
 
-    private fun wordChanged() = ime.suggest(if (rules.password) "" else word.toString())
+    private fun wordChanged() =
+        ime.suggest(if (rules.password || !settings.suggestions) "" else word.toString())
+
+    /**
+     * Two spaces in a row become a full stop and a space.
+     *
+     * Every phone keyboard has done this since the first one, and it is the fastest way to end a sentence with a
+     * thumb. It only fires after a letter, so pressing space twice in empty space, or after punctuation, still
+     * gives two spaces - which is what someone doing it deliberately wanted.
+     */
+    private fun doubleSpace(text: String): Boolean {
+        if (!settings.doubleSpaceFullStop || text != " " || !lastWasSpace) return false
+        val connection = ime.connection ?: return false
+        val before = connection.getTextBeforeCursor(2, 0)?.toString() ?: return false
+        if (before.length != 2 || before[1] != ' ' || !before[0].isLetterOrDigit()) return false
+        connection.beginBatchEdit()
+        connection.deleteSurroundingText(1, 0)
+        connection.commitText(". ", 1)
+        connection.endBatchEdit()
+        lastWasSpace = false
+        word.setLength(0)
+        wordChanged()
+        return true
+    }
 
     /**
      * The word just ended, by a space or a full stop or anything else that is not a letter.
@@ -90,8 +119,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val done = word.toString()
         word.setLength(0)
         if (done.isEmpty()) return
-        if (!rules.ephemeral) ime.learn(done)
-        autocorrect(done)
+        if (settings.learn && !rules.ephemeral) ime.learn(done)
+        if (Settings.correcting(settings)) autocorrect(done)
     }
 
     /**
@@ -127,13 +156,14 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     fun startInput(info: EditorInfo?) {
         rules = Layouts.rulesFor(info)
         layer = if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) Layer.NUMBERS else Layer.LETTERS
-        shift = if (autoCaps(info)) Shift.ONCE else Shift.OFF
+        shift = if (settings.autoCapitalise && autoCaps(info)) Shift.ONCE else Shift.OFF
         word.setLength(0)
         wordChanged()
         refresh()
     }
 
-    fun refresh() = ime.show(Layouts.rows(layer, shift != Shift.OFF, rules), shift)
+    fun refresh() =
+        ime.show(Layouts.rows(layer, shift != Shift.OFF, rules, settings.numberRow), shift)
 
     /** Sentence capitals, but only when the field asked for them and there is nothing typed yet. */
     private fun autoCaps(info: EditorInfo?): Boolean {
@@ -143,6 +173,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onText(text: String) {
         undo = null
+        if (doubleSpace(text)) return
         // The key already carries the right case: the layout builds an upper-case key when shift is on.
         ime.connection?.commitText(text, 1) ?: return
         // A letter continues the word; anything else - a space, a full stop, a bracket - ends it.
@@ -151,6 +182,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         } else {
             finished()
         }
+        lastWasSpace = text == " "
         wordChanged()
         if (shift == Shift.ONCE) {
             shift = Shift.OFF

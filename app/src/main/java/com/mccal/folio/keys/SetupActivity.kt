@@ -98,6 +98,9 @@ class SetupActivity : Activity() {
             setHintTextColor(Color.parseColor("#6E6E73"))
         })
 
+        action(getString(R.string.settings_open)) {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
         body(getString(R.string.setup_learning))
         forget = button(getString(R.string.setup_forget_none)) {
             getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).apply()

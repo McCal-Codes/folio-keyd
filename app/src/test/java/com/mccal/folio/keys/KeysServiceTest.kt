@@ -154,6 +154,80 @@ class KeysServiceTest {
         assertTrue("asked about ${ime.suggestedFor}", ime.suggestedFor.all { it.isEmpty() })
     }
 
+    // ---- what the settings change -------------------------------------------------------------------------------
+
+    @Test
+    fun `turning suggestions off stops the strip being asked at all`() {
+        actions.settings = Settings(suggestions = false)
+        type("hello")
+        assertTrue("asked about ${ime.suggestedFor}", ime.suggestedFor.all { it.isEmpty() })
+    }
+
+    /**
+     * Switching the strip off switches correcting off with it.
+     *
+     * The worst of the four combinations would be a keyboard showing no sign of the feature while still quietly
+     * changing words, so the two are tied together on purpose.
+     */
+    @Test
+    fun `no strip means nothing is corrected either`() {
+        actions.settings = Settings(suggestions = false, autocorrect = true)
+        type("teh")
+        actions.offered("teh", "the")
+        type(" ")
+        assertEquals("teh ", text)
+    }
+
+    @Test
+    fun `turning correcting off leaves the strip working`() {
+        actions.settings = Settings(suggestions = true, autocorrect = false)
+        type("teh")
+        actions.offered("teh", "the")
+        type(" ")
+        assertEquals("teh ", text)
+        assertTrue("the strip should still be asked", ime.suggestedFor.any { it == "teh" })
+    }
+
+    @Test
+    fun `turning learning off stops words being kept`() {
+        actions.settings = Settings(learn = false)
+        type("mccal ")
+        assertEquals(emptyList<String>(), ime.taught)
+    }
+
+    // ---- double space -------------------------------------------------------------------------------------------
+
+    @Test
+    fun `two spaces after a word become a full stop`() {
+        type("hello  ")
+        assertEquals("hello. ", text)
+    }
+
+    @Test
+    fun `two spaces on their own stay two spaces`() {
+        type("  ")
+        assertEquals("  ", text)
+    }
+
+    @Test
+    fun `two spaces after punctuation stay two spaces`() {
+        type("hello.  ")
+        assertEquals("hello.  ", text)
+    }
+
+    @Test
+    fun `a full stop is not added when the setting is off`() {
+        actions.settings = Settings(doubleSpaceFullStop = false)
+        type("hello  ")
+        assertEquals("hello  ", text)
+    }
+
+    @Test
+    fun `spaces far apart are not a double space`() {
+        type("a b ")
+        assertEquals("a b ", text)
+    }
+
     // ---- correcting on its own ----------------------------------------------------------------------------------
 
     @Test
