@@ -42,6 +42,18 @@ class KeysService : InputMethodService(), Ime {
     private val main = Handler(Looper.getMainLooper())
     private var dictionary: Dictionary? = null
     private var proximity: Suggestions.Proximity? = null
+    private var proximityFor: List<Placement>? = null
+
+    /**
+     * Tags the suggestion jobs, so cancelling them cancels only them.
+     *
+     * The dictionary is read on this same thread, and a keystroke arriving before that read has begun would
+     * otherwise cancel it - leaving a keyboard that silently never suggests anything for the rest of the session.
+     */
+    private val suggesting = Any()
+
+    /** Which word the strip is currently being worked out for. A slower answer to an older word is thrown away. */
+    private var asked = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -55,21 +67,34 @@ class KeysService : InputMethodService(), Ime {
     }
 
     override fun suggest(word: String) {
-        background.removeCallbacksAndMessages(null)
+        background.removeCallbacksAndMessages(suggesting)
+        val mine = ++asked
         if (word.length < 2) {
             keyboard?.suggestions = emptyList()
             return
         }
         val keys = keyboard?.placements
-        background.postDelayed({
-            val words = dictionary ?: return@postDelayed
-            if (proximity == null && keys != null) proximity = Suggestions.Proximity(keys)
-            val found = runCatching { Suggestions.forWord(word, words, proximity) }.getOrDefault(emptyList())
-            main.post {
-                // The word may have moved on while this was being worked out; only answer the question asked.
-                keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
-            }
-        }, THINK_MS)
+        background.postDelayed(
+            {
+                val words = dictionary ?: return@postDelayed
+                // Rebuilt whenever the keys have moved - unfolding splits the keyboard, and correcting against
+                // where the keys used to be is worse than not correcting by proximity at all.
+                if (keys != null && keys !== proximityFor) {
+                    proximity = Suggestions.Proximity(keys)
+                    proximityFor = keys
+                }
+                val found = runCatching { Suggestions.forWord(word, words, proximity) }.getOrDefault(emptyList())
+                main.post {
+                    // A job already running cannot be cancelled, so it checks on the way out whether the word it
+                    // was asked about is still the word being typed. Without this a slow answer for "te" lands
+                    // after a fast one for "teh" and the strip shows the wrong thing.
+                    if (mine != asked) return@post
+                    keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
+                }
+            },
+            suggesting,
+            THINK_MS,
+        )
     }
 
     /**
@@ -130,7 +155,8 @@ class KeysService : InputMethodService(), Ime {
         val info = currentInputEditorInfo
         if (info != null && info.imeOptions and EditorInfo.IME_FLAG_NO_FULLSCREEN != 0) return false
         val density = resources.displayMetrics.density
-        val keyboardDp = (keyboard?.height ?: 0) / density
+        val shown = listOfNotNull(keyboard, emoji).firstOrNull { it.visibility == View.VISIBLE }
+        val keyboardDp = (shown?.height ?: 0) / density
         return roomAbove(resources.configuration.screenHeightDp.toFloat(), keyboardDp) < ROOM_FOR_THE_APP_DP
     }
 
@@ -142,14 +168,16 @@ class KeysService : InputMethodService(), Ime {
      */
     override fun onComputeInsets(outInsets: Insets) {
         super.onComputeInsets(outInsets)
-        val view = keyboard ?: return
-        val top = view.top + view.panelTop
+        // Whichever panel is actually on screen. A hidden view keeps its last bounds, so asking the keyboard while
+        // the emoji grid is showing would describe a window that is no longer the one being touched.
+        val view = listOfNotNull(keyboard, emoji).firstOrNull { it.visibility == View.VISIBLE } ?: return
+        if (view.width == 0 || view.height == 0) return
+        val pad = (PANEL_PAD_DP * resources.displayMetrics.density).toInt()
+        val top = view.top + pad
         outInsets.contentTopInsets = top
         outInsets.visibleTopInsets = top
         outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
-        outInsets.touchableRegion.set(
-            Region(view.left + view.panelSide, top, view.right - view.panelSide, view.bottom),
-        )
+        outInsets.touchableRegion.set(Region(view.left + pad, top, view.right - pad, view.bottom))
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -184,6 +212,9 @@ class KeysService : InputMethodService(), Ime {
 
         /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
         const val THINK_MS = 40L
+
+        /** The margin both panels leave around themselves. */
+        const val PANEL_PAD_DP = 6f
 
         /** What is left of the window once the keyboard has taken its share. */
         fun roomAbove(screenHeightDp: Float, keyboardHeightDp: Float) = screenHeightDp - keyboardHeightDp

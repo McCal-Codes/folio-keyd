@@ -163,6 +163,15 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val connection = ime.connection ?: return
         val typed = word.toString()
         if (typed.isEmpty()) return
+        // Checked before deleting, because this deletes by count. The word is tracked as it is typed, and if the
+        // app has changed the text underneath us - a formatter, an autofill, a paste we did not see - that count
+        // would take a bite out of something the person wrote. One call, on a tap, to never do that.
+        val before = connection.getTextBeforeCursor(typed.length, 0)
+        if (before != null && before.toString() != typed) {
+            word.setLength(0)
+            wordChanged()
+            return
+        }
         connection.beginBatchEdit()
         connection.deleteSurroundingText(typed.length, 0)
         connection.commitText("$chosen ", 1)

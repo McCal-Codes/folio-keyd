@@ -490,10 +490,6 @@ class KeyboardView(context: Context) : View(context) {
         )
     }
 
-    /** The margin the floating panel leaves around itself, so the service can say what it really covers. */
-    internal val panelTop: Int get() = panelPad.toInt()
-    internal val panelSide: Int get() = panelPad.toInt()
-
     /** Where the keys and the toolbar actually ended up. A test should ask rather than work it out a second time. */
     internal val placements: List<Placement> get() = placedKeys
     internal val toolbarPlacements: List<Placement> get() = tools

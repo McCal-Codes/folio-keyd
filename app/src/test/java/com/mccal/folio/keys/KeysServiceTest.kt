@@ -172,6 +172,21 @@ class KeysServiceTest {
         assertEquals("a suggestion with no word must do nothing", "hello ", text)
     }
 
+    /**
+     * The replacement deletes by count, so it must first check that the count still means what it meant.
+     *
+     * If something else changed the field while a word was being typed, deleting three characters would eat three
+     * characters of somebody's sentence.
+     */
+    @Test
+    fun `a suggestion is refused when the text is not what we thought`() {
+        type("teh")
+        field.editable?.clear()
+        field.editable?.append("something else entirely")
+        actions.onSuggestion("the")
+        assertEquals("something else entirely", text)
+    }
+
     @Test
     fun `the word is finished with after it is taken`() {
         type("teh")
