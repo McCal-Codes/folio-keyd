@@ -21,6 +21,7 @@
     <string name="settings_title">Folio Keys settings</string>
     <string name="settings_open">Settings</string>
     <string name="settings_typing">TYPING</string>
+    <string name="settings_look">SIZE AND LOOK</string>
     <string name="settings_keys">KEYS</string>
     <string name="settings_gestures">GESTURES</string>
     <string name="settings_feel">FEEL</string>
@@ -49,5 +50,27 @@
     <string name="settings_flick_down_note">The digit printed on the top row, without waiting for a long press. It is already on the keycap, so nothing is hidden.</string>
     <string name="settings_flick_up">Flick a letter up for a capital</string>
     <string name="settings_flick_up_note">Faster than shift for a single letter.</string>
-    <string name="settings_gestures_note">The space bar keeps its own: swipe across it to move the cursor, and down to put the keyboard away. Swipe left on backspace to take a whole word. Flicks need a deliberate journey, so the drift of typing fast is never mistaken for one.</string>
+    <string name="settings_gestures_note">Every gesture needs a deliberate journey, so the drift of typing fast is never mistaken for one.</string>
+    <string name="settings_size">Keyboard height</string>
+    <string name="settings_size_note">How much of the screen the keys take. Taller is easier to hit; shorter leaves more of what you are typing into.</string>
+    <string name="settings_size_small">Short</string>
+    <string name="settings_size_medium">Normal</string>
+    <string name="settings_size_large">Tall</string>
+    <string name="settings_appearance">Light or dark</string>
+    <string name="settings_appearance_note">Following the phone is what almost everyone wants.</string>
+    <string name="settings_appearance_system">Follow phone</string>
+    <string name="settings_appearance_light">Light</string>
+    <string name="settings_appearance_dark">Dark</string>
+    <string name="settings_split">Split keyboard</string>
+    <string name="settings_split_note">Two halves under two thumbs. Automatic splits on a screen big enough in both directions — unfolded, or a tablet — and not on a phone lying on its side.</string>
+    <string name="settings_split_auto">Automatic</string>
+    <string name="settings_split_always">Always</string>
+    <string name="settings_split_never">Never</string>
+    <string name="settings_cursor_swipe">Swipe the space bar to move the cursor</string>
+    <string name="settings_cursor_swipe_note">Needs a deliberate journey, so a drifting thumb still types a space.</string>
+    <string name="settings_delete_word">Swipe left on backspace for a whole word</string>
+    <string name="settings_delete_word_note">Faster than holding it down.</string>
+    <string name="settings_swipe_hide">Swipe down on the space bar to hide</string>
+    <string name="settings_swipe_hide_note">The chevron in the corner does the same thing.</string>
+    <string name="settings_reset">Put everything back to normal</string>
 </resources>

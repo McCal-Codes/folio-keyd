@@ -12,6 +12,20 @@ import android.content.SharedPreferences
  *
  * Defaults are what someone who never opens this screen should get, which is why they are all the ordinary answer.
  */
+/** How much of the window the keys may take. A phone is held differently by every hand there is. */
+enum class Size(val share: Float) { SMALL(0.86f), MEDIUM(1f), LARGE(1.14f) }
+
+/**
+ * Whether to split the keyboard in two on a big screen.
+ *
+ * [AUTO] splits when the window is large in both directions - an unfolded Fold, a tablet - and not otherwise.
+ * The other two are for hands that disagree with that, which is most of the point of having the setting.
+ */
+enum class Split { AUTO, ALWAYS, NEVER }
+
+/** Light or dark. [SYSTEM] follows the phone, which is what almost everyone wants and nobody has to choose. */
+enum class Appearance { SYSTEM, DARK, LIGHT }
+
 data class Settings(
     /** The row above the keys that offers words. Off means no strip, and no autocorrect either. */
     val suggestions: Boolean = true,
@@ -33,6 +47,15 @@ data class Settings(
     val flickForAlternate: Boolean = true,
     /** Flick a letter upwards for its capital. */
     val flickForCapital: Boolean = true,
+    /** Swipe across the space bar to move the cursor. */
+    val cursorSwipe: Boolean = true,
+    /** Swipe left on backspace to take a whole word. */
+    val deleteWordSwipe: Boolean = true,
+    /** Swipe down on the space bar to put the keyboard away. */
+    val swipeDownToHide: Boolean = true,
+    val size: Size = Size.MEDIUM,
+    val split: Split = Split.AUTO,
+    val appearance: Appearance = Appearance.SYSTEM,
     /** The click. Follows the phone's own touch-sound setting as well; this can only turn it further off. */
     val sound: Boolean = true,
     /** The tap you feel. Follows the phone's own vibration setting as well. */
@@ -51,6 +74,12 @@ data class Settings(
             putBoolean(KEY_PREVIEW, keyPreview)
             putBoolean(FLICK_ALTERNATE, flickForAlternate)
             putBoolean(FLICK_CAPITAL, flickForCapital)
+            putBoolean(CURSOR_SWIPE, cursorSwipe)
+            putBoolean(DELETE_WORD_SWIPE, deleteWordSwipe)
+            putBoolean(SWIPE_DOWN_HIDE, swipeDownToHide)
+            putString(SIZE, size.name)
+            putString(SPLIT, split.name)
+            putString(APPEARANCE, appearance.name)
             putBoolean(SOUND, sound)
             putBoolean(VIBRATE, vibrate)
         }.apply()
@@ -67,6 +96,12 @@ data class Settings(
         const val KEY_PREVIEW = "keyPreview"
         const val FLICK_ALTERNATE = "flickAlternate"
         const val FLICK_CAPITAL = "flickCapital"
+        const val CURSOR_SWIPE = "cursorSwipe"
+        const val DELETE_WORD_SWIPE = "deleteWordSwipe"
+        const val SWIPE_DOWN_HIDE = "swipeDownHide"
+        const val SIZE = "size"
+        const val SPLIT = "split"
+        const val APPEARANCE = "appearance"
         const val SOUND = "sound"
         const val VIBRATE = "vibrate"
 
@@ -84,10 +119,28 @@ data class Settings(
                 keyPreview = read(KEY_PREVIEW, fallback.keyPreview),
                 flickForAlternate = read(FLICK_ALTERNATE, fallback.flickForAlternate),
                 flickForCapital = read(FLICK_CAPITAL, fallback.flickForCapital),
+                cursorSwipe = read(CURSOR_SWIPE, fallback.cursorSwipe),
+                deleteWordSwipe = read(DELETE_WORD_SWIPE, fallback.deleteWordSwipe),
+                swipeDownToHide = read(SWIPE_DOWN_HIDE, fallback.swipeDownToHide),
+                size = choice(prefs, SIZE, fallback.size),
+                split = choice(prefs, SPLIT, fallback.split),
+                appearance = choice(prefs, APPEARANCE, fallback.appearance),
                 sound = read(SOUND, fallback.sound),
                 vibrate = read(VIBRATE, fallback.vibrate),
             )
         }
+
+        /**
+         * Reads a choice by name, falling back when the name means nothing.
+         *
+         * Stored by name rather than by position, so that adding a choice later cannot silently change what
+         * someone already picked - which is what happens to every setting stored as a number.
+         */
+        private inline fun <reified T : Enum<T>> choice(prefs: SharedPreferences, key: String, fallback: T): T =
+            runCatching { enumValueOf<T>(prefs.getString(key, null) ?: return fallback) }.getOrDefault(fallback)
+
+        /** Everything back to how it arrived. */
+        fun reset(prefs: SharedPreferences) = Settings().also { it.save(prefs) }
 
         /**
          * Turning the strip off turns autocorrect off with it.

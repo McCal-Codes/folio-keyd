@@ -52,6 +52,48 @@ class SettingsActivity : Activity() {
             setPadding(0, 0, 0, (14 * dp).toInt())
         })
 
+        /**
+         * A row of choices where only one can be true at a time.
+         *
+         * A switch can only ever say yes or no, and "split the keyboard" has three honest answers: when it makes
+         * sense, always, and never. Forcing that into a switch is how settings screens end up lying.
+         */
+        fun <T> choice(title: String, explanation: String, options: List<Pair<String, T>>, current: T, change: (T) -> Settings) {
+            column.addView(TextView(this).apply {
+                text = title
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                setPadding(0, (12 * dp).toInt(), 0, (2 * dp).toInt())
+            })
+            column.addView(TextView(this).apply {
+                text = explanation
+                setTextColor(Color.parseColor("#A0A0A6"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setPadding(0, 0, (48 * dp).toInt(), (8 * dp).toInt())
+            })
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val buttons = mutableListOf<Button>()
+            for ((label, value) in options) {
+                val button = Button(this).apply {
+                    text = label
+                    isAllCaps = false
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                        .apply { marginEnd = (6 * dp).toInt() }
+                    setOnClickListener {
+                        settings = change(value)
+                        settings.save(prefs)
+                        buttons.forEach { other -> other.alpha = if (other === this) 1f else 0.45f }
+                    }
+                }
+                buttons += button
+                row.addView(button)
+            }
+            buttons.forEachIndexed { index, button ->
+                button.alpha = if (options[index].second == current) 1f else 0.45f
+            }
+            column.addView(row)
+        }
+
         fun option(title: String, explanation: String, on: Boolean, change: (Boolean) -> Settings) {
             column.addView(Switch(this).apply {
                 text = title
@@ -105,6 +147,35 @@ class SettingsActivity : Activity() {
         }
         column.addView(forget)
 
+        heading(getString(R.string.settings_look))
+        choice(
+            getString(R.string.settings_size), getString(R.string.settings_size_note),
+            listOf(
+                getString(R.string.settings_size_small) to Size.SMALL,
+                getString(R.string.settings_size_medium) to Size.MEDIUM,
+                getString(R.string.settings_size_large) to Size.LARGE,
+            ),
+            settings.size,
+        ) { settings.copy(size = it) }
+        choice(
+            getString(R.string.settings_appearance), getString(R.string.settings_appearance_note),
+            listOf(
+                getString(R.string.settings_appearance_system) to Appearance.SYSTEM,
+                getString(R.string.settings_appearance_light) to Appearance.LIGHT,
+                getString(R.string.settings_appearance_dark) to Appearance.DARK,
+            ),
+            settings.appearance,
+        ) { settings.copy(appearance = it) }
+        choice(
+            getString(R.string.settings_split), getString(R.string.settings_split_note),
+            listOf(
+                getString(R.string.settings_split_auto) to Split.AUTO,
+                getString(R.string.settings_split_always) to Split.ALWAYS,
+                getString(R.string.settings_split_never) to Split.NEVER,
+            ),
+            settings.split,
+        ) { settings.copy(split = it) }
+
         heading(getString(R.string.settings_keys))
         option(
             getString(R.string.settings_number_row), getString(R.string.settings_number_row_note),
@@ -126,6 +197,18 @@ class SettingsActivity : Activity() {
             getString(R.string.settings_flick_up), getString(R.string.settings_flick_up_note),
             settings.flickForCapital,
         ) { settings.copy(flickForCapital = it) }
+        option(
+            getString(R.string.settings_cursor_swipe), getString(R.string.settings_cursor_swipe_note),
+            settings.cursorSwipe,
+        ) { settings.copy(cursorSwipe = it) }
+        option(
+            getString(R.string.settings_delete_word), getString(R.string.settings_delete_word_note),
+            settings.deleteWordSwipe,
+        ) { settings.copy(deleteWordSwipe = it) }
+        option(
+            getString(R.string.settings_swipe_hide), getString(R.string.settings_swipe_hide_note),
+            settings.swipeDownToHide,
+        ) { settings.copy(swipeDownToHide = it) }
         note(getString(R.string.settings_gestures_note))
 
         heading(getString(R.string.settings_feel))
@@ -136,6 +219,19 @@ class SettingsActivity : Activity() {
             getString(R.string.settings_vibrate), getString(R.string.settings_vibrate_note), settings.vibrate,
         ) { settings.copy(vibrate = it) }
         note(getString(R.string.settings_system_note))
+
+        column.addView(
+            Button(this).apply {
+                text = getString(R.string.settings_reset)
+                setOnClickListener {
+                    Settings.reset(prefs)
+                    recreate()   // the quickest honest way to show every switch back where it started
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = (20 * dp).toInt() }
+            },
+        )
 
         setContentView(
             ScrollView(this).apply {

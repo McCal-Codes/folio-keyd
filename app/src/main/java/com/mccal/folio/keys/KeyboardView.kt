@@ -89,6 +89,8 @@ class KeyboardView(context: Context) : View(context) {
     var settings: Settings = Settings()
         set(value) {
             field = value
+            theme = Theme.of(context, value.appearance)
+            requestLayout()
             invalidate()
         }
 
@@ -126,7 +128,7 @@ class KeyboardView(context: Context) : View(context) {
         strokeJoin = Paint.Join.ROUND
     }
     private val scratch = RectF()        // reused: a keyboard shouldn't allocate while it draws
-    private var theme = Theme.of(context)
+    private var theme = Theme.of(context, Appearance.SYSTEM)
     private var placedKeys: List<Placement> = emptyList()
     private var tools: List<Placement> = emptyList()
     private var bottomInset = BottomRoom.GESTURE_BAND_DP * resources.displayMetrics.density
@@ -237,6 +239,7 @@ class KeyboardView(context: Context) : View(context) {
             Geometry.height(
                 rows.size, resources.configuration.screenHeightDp.toFloat(), dp, bottomInset,
                 extra = toolbarHeight + panelPad,
+                share = Geometry.SHARE * settings.size.share,
             )
         }
         setMeasuredDimension(MeasureSpec.getSize(widthSpec), height)
@@ -260,6 +263,9 @@ class KeyboardView(context: Context) : View(context) {
      * Splitting is for a screen that is genuinely large in both directions.
      */
     private fun shapeFor(widthDp: Float, heightDp: Float) = when {
+        // Asked for outright, or refused outright. Only a window with room for it can be split either way.
+        settings.split == Split.NEVER -> if (widthDp >= CAP_AT_DP) Shape.CAPPED else Shape.FULL
+        settings.split == Split.ALWAYS && widthDp >= SPLIT_AT_DP -> Shape.SPLIT
         heightDp < SHORT_DP -> Shape.FULL
         widthDp >= SPLIT_AT_DP -> Shape.SPLIT
         widthDp >= CAP_AT_DP -> Shape.CAPPED
@@ -768,11 +774,13 @@ class KeyboardView(context: Context) : View(context) {
             // journey - a whole key's worth - and counts its characters from there, so a drifted space is a space.
             // Down off the space bar puts the keyboard away, the way swiping a sheet down closes it. Checked
             // before the cursor, because a downward journey is not a sideways one however far it goes.
-            KeyKind.SPACE -> if (!press.swiping && dy > HIDE_DP * dp && abs(dy) > abs(dx)) {
+            KeyKind.SPACE -> if (
+                settings.swipeDownToHide && !press.swiping && dy > HIDE_DP * dp && abs(dy) > abs(dx)
+            ) {
                 cancelHold(press)
                 press.swiping = true
                 listener?.onHide()
-            } else if (press.swiping || abs(dx) > CURSOR_START_DP * dp) {
+            } else if (settings.cursorSwipe && (press.swiping || abs(dx) > CURSOR_START_DP * dp)) {
                 cancelHold(press)
                 if (!press.swiping) {
                     press.swiping = true
@@ -786,7 +794,7 @@ class KeyboardView(context: Context) : View(context) {
                     press.cursorAnchor += steps * CURSOR_STEP_DP * dp
                 }
             }
-            KeyKind.BACKSPACE -> if (dx < -DELETE_WORD_DP * dp && !press.swiping) {
+            KeyKind.BACKSPACE -> if (settings.deleteWordSwipe && dx < -DELETE_WORD_DP * dp && !press.swiping) {
                 cancelHold(press)
                 press.swiping = true
                 if (repeatingFor === press) stopRepeat()

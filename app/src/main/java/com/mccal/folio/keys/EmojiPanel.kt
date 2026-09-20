@@ -55,6 +55,13 @@ class EmojiPanel(context: Context) : View(context) {
 
     private val dp = context.resources.displayMetrics.density
     private var theme = Theme.of(context)
+
+    /** Shared with the keys, so the two panels never disagree about whether it is night. */
+    var appearance: Appearance = Appearance.SYSTEM
+        set(value) {
+            field = value
+            invalidate()
+        }
     private var bottomInset = BottomRoom.GESTURE_BAND_DP * dp
     private var sideInset = 0f
 
@@ -154,7 +161,7 @@ class EmojiPanel(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context)
+        theme = Theme.of(context, appearance)
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)

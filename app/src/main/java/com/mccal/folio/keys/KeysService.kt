@@ -249,6 +249,7 @@ class KeysService : InputMethodService(), Ime {
         val chosen = Settings.load(prefs)
         actions.settings = chosen
         keyboard?.settings = chosen
+        emoji?.appearance = chosen.appearance
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
         // A new field starts on the letters: nobody opens a password box wanting the emoji they left open.

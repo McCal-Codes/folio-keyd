@@ -47,10 +47,15 @@ data class Theme(
         /** Both themes, for the contrast test: the colours that ship are the colours that get checked. */
         fun bothForTests(): List<Pair<String, Theme>> = listOf("dark" to DARK, "light" to LIGHT)
 
-        fun of(context: Context): Theme {
-            val night = context.resources.configuration.uiMode and
-                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-            return if (night) DARK else LIGHT
+        /** [Appearance.SYSTEM] follows the phone; the other two are for someone who has decided otherwise. */
+        fun of(context: Context, appearance: Appearance = Appearance.SYSTEM): Theme = when (appearance) {
+            Appearance.DARK -> DARK
+            Appearance.LIGHT -> LIGHT
+            Appearance.SYSTEM -> {
+                val night = context.resources.configuration.uiMode and
+                    Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+                if (night) DARK else LIGHT
+            }
         }
     }
 }

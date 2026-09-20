@@ -142,6 +142,63 @@ class KeyboardViewTest {
         assertEquals("FULL", shapeAt(600, 360))
     }
 
+    private fun shapeAt(widthDp: Int, heightDp: Int, chosen: Settings): String {
+        val side = if (widthDp > heightDp) "-land" else ""
+        org.robolectric.RuntimeEnvironment.setQualifiers("w${widthDp}dp-h${heightDp}dp$side-xhdpi")
+        val fresh = KeyboardView(ApplicationProvider.getApplicationContext<Context>())
+        fresh.settings = chosen
+        fresh.rules = FieldRules()
+        fresh.rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        val width = (widthDp * fresh.resources.displayMetrics.density).toInt()
+        fresh.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        fresh.layout(0, 0, fresh.measuredWidth, fresh.measuredHeight)
+        return fresh.shapeName
+    }
+
+    /** Asked for outright, or refused outright: the automatic answer is only the default. */
+    @Test
+    fun `split can be asked for and refused`() {
+        assertEquals("SPLIT", shapeAt(891, 411, Settings(split = Split.ALWAYS)))
+        // Refusing a split does not mean stretching the keys across a Fold: they are centred instead, which is
+        // the other thing a big screen can sensibly do with them.
+        assertEquals("CAPPED", shapeAt(932, 704, Settings(split = Split.NEVER)))
+        assertEquals("CAPPED", shapeAt(540, 860, Settings(split = Split.NEVER)))
+        assertEquals("FULL", shapeAt(411, 891, Settings(split = Split.NEVER)))
+    }
+
+    @Test
+    fun `a chosen height is honoured`() {
+        val short = KeyboardView(ApplicationProvider.getApplicationContext<Context>())
+        val tall = KeyboardView(ApplicationProvider.getApplicationContext<Context>())
+        for ((view, size) in listOf(short to Size.SMALL, tall to Size.LARGE)) {
+            view.settings = Settings(size = size)
+            view.rules = FieldRules()
+            view.rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+            val width = (411 * density).toInt()
+            view.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        }
+        assertTrue("short ${short.measuredHeight} vs tall ${tall.measuredHeight}", short.measuredHeight < tall.measuredHeight)
+    }
+
+    @Test
+    fun `the swipes can be switched off`() {
+        view.settings = Settings(cursorSwipe = false, deleteWordSwipe = false, swipeDownToHide = false)
+        val space = view.placements.first { it.key.kind == KeyKind.SPACE }.box
+        val y = (space.top + space.bottom) / 2
+        send(MotionEvent.ACTION_DOWN, (space.left + space.right) / 2, y)
+        send(MotionEvent.ACTION_MOVE, (space.left + space.right) / 2 + 90 * density, y)
+        send(MotionEvent.ACTION_UP, (space.left + space.right) / 2 + 90 * density, y)
+        assertEquals("the cursor should not have moved", 0, cursorSteps)
+        assertEquals("a space is what a space bar gives", " ", typed.toString())
+    }
+
     @Test
     fun `a screen that is big both ways still splits`() {
         assertEquals("SPLIT", shapeAt(932, 704))   // the Fold, unfolded
