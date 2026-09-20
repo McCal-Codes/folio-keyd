@@ -25,6 +25,26 @@ class LanguageTest {
 
     private fun dictionary(language: Language) = Dictionary.load(context, language)
 
+    /**
+     * The file on disk is named exactly as the language asks for it.
+     *
+     * A Mac doesn't care about the case of a filename and Linux does, so `words-en-us.txt` satisfies a build here
+     * and loses the whole English dictionary on anyone else's machine — including the one that makes the release.
+     * Reading the directory gives the real name, which is the only way to see the difference from here.
+     */
+    @Test
+    fun `every word list is named exactly as its language asks for it`() {
+        val assets = generateSequence(java.io.File("").absoluteFile) { it.parentFile }
+            .first { java.io.File(it, "settings.gradle.kts").exists() }
+            .let { java.io.File(it, "app/src/main/assets") }
+        val onDisk = assets.list().orEmpty().toSet()
+        for (language in Language.entries) {
+            assertTrue("${language.tag} wants ${language.dictionary}, and the assets hold " +
+                onDisk.filter { it.lowercase() == language.dictionary.lowercase() },
+                language.dictionary in onDisk)
+        }
+    }
+
     @Test
     fun `every language has a word list that loads`() {
         for (language in Language.entries) {
