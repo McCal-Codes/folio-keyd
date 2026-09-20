@@ -62,6 +62,12 @@ class EmojiPanel(context: Context) : View(context) {
             field = value
             invalidate()
         }
+
+    var highContrast: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
     private var bottomInset = BottomRoom.GESTURE_BAND_DP * dp
     private var sideInset = 0f
 
@@ -161,7 +167,7 @@ class EmojiPanel(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance)
+        theme = Theme.of(context, appearance, highContrast)
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)

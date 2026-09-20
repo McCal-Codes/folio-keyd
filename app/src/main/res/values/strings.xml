@@ -73,4 +73,16 @@
     <string name="settings_swipe_hide">Swipe down on the space bar to hide</string>
     <string name="settings_swipe_hide_note">The chevron in the corner does the same thing.</string>
     <string name="settings_reset">Put everything back to normal</string>
+    <string name="shortcuts_title">Text shortcuts</string>
+    <string name="shortcuts_open">Text shortcuts</string>
+    <string name="shortcuts_note">A short word that stands for a longer one: type it, and the phrase is offered first in the strip. It is only ever offered — nothing is replaced until you tap it.</string>
+    <string name="shortcuts_trigger_hint">Short word, e.g. omw</string>
+    <string name="shortcuts_phrase_hint">What it stands for, e.g. on my way</string>
+    <string name="shortcuts_add">Add</string>
+    <string name="shortcuts_remove">Remove</string>
+    <string name="shortcuts_row">%1$s  →  %2$s</string>
+    <string name="shortcuts_empty">No shortcuts yet.</string>
+    <string name="shortcuts_rejected">A shortcut needs a single word and something different for it to stand for.</string>
+    <string name="settings_high_contrast">High contrast</string>
+    <string name="settings_high_contrast_note">Pushes the keys and their labels as far apart as they go, rather than the softer greys of the ordinary palette.</string>
 </resources>

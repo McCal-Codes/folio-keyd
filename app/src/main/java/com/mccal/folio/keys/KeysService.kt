@@ -53,6 +53,7 @@ class KeysService : InputMethodService(), Ime {
     private val main = Handler(Looper.getMainLooper())
     private var dictionary: Dictionary? = null
     private var learned: Learned? = null
+    private var shortcuts: Shortcuts? = null
     private var proximity: Suggestions.Proximity? = null
     private var proximityFor: List<Placement>? = null
 
@@ -74,6 +75,7 @@ class KeysService : InputMethodService(), Ime {
         background.post {
             dictionary = runCatching { Dictionary.load(this) }.getOrNull()
             learned = Learned.decode(prefs.getString(LEARNED, null))
+            shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
         }
     }
 
@@ -118,7 +120,7 @@ class KeysService : InputMethodService(), Ime {
                     proximityFor = keys
                 }
                 val found = runCatching {
-                    Suggestions.forWord(word, words, proximity, learned)
+                    Suggestions.forWord(word, words, proximity, learned, shortcuts)
                 }.getOrDefault(emptyList())
                 val fix = runCatching {
                     Suggestions.correction(word, words, proximity, learned)
@@ -250,6 +252,7 @@ class KeysService : InputMethodService(), Ime {
         actions.settings = chosen
         keyboard?.settings = chosen
         emoji?.appearance = chosen.appearance
+        emoji?.highContrast = chosen.highContrast
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
         // A new field starts on the letters: nobody opens a password box wanting the emoji they left open.
@@ -258,7 +261,10 @@ class KeysService : InputMethodService(), Ime {
         // away mid-press, a call arriving - would otherwise leave a finger down forever.
         keyboard?.forgetTouches()
         // Re-read in case the setup screen has been used to forget everything since the last field.
-        background.post { learned = Learned.decode(prefs.getString(LEARNED, null)) }
+        background.post {
+            learned = Learned.decode(prefs.getString(LEARNED, null))
+            shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
+        }
         // Ask the editor to keep telling us where the cursor is. Most will not, which is why nothing depends on it.
         currentInputConnection?.requestCursorUpdates(InputConnection.CURSOR_UPDATE_MONITOR)
     }
@@ -327,6 +333,7 @@ class KeysService : InputMethodService(), Ime {
         const val ROOM_FOR_THE_APP_DP = 160f
         const val RECENTS = "emojiRecents"
         const val LEARNED = "learnedWords"
+        const val SHORTCUTS = "shortcuts"
 
         /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
         const val THINK_MS = 40L

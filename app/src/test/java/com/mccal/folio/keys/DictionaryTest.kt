@@ -248,6 +248,25 @@ class DictionaryTest {
         }
     }
 
+    /** A shortcut is an exact answer to exactly this word, so nothing the dictionary guesses should outrank it. */
+    @Test
+    fun `a shortcut is offered ahead of anything the dictionary thinks`() {
+        val near = proximity()
+        val shortcuts = Shortcuts().apply { add("omw", "on my way") }
+        val offered = Suggestions.forWord("omw", dictionary, near, null, shortcuts)
+        assertEquals("on my way", offered.first())
+    }
+
+    @Test
+    fun `an ordinary word is unaffected by having shortcuts at all`() {
+        val near = proximity()
+        val shortcuts = Shortcuts().apply { add("omw", "on my way") }
+        assertEquals(
+            Suggestions.forWord("teh", dictionary, near),
+            Suggestions.forWord("teh", dictionary, near, null, shortcuts),
+        )
+    }
+
     /** The real thing, on the real list: the misspellings everyone makes. */
     @Test
     fun `the usual misspellings are corrected`() {

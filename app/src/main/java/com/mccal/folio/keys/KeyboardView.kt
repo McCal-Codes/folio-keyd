@@ -89,7 +89,7 @@ class KeyboardView(context: Context) : View(context) {
     var settings: Settings = Settings()
         set(value) {
             field = value
-            theme = Theme.of(context, value.appearance)
+            theme = Theme.of(context, value.appearance, value.highContrast)
             requestLayout()
             invalidate()
         }
@@ -128,7 +128,7 @@ class KeyboardView(context: Context) : View(context) {
         strokeJoin = Paint.Join.ROUND
     }
     private val scratch = RectF()        // reused: a keyboard shouldn't allocate while it draws
-    private var theme = Theme.of(context, Appearance.SYSTEM)
+    private var theme = Theme.of(context, Appearance.SYSTEM, false)
     private var placedKeys: List<Placement> = emptyList()
     private var tools: List<Placement> = emptyList()
     private var bottomInset = BottomRoom.GESTURE_BAND_DP * resources.displayMetrics.density

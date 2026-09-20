@@ -147,6 +147,16 @@ class SettingsActivity : Activity() {
         }
         column.addView(forget)
 
+        column.addView(
+            Button(this).apply {
+                text = getString(R.string.shortcuts_open)
+                setOnClickListener { startActivity(android.content.Intent(context, ShortcutsActivity::class.java)) }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = (8 * dp).toInt() }
+            },
+        )
+
         heading(getString(R.string.settings_look))
         choice(
             getString(R.string.settings_size), getString(R.string.settings_size_note),
@@ -166,6 +176,10 @@ class SettingsActivity : Activity() {
             ),
             settings.appearance,
         ) { settings.copy(appearance = it) }
+        option(
+            getString(R.string.settings_high_contrast), getString(R.string.settings_high_contrast_note),
+            settings.highContrast,
+        ) { settings.copy(highContrast = it) }
         choice(
             getString(R.string.settings_split), getString(R.string.settings_split_note),
             listOf(

@@ -52,6 +52,7 @@ class SettingsTest {
         assertEquals(Size.MEDIUM, fresh.size)
         assertEquals(Split.AUTO, fresh.split)
         assertEquals(Appearance.SYSTEM, fresh.appearance)
+        assertFalse(fresh.highContrast)
         assertTrue(fresh.cursorSwipe)
         assertTrue(fresh.deleteWordSwipe)
         assertTrue(fresh.swipeDownToHide)

@@ -56,6 +56,8 @@ data class Settings(
     val size: Size = Size.MEDIUM,
     val split: Split = Split.AUTO,
     val appearance: Appearance = Appearance.SYSTEM,
+    /** Every key outlined and every label at full strength, for eyes the ordinary palette does not suit. */
+    val highContrast: Boolean = false,
     /** The click. Follows the phone's own touch-sound setting as well; this can only turn it further off. */
     val sound: Boolean = true,
     /** The tap you feel. Follows the phone's own vibration setting as well. */
@@ -80,6 +82,7 @@ data class Settings(
             putString(SIZE, size.name)
             putString(SPLIT, split.name)
             putString(APPEARANCE, appearance.name)
+            putBoolean(HIGH_CONTRAST, highContrast)
             putBoolean(SOUND, sound)
             putBoolean(VIBRATE, vibrate)
         }.apply()
@@ -102,6 +105,7 @@ data class Settings(
         const val SIZE = "size"
         const val SPLIT = "split"
         const val APPEARANCE = "appearance"
+        const val HIGH_CONTRAST = "highContrast"
         const val SOUND = "sound"
         const val VIBRATE = "vibrate"
 
@@ -125,6 +129,7 @@ data class Settings(
                 size = choice(prefs, SIZE, fallback.size),
                 split = choice(prefs, SPLIT, fallback.split),
                 appearance = choice(prefs, APPEARANCE, fallback.appearance),
+                highContrast = read(HIGH_CONTRAST, fallback.highContrast),
                 sound = read(SOUND, fallback.sound),
                 vibrate = read(VIBRATE, fallback.vibrate),
             )

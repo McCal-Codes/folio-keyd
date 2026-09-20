@@ -86,6 +86,7 @@ object Suggestions {
         words: Words,
         proximity: Proximity?,
         learned: Learned? = null,
+        shortcuts: Shortcuts? = null,
     ): List<String> {
         if (typed.isEmpty()) return emptyList()
         val lower = typed.lowercase()
@@ -140,10 +141,15 @@ object Suggestions {
             }
         }
 
-        return scored.entries
+        val ranked = scored.entries
             .sortedWith(compareBy({ it.value }, { it.key.length }, { it.key }))
             .take(LIMIT)
             .map { matchCase(typed, it.key) }
+
+        // A shortcut is an exact answer to exactly this word, so it goes first - ahead of anything the dictionary
+        // merely thinks is likely. It is still only offered: taking it is a tap, the same as everything else here.
+        val expansion = shortcuts?.expand(typed)
+        return if (expansion == null) ranked else listOf(expansion) + ranked.take(LIMIT - 1)
     }
 
     /**
