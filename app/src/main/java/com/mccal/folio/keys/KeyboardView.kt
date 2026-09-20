@@ -469,6 +469,10 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.GLOBE -> Icons.globe(canvas, cx, cy, icon, stroke)
             KeyKind.ACTION -> if (key.label.length > 4) drawLabel(canvas, key.label, cx, cy, box, ink)
                 else Icons.enter(canvas, cx, cy, icon * 1.1f, stroke)
+            // The space bar is labelled where its width is known, which is here rather than in the row.
+            KeyKind.SPACE -> drawLabel(
+                canvas, spaceLabel(box.width / dp, language, key.label), cx, cy, box, ink,
+            )
             else -> drawLabel(canvas, key.label, cx, cy, box, ink)
         }
 
