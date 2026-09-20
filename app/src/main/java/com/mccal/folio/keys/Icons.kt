@@ -131,6 +131,40 @@ object Icons {
     }
 
     /** A dashed marquee around two lines of text: select all. A filled square reads as a stop button. */
+    /**
+     * A clipboard with lines on it: the history, as against [paste], which is the clipboard with a tab and means
+     * "put the last one back". The two sit next to each other on the toolbar, so they have to read differently at
+     * twenty density-independent pixels.
+     */
+    fun clipboard(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint, fill: Paint) {
+        val half = size / 2
+        val board = RectF(cx - half * 0.72f, cy - half, cx + half * 0.72f, cy + half)
+        canvas.drawRoundRect(board, size * 0.12f, size * 0.12f, stroke)
+        // The clip at the top, filled so it reads as a clip rather than another line.
+        val clip = RectF(cx - half * 0.3f, cy - half - size * 0.08f, cx + half * 0.3f, cy - half + size * 0.14f)
+        canvas.drawRoundRect(clip, size * 0.06f, size * 0.06f, fill)
+        // Two lines of something written down.
+        for (line in 0..1) {
+            val y = cy - size * 0.06f + line * size * 0.26f
+            canvas.drawLine(cx - half * 0.4f, y, cx + half * 0.4f, y, stroke)
+        }
+    }
+
+    /** A pushpin: the head, and the point it goes in by. Filled when the clip is pinned, outlined when it is not. */
+    fun pin(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint, fill: Paint, pinned: Boolean) {
+        val half = size / 2
+        val head = if (pinned) fill else stroke
+        canvas.drawCircle(cx, cy - half * 0.3f, half * 0.52f, head)
+        canvas.drawLine(cx, cy + half * 0.2f, cx, cy + half, stroke)
+    }
+
+    /** A cross, for forgetting one clip. */
+    fun close(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2 * 0.62f
+        canvas.drawLine(cx - half, cy - half, cx + half, cy + half, stroke)
+        canvas.drawLine(cx - half, cy + half, cx + half, cy - half, stroke)
+    }
+
     fun selectAll(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint, fill: Paint) {
         val w = size * 0.46f
         // The dashes only have to be remade when the icon changes size, which is when the keyboard is laid out.

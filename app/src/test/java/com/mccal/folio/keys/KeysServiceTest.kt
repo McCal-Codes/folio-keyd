@@ -41,6 +41,7 @@ class KeysServiceTest {
         var shown: List<Row> = emptyList()
         var shift = Shift.OFF
         var emojiShowing = false
+        var clipboardShowing = false
         var suggestedFor = mutableListOf<String>()
         var taught = mutableListOf<String>()
 
@@ -50,6 +51,10 @@ class KeysServiceTest {
         override fun show(rows: List<Row>, shift: Shift) {
             shown = rows
             this.shift = shift
+        }
+
+        override fun showClipboard(showing: Boolean) {
+            clipboardShowing = showing
         }
 
         override fun showEmoji(showing: Boolean) {
