@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 
@@ -28,6 +29,16 @@ class KeysService : InputMethodService(), Ime {
     private val actions = TextActions(this)
     private var keyboard: KeyboardView? = null
     private var emoji: EmojiPanel? = null
+    private var root: View? = null
+
+    /**
+     * Set once the editor has told us the cursor is behind the keys, and cleared when a new field is opened.
+     *
+     * It latches on purpose. Going fullscreen moves everything, which changes where the cursor is, which would
+     * change the answer again - a keyboard flickering in and out of fullscreen while someone types is far worse
+     * than either state. Once taking the screen is the right answer for a field, it stays the answer.
+     */
+    private var cursorHidden = false
 
     private val prefs by lazy { getSharedPreferences("keys", Context.MODE_PRIVATE) }
 
@@ -180,7 +191,7 @@ class KeysService : InputMethodService(), Ime {
         keyboard = keys
         emoji = grid
         actions.refresh()
-        return FrameLayout(this).apply {
+        return FrameLayout(this).also { root = it }.apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             )
@@ -212,6 +223,9 @@ class KeysService : InputMethodService(), Ime {
     override fun onEvaluateFullscreenMode(): Boolean {
         val info = currentInputEditorInfo
         if (info != null && info.imeOptions and EditorInfo.IME_FLAG_NO_FULLSCREEN != 0) return false
+        // The editor has told us the line being typed on is behind the keys, and no amount of resizing is going to
+        // fix that, so the screen is taken and the text shown in a field of its own.
+        if (cursorHidden) return true
         val density = resources.displayMetrics.density
         val shown = listOfNotNull(keyboard, emoji).firstOrNull { it.visibility == View.VISIBLE }
         val keyboardDp = (shown?.height ?: 0) / density
@@ -248,6 +262,8 @@ class KeysService : InputMethodService(), Ime {
         showEmoji(false)
         // Re-read in case the setup screen has been used to forget everything since the last field.
         background.post { learned = Learned.decode(prefs.getString(LEARNED, null)) }
+        // Ask the editor to keep telling us where the cursor is. Most will not, which is why nothing depends on it.
+        currentInputConnection?.requestCursorUpdates(InputConnection.CURSOR_UPDATE_MONITOR)
     }
 
     // ---- Ime -----------------------------------------------------------------------------------------------------
@@ -263,6 +279,42 @@ class KeysService : InputMethodService(), Ime {
             it.shift = shift
             it.rows = rows
         }
+    }
+
+    /** A new field is a fresh question: whatever was true of the last one says nothing about this one. */
+    override fun onFinishInput() {
+        super.onFinishInput()
+        if (cursorHidden) {
+            cursorHidden = false
+            updateFullscreenMode()
+        }
+    }
+
+    /**
+     * The editor saying where the cursor ended up.
+     *
+     * Almost the only thing worth doing with this: noticing that it is underneath us.
+     */
+    override fun onUpdateCursorAnchorInfo(info: CursorAnchorInfo) {
+        super.onUpdateCursorAnchorInfo(info)
+        if (cursorHidden || isFullscreenMode) return
+        val view = root ?: return
+        if (view.width == 0) return
+        val marker = floatArrayOf(info.insertionMarkerHorizontal, info.insertionMarkerBottom)
+        info.matrix.mapPoints(marker)
+        val where = view.locationOnScreen().let { top ->
+            CursorWatch.read(marker[1], top, info.insertionMarkerFlags)
+        }
+        if (where == CursorWatch.Where.HIDDEN) {
+            cursorHidden = true
+            updateFullscreenMode()
+        }
+    }
+
+    private fun View.locationOnScreen(): Int {
+        val at = IntArray(2)
+        getLocationOnScreen(at)
+        return at[1]
     }
 
     override fun hideKeyboard() = requestHideSelf(0)
