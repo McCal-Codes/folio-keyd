@@ -68,21 +68,52 @@ warning on the second one.
 
 ## What's next
 
-In order, and honestly. Two things the earlier version of this list promised are worth correcting: **the typing
-engine is written** — its own dictionary, corrections and learning, rather than AOSP's LatinIME — and **per-app
-profiles don't exist yet**, though the keyboard already knows which app it's typing into.
+In order, and honestly, with why each one sits where it does. Clipboard history came off the top of this list and is
+in; what follows is ordered by what someone would notice first, not by what is most interesting to write.
 
-1. **Clipboard history.** The paste glyph is drawn and nothing is behind it. A keyboard may read the clipboard while
-   it's focused, so this costs no permission — and a pinned clip becoming a shortcut is one step from what Shortcuts
-   already does.
-2. **Per-app profiles.** Theme, layout, shelf, gestures and learning, decided per app from `EditorInfo.packageName`,
-   which needs no accessibility service. The thing no other keyboard offers, and the reason to write this one.
-3. **Typing insights, and rules from them.** The words you correct most and the keys you miss, shown back to you,
-   with one tap to make a rule. Learning already collects what this would show.
-4. **One-handed and floating.** Split solves the reach problem on a fold; a tall slab is the case this would answer.
-5. **Glide typing.** The feature that decides whether anyone switches keyboard, and a month of work rather than an
-   afternoon.
-6. **Themes and layouts as signed Folio Market packages**, once the Market ships in Folio 0.7.0.
+**Now — small, and closing gaps someone meets this week**
+
+1. **A voice key.** There is no microphone anywhere in the source, and every other keyboard has one, so its absence
+   reads as missing rather than principled. It hands typing to the phone's own voice keyboard, which is not Keyd and
+   does use the network — so the key has to say so plainly rather than quietly become the exception to the promise.
+2. **A pinned clip becomes a shortcut.** `Shortcuts` and pinned clips both exist and know nothing about each other.
+   One step, and the two features are better for it.
+3. **Clear all should ask first.** It takes pinned clips with it, and a pin is someone saying they meant to keep it.
+
+**Next — the reason to write this keyboard rather than use Gboard**
+
+4. **Per-app profiles.** Theme, layout, shelf, gestures and learning, decided per app from `EditorInfo.packageName`,
+   which needs no accessibility service. Nothing else offers it, the keyboard already knows which app it is typing
+   into, and it is the line in *Why another keyboard* that is still a promise.
+5. **Export and import what it learned.** `Learned` and `Shortcuts` live on one phone only, so a new phone starts
+   from nothing and nobody notices until it happens to them. A document picker needs no permission, so this can be
+   done without touching the promise.
+
+**Then — the quality that decides whether anyone keeps it**
+
+6. **Context in the corrections.** `Suggestions` already costs edits against where the finger really was, which is
+   the hard half; nothing knows the *previous word*, which is the half people feel. "in a nin" cannot prefer "min"
+   over "nib" without it. The code is the easy part: the word lists are built from a unigram frequency list, so this
+   starts with an hour spent finding out whether a permissively licensed bigram source exists that is small enough to
+   ship. If it doesn't, that answers the question.
+7. **Typing insights, and rules from them.** The words you correct most and the keys you miss, shown back to you,
+   with one tap to make a rule. `Learned` already collects what this would show, and `Shortcuts` can hold the rule.
+
+**Later — bigger, blocked, or both**
+
+8. **Emoji search.** The panel has categories and recents, and the emoji carry no names or keywords at all — so this
+   is a data job before it is a search box.
+9. **A cursor pad.** Arrows and select-word, finishing the editing the toolbar started with select all, copy and
+   paste.
+10. **Multilingual typing.** Two dictionaries at once rather than one subtype at a time, which is what bilingual
+    typing actually needs.
+11. **One-handed and floating.** Split solves the reach problem on a fold; a tall slab is the case this answers.
+12. **Glide typing.** The feature that decides whether anyone switches keyboard, and a month of work rather than an
+    afternoon. Worth doing; not worth starting casually.
+13. **Themes and layouts as signed Folio Market packages**, once the Market ships in Folio 0.7.0.
+
+**Not planned, and not an oversight:** stickers, GIFs, and any syncing of what the keyboard learned. Each one needs
+the network or a permission, and an app that asks for neither is the only claim here that cannot be made twice.
 
 Design, decisions and the practices checklist: `docs/folio-keys.md` in the Folio repository — which is currently
 missing and needs reconstructing from the code.
