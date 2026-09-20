@@ -154,6 +154,77 @@ class KeysServiceTest {
         assertTrue("asked about ${ime.suggestedFor}", ime.suggestedFor.all { it.isEmpty() })
     }
 
+    // ---- correcting on its own ----------------------------------------------------------------------------------
+
+    @Test
+    fun `a word the suggestion thread flagged is corrected when it is finished`() {
+        type("teh")
+        actions.offered("teh", "the")
+        type(" ")
+        assertEquals("the ", text)
+    }
+
+    @Test
+    fun `the ending that finished the word is kept`() {
+        type("teh")
+        actions.offered("teh", "the")
+        type(".")
+        assertEquals("the.", text)
+    }
+
+    @Test
+    fun `text before the corrected word is left alone`() {
+        type("well teh")
+        actions.offered("teh", "the")
+        type(" ")
+        assertEquals("well the ", text)
+    }
+
+    /** The one key that undoes it. Without this, correcting on its own would not be worth doing at all. */
+    @Test
+    fun `backspace straight after a correction puts back what was typed`() {
+        type("teh")
+        actions.offered("teh", "the")
+        type(" ")
+        actions.onBackspace()
+        assertEquals("teh ", text)
+    }
+
+    @Test
+    fun `backspace after anything else deletes as usual`() {
+        type("teh")
+        actions.offered("teh", "the")
+        type(" ")
+        type("x")
+        actions.onBackspace()
+        assertEquals("the ", text)
+    }
+
+    @Test
+    fun `a word with no correction offered is left alone`() {
+        type("mccal")
+        actions.offered("mccal", null)
+        type(" ")
+        assertEquals("mccal ", text)
+    }
+
+    /** A correction worked out for an earlier word must not be applied to a later one. */
+    @Test
+    fun `a stale correction is not applied`() {
+        actions.offered("teh", "the")
+        type("cat ")
+        assertEquals("cat ", text)
+    }
+
+    @Test
+    fun `nothing is corrected in a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("teh")
+        actions.offered("teh", "the")
+        type(" ")
+        assertEquals("teh ", text)
+    }
+
     // ---- learning -----------------------------------------------------------------------------------------------
 
     @Test

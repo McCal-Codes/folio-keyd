@@ -8,6 +8,7 @@ import android.os.Looper
 import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -58,10 +59,28 @@ class KeysService : InputMethodService(), Ime {
 
     override fun onCreate() {
         super.onCreate()
+        spanTheCutout()
         // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
         background.post {
             dictionary = runCatching { Dictionary.load(this) }.getOrNull()
             learned = Learned.decode(prefs.getString(LEARNED, null))
+        }
+    }
+
+    /**
+     * Lets the keyboard's window reach into the display cutout.
+     *
+     * Without this the system keeps the window clear of the camera, which on a Fold's cover screen held sideways
+     * means a black bar down one edge and a keyboard shoved across into the other - and the field being typed into
+     * pushed out beside it rather than sitting above it. The keys themselves still keep off the camera: that is
+     * what the cutout inset in [KeyboardView] is for. This is about the window, not the keys.
+     */
+    private fun spanTheCutout() {
+        runCatching {
+            val window = window?.window ?: return
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            }
         }
     }
 
@@ -74,6 +93,7 @@ class KeysService : InputMethodService(), Ime {
         background.removeCallbacksAndMessages(suggesting)
         val mine = ++asked
         if (word.length < 2) {
+            actions.offered(word, null)
             keyboard?.suggestions = emptyList()
             return
         }
@@ -90,11 +110,15 @@ class KeysService : InputMethodService(), Ime {
                 val found = runCatching {
                     Suggestions.forWord(word, words, proximity, learned)
                 }.getOrDefault(emptyList())
+                val fix = runCatching {
+                    Suggestions.correction(word, words, proximity, learned)
+                }.getOrNull()
                 main.post {
                     // A job already running cannot be cancelled, so it checks on the way out whether the word it
                     // was asked about is still the word being typed. Without this a slow answer for "te" lands
                     // after a fast one for "teh" and the strip shows the wrong thing.
                     if (mine != asked) return@post
+                    actions.offered(word, fix)
                     keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
                 }
             },
@@ -206,12 +230,14 @@ class KeysService : InputMethodService(), Ime {
         // the emoji grid is showing would describe a window that is no longer the one being touched.
         val view = listOfNotNull(keyboard, emoji).firstOrNull { it.visibility == View.VISIBLE } ?: return
         if (view.width == 0 || view.height == 0) return
+        // How much room the app gets is left exactly as Android worked it out. Overriding it here was wrong: the
+        // numbers are window coordinates and these are a child view's, so the app was told the keyboard took less
+        // room than it does and left the field being typed into underneath it.
         val pad = (PANEL_PAD_DP * resources.displayMetrics.density).toInt()
-        val top = view.top + pad
-        outInsets.contentTopInsets = top
-        outInsets.visibleTopInsets = top
         outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
-        outInsets.touchableRegion.set(Region(view.left + pad, top, view.right - pad, view.bottom))
+        outInsets.touchableRegion.set(
+            Region(view.left + pad, view.top + pad, view.right - pad, view.bottom),
+        )
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -242,8 +268,14 @@ class KeysService : InputMethodService(), Ime {
     override fun hideKeyboard() = requestHideSelf(0)
 
     private companion object {
-        /** Less of the app than this left showing, and an extracted field is more use than a sliver. */
-        const val ROOM_FOR_THE_APP_DP = 130f
+        /**
+         * Less of the app than this left showing, and an extracted field is more use than a sliver.
+         *
+         * Below about this much there is no height to divide: the keyboard cannot be made small enough to leave
+         * anything worth looking at, so taking the screen and showing the text in a field of its own is the only
+         * way someone still sees what they are typing.
+         */
+        const val ROOM_FOR_THE_APP_DP = 160f
         const val RECENTS = "emojiRecents"
         const val LEARNED = "learnedWords"
 

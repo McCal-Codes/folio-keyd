@@ -161,10 +161,10 @@ class EmojiPanel(context: Context) : View(context) {
 
         drawGrid(canvas)
         drawTabs(canvas)
-        drawHandle(canvas)
     }
 
-    /** The same pill the letters have in the band below them: the two panels should not end differently. */
+    /** The same pill the letters have, and hidden for the same reason: the system already draws one there. */
+    @Suppress("unused")
     private fun drawHandle(canvas: Canvas) {
         val bandTop = height - bottomInset - panelPad
         val centre = (bandTop + height - panelPad) / 2

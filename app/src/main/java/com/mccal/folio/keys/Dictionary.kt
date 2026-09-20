@@ -121,7 +121,7 @@ class Dictionary private constructor(
         return false
     }
 
-    fun contains(word: String): Boolean {
+    override fun contains(word: String): Boolean {
         val index = lowerBound { compare(it, word) >= 0 }
         return index < size && compare(index, word) == 0
     }

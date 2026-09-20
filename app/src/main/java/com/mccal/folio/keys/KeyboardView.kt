@@ -235,7 +235,16 @@ class KeyboardView(context: Context) : View(context) {
 
     private var shape = Shape.FULL
 
-    private fun shapeFor(widthDp: Float) = when {
+    /**
+     * Width alone does not say how big a screen is.
+     *
+     * A phone on its side and an unfolded Fold are both over 600 dp across, and they want opposite things. The one
+     * that tells them apart is height: a phone in landscape is short, and every keyboard worth using fills its
+     * width there rather than splitting it, because there is no reach problem to solve and no height to spare.
+     * Splitting is for a screen that is genuinely large in both directions.
+     */
+    private fun shapeFor(widthDp: Float, heightDp: Float) = when {
+        heightDp < SHORT_DP -> Shape.FULL
         widthDp >= SPLIT_AT_DP -> Shape.SPLIT
         widthDp >= CAP_AT_DP -> Shape.CAPPED
         else -> Shape.FULL
@@ -243,7 +252,7 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
-        shape = shapeFor(width / dp)
+        shape = shapeFor(width / dp, resources.configuration.screenHeightDp.toFloat())
         val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
         val usable = width - 2 * edge
         val top = toolbarHeight + panelPad
@@ -335,7 +344,6 @@ class KeyboardView(context: Context) : View(context) {
         scratch.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(scratch, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
-        drawHandle(canvas)
 
         drawToolbar(canvas)
 
@@ -388,7 +396,14 @@ class KeyboardView(context: Context) : View(context) {
         return false
     }
 
-    /** The pill in the band below the keys: Samsung's grab handle, and where resizing will live. */
+    /**
+     * The pill in the band below the keys, for when the keyboard can be resized.
+     *
+     * Not drawn yet. With gesture navigation the system puts its own home bar in the same strip, and two parallel
+     * pills thirty pixels apart read as a mistake - especially on the Fold's cover screen, where the band is
+     * tightest. It comes back when it does something.
+     */
+    @Suppress("unused")
     private fun drawHandle(canvas: Canvas) {
         val bandTop = height - bottomInset - panelPad
         val centre = (bandTop + height - panelPad) / 2
@@ -534,6 +549,9 @@ class KeyboardView(context: Context) : View(context) {
     internal val popupItems: List<String> get() = popup?.items.orEmpty()
     internal val popupChoice: Int get() = popup?.choice ?: -1
     internal val popupBoxes: List<Box> get() = popup?.boxes.orEmpty()
+
+    /** Which of the three shapes the window got. */
+    internal val shapeName: String get() = shape.name
 
     /**
      * Opens the row of alternates for a key, so a picture of it can be taken without waiting on a finger.
@@ -757,12 +775,27 @@ class KeyboardView(context: Context) : View(context) {
         if (repeatingFor === press) stopRepeat()
         invalidate()
         if (press.swiping || press.handled) return false
-        // A letter commits wherever the finger lets go, because [move] has been keeping up with it. Everything else
-        // has to be released on itself: sliding off shift, off a layer key or off the toolbar cancels it, which is
-        // the one escape route someone has once they have pressed the wrong one.
-        if (press.origin.key.kind != KeyKind.CHAR && keyAt(x, y) !== press.origin) return false
+        if (takenBack(press.origin.key.kind) && keyAt(x, y) !== press.origin) return false
         dispatch(press.placement.key)
         return true
+    }
+
+    /**
+     * Whether sliding off a key before letting go takes it back.
+     *
+     * Worth having for the keys where pressing the wrong one costs something: shift and the layer keys change the
+     * whole board, return sends the message, and the toolbar acts on the text. Sliding off them is the only escape
+     * route once a finger is down.
+     *
+     * Not worth having for the keys you type with. A thumb on the space bar rolls - it is the widest key, it sits
+     * against the bottom edge, and it is pressed more than any other - so it lands on one edge and lets go past the
+     * other. Insisting the finger come back up inside the same rectangle threw those away and made the commonest
+     * key on the keyboard feel like it needed aiming at. Space and backspace now commit wherever the finger lifts,
+     * the same as a letter does.
+     */
+    private fun takenBack(kind: KeyKind) = when (kind) {
+        KeyKind.CHAR, KeyKind.SPACE, KeyKind.BACKSPACE -> false
+        else -> true
     }
 
     private fun dispatch(key: Key) {
@@ -834,7 +867,7 @@ class KeyboardView(context: Context) : View(context) {
         const val FIRST_REPEAT_MS = 400L
         const val REPEAT_MS = 55L
         const val CURSOR_STEP_DP = 12f    // travel per character the cursor moves
-        const val CURSOR_START_DP = 30f   // travel before a drifting thumb counts as a swipe at all
+        const val CURSOR_START_DP = 40f   // travel before a drifting thumb counts as a swipe at all
         const val DELETE_WORD_DP = 24f
         const val HIT_SLOP_DP = 14f       // how far outside a key still belongs to it
         const val HYSTERESIS_DP = 12f     // how far clear of a key a finger must be to have left it
@@ -850,5 +883,6 @@ class KeyboardView(context: Context) : View(context) {
         const val CAP_AT_DP = 480f      // wider than a large phone: stop stretching, start centring
         const val CAP_WIDTH_DP = 460f
         const val SPLIT_AT_DP = 600f    // an unfolded Fold or a tablet: split, the way Samsung does
+        const val SHORT_DP = 480f       // below this the window is a phone on its side, however wide
     }
 }

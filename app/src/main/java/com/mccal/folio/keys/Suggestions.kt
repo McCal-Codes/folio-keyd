@@ -39,6 +39,9 @@ object Suggestions {
 
         /** Every word of this length starting with this letter: the pool a correction is drawn from. */
         fun byShape(first: Char, length: Int): IntArray
+
+        /** Whether this is a word at all, which is the question that decides if it may be replaced. */
+        fun contains(word: String): Boolean
     }
 
     /**
@@ -151,6 +154,64 @@ object Suggestions {
     }
 
     /**
+     * The one correction confident enough to make without being asked, or null.
+     *
+     * Everything about this is deliberately reluctant, because the cost of the two mistakes is not equal: failing to
+     * fix a typo leaves a typo, and replacing a word someone meant leaves them saying something they did not say.
+     *
+     * So it only fires when all of these hold:
+     *
+     * * **What was typed is not a word.** Anything in the dictionary is left exactly alone — which is what keeps
+     *   swearing, names and slang safe, and why the dictionary has the spoken vocabulary in it and not just the
+     *   formal one.
+     * * **It is not something already learned.** Type it twice and the keyboard stops arguing.
+     * * **The correction is one mistake away** — one letter, or two swapped — not a guess two edits out.
+     * * **The correction is a word people actually use**, not an obscure one that happens to be close.
+     * * **Nothing else is nearly as good.** Two plausible candidates means there is no confident answer, and a
+     *   coin-flip belongs in the strip where it can be tapped, not in the text.
+     */
+    fun correction(
+        typed: String,
+        words: Words,
+        proximity: Proximity?,
+        learned: Learned? = null,
+    ): String? {
+        if (typed.length < SHORTEST_CORRECTABLE) return null
+        val lower = typed.lowercase()
+        if (words.contains(lower) || (learned?.count(lower) ?: 0) > 0) return null
+
+        var best: String? = null
+        var bestCost = Int.MAX_VALUE
+        var runnerUp = Int.MAX_VALUE
+        val firsts = buildSet {
+            add(lower.first())
+            proximity?.neighbours(lower.first())?.let { addAll(it) }
+        }
+        for (first in firsts) {
+            for (length in typed.length - 1..typed.length + 1) {
+                if (length < 1) continue
+                for (index in words.byShape(first, length)) {
+                    val candidate = words.word(index)
+                    if (candidate.equals(typed, ignoreCase = true)) continue
+                    if (words.rank(index) > COMMON_ENOUGH) continue
+                    if (distance(lower, candidate.lowercase(), 1, proximity) > 1) continue
+                    val cost = words.rank(index)
+                    if (cost < bestCost) {
+                        runnerUp = bestCost
+                        bestCost = cost
+                        best = candidate
+                    } else if (cost < runnerUp) {
+                        runnerUp = cost
+                    }
+                }
+            }
+        }
+        if (best == null) return null
+        if (runnerUp != Int.MAX_VALUE && runnerUp - bestCost < MARGIN) return null
+        return matchCase(typed, best)
+    }
+
+    /**
      * Edit distance, giving up once it passes [limit].
      *
      * A substitution for a key that sits next to the one typed is half the price of any other, and two letters
@@ -211,4 +272,10 @@ object Suggestions {
     internal const val SHORTEST_CORRECTABLE = 3
     /** Bigger than any commonness score, so no amount of being common beats being a further edit away. */
     private const val DISTANCE_WEIGHT = 1000
+
+    /** A correction has to be a word people use, not merely a word that exists. */
+    private const val COMMON_ENOUGH = 30
+
+    /** How much better the best candidate must be than the next one before it is worth acting on alone. */
+    private const val MARGIN = 6
 }

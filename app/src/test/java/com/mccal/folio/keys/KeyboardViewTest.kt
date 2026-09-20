@@ -112,6 +112,48 @@ class KeyboardViewTest {
         assertEquals("h i", typed.toString())
     }
 
+    // ---- the shape the window gets ----------------------------------------------------------------------------
+
+    private fun shapeAt(widthDp: Int, heightDp: Int): String {
+        val side = if (widthDp > heightDp) "-land" else ""
+        org.robolectric.RuntimeEnvironment.setQualifiers("w${widthDp}dp-h${heightDp}dp$side-xhdpi")
+        val fresh = KeyboardView(ApplicationProvider.getApplicationContext<Context>())
+        fresh.rules = FieldRules()
+        fresh.rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        val width = (widthDp * fresh.resources.displayMetrics.density).toInt()
+        fresh.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        fresh.layout(0, 0, fresh.measuredWidth, fresh.measuredHeight)
+        return fresh.shapeName
+    }
+
+    /**
+     * A phone on its side is wide, but it is not a big screen.
+     *
+     * It used to split, because only the width was looked at - so a landscape phone got a keyboard with a third of
+     * the screen empty down the middle, which no keyboard on any phone does.
+     */
+    @Test
+    fun `a phone in landscape fills the width instead of splitting`() {
+        assertEquals("FULL", shapeAt(891, 411))
+        assertEquals("FULL", shapeAt(751, 475))   // the Fold's cover screen, on its side
+        assertEquals("FULL", shapeAt(600, 360))
+    }
+
+    @Test
+    fun `a screen that is big both ways still splits`() {
+        assertEquals("SPLIT", shapeAt(932, 704))   // the Fold, unfolded
+        assertEquals("SPLIT", shapeAt(800, 1280))  // a tablet
+    }
+
+    @Test
+    fun `an ordinary phone fills the width, and a middling screen is centred`() {
+        assertEquals("FULL", shapeAt(411, 891))
+        assertEquals("CAPPED", shapeAt(540, 860))
+    }
+
     // ---- the suggestion strip -------------------------------------------------------------------------------
 
     private fun stripLabels() = view.toolbarPlacements.map { it.key.label }
@@ -370,6 +412,57 @@ class KeyboardViewTest {
     }
 
     /** A wide space bar and a moving thumb: a space that turns into a cursor jump is the worst of the lot. */
+    /**
+     * A thumb rolling off the end of the space bar.
+     *
+     * The space bar is the widest key, it sits against the bottom edge and it is pressed more than any other, so a
+     * thumb lands on it and lets go somewhere else - on the full stop, on the comma, or in the band underneath. All
+     * of those used to throw the space away, which is what made it feel like it needed aiming at.
+     */
+    @Test
+    fun `a space still happens when the thumb lets go somewhere else`() {
+        val box = view.placements.first { it.key.kind == KeyKind.SPACE }.box
+        val y = (box.top + box.bottom) / 2
+        for ((where, x) in listOf("past the right end" to box.right + 30 * density,
+                                  "past the left end" to box.left - 30 * density)) {
+            typed.setLength(0)
+            send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, y)
+            send(MotionEvent.ACTION_UP, x, y)
+            assertEquals("no space when letting go $where", " ", typed.toString())
+        }
+    }
+
+    @Test
+    fun `a space still happens when the thumb lets go below the keys`() {
+        val box = view.placements.first { it.key.kind == KeyKind.SPACE }.box
+        val x = (box.left + box.right) / 2
+        send(MotionEvent.ACTION_DOWN, x, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_UP, x, box.bottom + 30 * density)
+        assertEquals(" ", typed.toString())
+    }
+
+    @Test
+    fun `backspace still deletes when the thumb lets go off the key`() {
+        val box = view.placements.first { it.key.kind == KeyKind.BACKSPACE }.box
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_UP, box.left - 30 * density, box.bottom + 20 * density)
+        assertEquals(1, backspaces)
+    }
+
+    /** The keys where pressing the wrong one costs something keep their escape route. */
+    @Test
+    fun `sliding off the keys that change things still takes them back`() {
+        val shift = centre("\u21e7")
+        send(MotionEvent.ACTION_DOWN, shift.first, shift.second)
+        send(MotionEvent.ACTION_UP, shift.first + 120 * density, shift.second)
+        assertEquals("shift should have been taken back", 0, shifts)
+
+        val layer = centre("123")
+        send(MotionEvent.ACTION_DOWN, layer.first, layer.second)
+        send(MotionEvent.ACTION_UP, layer.first + 120 * density, layer.second)
+        assertEquals("the layer key should have been taken back", emptyList<Layer>(), layers)
+    }
+
     @Test
     fun `a thumb that drifts across the space bar still types a space`() {
         val (x, y) = centre("space")
@@ -477,9 +570,10 @@ class KeyboardViewTest {
     fun `swiping the space bar moves the cursor and types nothing`() {
         val (x, y) = centre("space")
         send(MotionEvent.ACTION_DOWN, x, y)
-        send(MotionEvent.ACTION_MOVE, x + 40 * density, y)
-        send(MotionEvent.ACTION_MOVE, x + 70 * density, y)
-        send(MotionEvent.ACTION_UP, x + 70 * density, y)
+        send(MotionEvent.ACTION_MOVE, x + 50 * density, y)
+        send(MotionEvent.ACTION_MOVE, x + 80 * density, y)
+        send(MotionEvent.ACTION_MOVE, x + 110 * density, y)
+        send(MotionEvent.ACTION_UP, x + 110 * density, y)
         assertTrue("cursor should have moved right, got $cursorSteps", cursorSteps >= 2)
         assertEquals("", typed.toString())
     }

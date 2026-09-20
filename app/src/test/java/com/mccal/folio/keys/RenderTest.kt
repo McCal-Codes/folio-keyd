@@ -27,8 +27,12 @@ class RenderTest {
     private fun render(name: String, widthDp: Int, heightDp: Int, night: Boolean, build: (KeyboardView) -> Unit) {
         // Qualifiers rather than a hand-built Configuration: this is how a phone describes itself, and it gives the
         // render a real density, so the picture shows what someone would actually see.
+        // "land" is not decoration: without it Robolectric normalises the window back to portrait and swaps the
+        // two numbers, so a landscape render would draw at landscape width while the keyboard sized itself to a
+        // portrait window. The picture looked plausible and was measured against the wrong screen.
+        val side = if (widthDp > heightDp) "-land" else ""
         org.robolectric.RuntimeEnvironment.setQualifiers(
-            "+w${widthDp}dp-h${heightDp}dp-" + (if (night) "night" else "notnight") + "-xhdpi",
+            "w${widthDp}dp-h${heightDp}dp$side-" + (if (night) "night" else "notnight") + "-xhdpi",
         )
         val context = ApplicationProvider.getApplicationContext<Context>()
 
@@ -60,8 +64,9 @@ class RenderTest {
 
     /** The emoji grid, drawn the same way: the picture is the only way to see that the cells line up. */
     private fun renderEmoji(name: String, widthDp: Int, heightDp: Int, night: Boolean, category: Int) {
+        val side = if (widthDp > heightDp) "-land" else ""
         org.robolectric.RuntimeEnvironment.setQualifiers(
-            "+w${widthDp}dp-h${heightDp}dp-" + (if (night) "night" else "notnight") + "-xhdpi",
+            "w${widthDp}dp-h${heightDp}dp$side-" + (if (night) "night" else "notnight") + "-xhdpi",
         )
         val context = ApplicationProvider.getApplicationContext<Context>()
         val panel = EmojiPanel(context)
@@ -103,6 +108,7 @@ class RenderTest {
         render("symbols-dark", 411, 891, night = true) { letters(it, layer = Layer.NUMBERS) }
         render("tablet-capped-dark", 540, 860, night = true) { letters(it) }
         render("phone-landscape-dark", 891, 411, night = true) { letters(it) }
+        render("fold-open-landscape-dark", 932, 704, night = true) { letters(it) }
         render("suggestions-dark", 411, 891, night = true) {
             letters(it)
             it.suggestions = listOf("teh", "the", "ten", "tea")

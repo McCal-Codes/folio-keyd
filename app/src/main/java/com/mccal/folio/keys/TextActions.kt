@@ -60,6 +60,24 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     private val word = StringBuilder()
 
+    /** The word the last correction was worked out for, and what to replace it with. Both null when there is none. */
+    private var correctFor: String? = null
+    private var correction: String? = null
+
+    /** What the last autocorrect replaced, so the next backspace can put it back. */
+    private var undo: Pair<String, String>? = null
+
+    /**
+     * Told, from the suggestion thread, what to do if this word is finished now.
+     *
+     * The decision is made there because it needs the dictionary; it is applied here, the instant a space arrives,
+     * with no lookup on the typing thread at all.
+     */
+    fun offered(forWord: String, replacement: String?) {
+        correctFor = forWord
+        correction = replacement
+    }
+
     private fun wordChanged() = ime.suggest(if (rules.password) "" else word.toString())
 
     /**
@@ -71,7 +89,32 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     private fun finished() {
         val done = word.toString()
         word.setLength(0)
-        if (done.isNotEmpty() && !rules.ephemeral) ime.learn(done)
+        if (done.isEmpty()) return
+        if (!rules.ephemeral) ime.learn(done)
+        autocorrect(done)
+    }
+
+    /**
+     * Replaces the word just finished, if the suggestion thread decided one was worth replacing.
+     *
+     * The ending that finished the word - a space, a full stop - has already been typed, so what comes out is
+     * removed and put back with the word corrected and the ending kept exactly as it was.
+     */
+    private fun autocorrect(typed: String) {
+        undo = null
+        val replacement = correction?.takeIf { correctFor == typed } ?: return
+        correction = null
+        val connection = ime.connection ?: return
+        if (rules.password) return
+        // The ending is whatever was typed after the word: a space, a full stop, a bracket.
+        val tail = connection.getTextBeforeCursor(typed.length + 1, 0)?.toString() ?: return
+        if (tail.length != typed.length + 1 || !tail.startsWith(typed)) return
+        val ending = tail.substring(typed.length)
+        connection.beginBatchEdit()
+        connection.deleteSurroundingText(tail.length, 0)
+        connection.commitText(replacement + ending, 1)
+        connection.endBatchEdit()
+        undo = typed to (replacement + ending)
     }
 
     private fun forget() {
@@ -99,6 +142,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     override fun onText(text: String) {
+        undo = null
         // The key already carries the right case: the layout builds an upper-case key when shift is on.
         ime.connection?.commitText(text, 1) ?: return
         // A letter continues the word; anything else - a space, a full stop, a bracket - ends it.
@@ -116,6 +160,20 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onBackspace() {
         val connection = ime.connection ?: return
+        // Backspace straight after a correction puts back what was actually typed. This is the whole reason a
+        // correction is allowed to happen on its own: it is never more than one key away from being undone.
+        undo?.let { (typed, replaced) ->
+            undo = null
+            val before = connection.getTextBeforeCursor(replaced.length, 0)?.toString()
+            if (before == replaced) {
+                connection.beginBatchEdit()
+                connection.deleteSurroundingText(replaced.length, 0)
+                connection.commitText(typed + replaced.takeLast(1), 1)
+                connection.endBatchEdit()
+                wordChanged()
+                return
+            }
+        }
         // Asking for the selection is a blocking call into the app. Worth it once, to delete a selection whole.
         val selected = connection.getSelectedText(0)
         if (!selected.isNullOrEmpty()) {
@@ -185,6 +243,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * place, with the space that was going to follow it anyway.
      */
     override fun onSuggestion(chosen: String) {
+        undo = null
         val connection = ime.connection ?: return
         val typed = word.toString()
         if (typed.isEmpty()) return

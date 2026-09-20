@@ -47,10 +47,18 @@ object Geometry {
         return (rows * row + (rows - 1) * gapY + 2 * gapY + bottomInset + extra).toInt()
     }
 
-    fun capPx(windowHeightDp: Float, density: Float): Float {
-        val tall = windowHeightDp >= 560
-        return min(windowHeightDp * density * (if (tall) 0.46f else 0.55f), 360 * density)
-    }
+    /**
+     * The most of the window the keys may take.
+     *
+     * The same share whatever the window. A short window used to be allowed *more* of itself than a tall one, which
+     * is backwards: a phone on its side has the least room to spare, so taking two thirds of it left the field
+     * being typed into hidden behind the keyboard - the one thing a keyboard must never do.
+     */
+    fun capPx(windowHeightDp: Float, density: Float): Float =
+        min(windowHeightDp * density * SHARE, MAX_HEIGHT_DP * density)
+
+    const val SHARE = 0.46f
+    const val MAX_HEIGHT_DP = 360f
 
     fun rowHeight(cap: Float, rowCount: Int, density: Float, bottomInset: Float): Float {
         val gapY = GAP_Y_DP * density

@@ -25,18 +25,29 @@ class SuggestionsTest {
             return if (matching.isEmpty()) IntRange.EMPTY else matching.first().index..matching.last().index
         }
 
+        override fun contains(word: String) = sorted.any { it.first.equals(word, ignoreCase = true) }
+
         override fun byShape(first: Char, length: Int) = sorted.withIndex()
             .filter { it.value.first.length == length && it.value.first.first().lowercaseChar() == first }
             .map { it.index }
             .toIntArray()
     }
 
+    /**
+     * Scores are on the real scale: 0 is the commonest word in the language, 99 is one no frequency list has seen.
+     * The spread matters — the engine refuses to correct when two candidates are about as likely as each other, so
+     * a fixture with everything bunched together would test the refusal and nothing else.
+     *
+     * Deliberately no "teh": it is not a word, and what happens to things that are not words is the point.
+     */
     private val words = Small(
         listOf(
-            "the" to 0, "they" to 0, "then" to 0, "there" to 0, "them" to 0, "these" to 1,
-            "keyboard" to 1, "keys" to 1, "key" to 0, "keyhole" to 3,
-            "hello" to 0, "help" to 0, "held" to 1, "hell" to 2,
-            "teh" to 3, "duck" to 1, "luck" to 1, "lick" to 2,
+            "the" to 4, "they" to 12, "then" to 13, "there" to 10, "them" to 11, "these" to 18,
+            "keyboard" to 30, "keys" to 28, "key" to 20, "keyhole" to 60,
+            "hello" to 15, "help" to 16, "held" to 25, "hell" to 26,
+            "duck" to 33, "luck" to 30, "lick" to 45, "tea" to 29, "ten" to 27,
+            // Two words equally likely and one edit apart, for the case where there is no confident answer.
+            "wind" to 22, "wine" to 23,
         ),
     )
 
@@ -134,6 +145,47 @@ class SuggestionsTest {
         val near = Suggestions.distance("gello", "hello", 2, proximity)
         val far = Suggestions.distance("pello", "hello", 2, proximity)
         assertTrue("near $near should be no worse than far $far", near <= far)
+    }
+
+    // ---- correcting on its own ------------------------------------------------------------------------------
+
+    private fun correction(typed: String) = Suggestions.correction(typed, words, proximity)
+
+    @Test
+    fun `a clear typo is corrected without being asked`() {
+        assertEquals("the", correction("teh"))
+    }
+
+    /** A word is a word. Whatever it is, if the dictionary has it, it is left exactly as typed. */
+    @Test
+    fun `a real word is never replaced`() {
+        assertEquals(null, correction("the"))
+        assertEquals(null, correction("duck"))
+        assertEquals(null, correction("hell"))
+    }
+
+    @Test
+    fun `something with no near word is left alone`() {
+        assertEquals(null, correction("zxqwv"))
+    }
+
+    @Test
+    fun `something too short is left alone`() {
+        assertEquals(null, correction("teh".take(2)))
+    }
+
+    /** Two candidates equally close is not a confident answer, and belongs in the strip rather than in the text. */
+    @Test
+    fun `an ambiguous typo is left for the strip to offer`() {
+        // "wind" and "wine" are both one letter from "winx", and about as common as each other.
+        assertEquals(null, correction("winx"))
+    }
+
+    @Test
+    fun `a word already learned is left alone`() {
+        val learned = Learned()
+        learned.learn("teh")
+        assertEquals(null, Suggestions.correction("teh", words, proximity, learned))
     }
 
     @Test
