@@ -14,4 +14,8 @@
     <string name="emoji_letters">ABC</string>
     <string name="emoji_no_recents">Emoji you use will show up here</string>
     <string name="emoji_open">Emoji</string>
+    <string name="setup_learning">Folio Keys remembers words you type that it does not already know — names, places, the way you spell things — so it stops suggesting something else instead. It is kept on this phone, never from a password field, and never from an app that asks it not to.</string>
+    <string name="setup_forget">Forget the %1$d words it has learned</string>
+    <string name="setup_forget_none">It has not learned any words yet</string>
+    <string name="setup_forgot">Forgotten.</string>
 </resources>

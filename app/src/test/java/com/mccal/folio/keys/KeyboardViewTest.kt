@@ -202,15 +202,117 @@ class KeyboardViewTest {
         assertEquals("p", typed.toString())
     }
 
-    /** A letter with nothing in its corner promises nothing, and must do nothing when held. */
+    /** A letter with no alternates at all - no accents, no corner digit - does nothing when held. */
     @Test
-    fun `holding a key with no alternate types nothing extra`() {
-        val (x, y) = centre("a")
+    fun `holding a key with nothing behind it types nothing extra`() {
+        val (x, y) = centre("x")
         send(MotionEvent.ACTION_DOWN, x, y)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
         assertEquals("", typed.toString())
+        assertEquals("no row of alternates should have opened", emptyList<String>(), view.popupItems)
         send(MotionEvent.ACTION_UP, x, y)
-        assertEquals("a", typed.toString())
+        assertEquals("x", typed.toString())
+    }
+
+    // ---- the row of alternates ------------------------------------------------------------------------------
+
+    private fun hold(label: String): Pair<Float, Float> {
+        val at = centre(label)
+        send(MotionEvent.ACTION_DOWN, at.first, at.second)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        return at
+    }
+
+    @Test
+    fun `holding a vowel opens its accents, commonest first`() {
+        hold("e")
+        assertEquals(listOf("3", "é", "è", "ê", "ë", "ę", "ė", "ē", "ě"), view.popupItems)
+    }
+
+    /** The top row prints a digit in the corner, and that promise is kept: the digit is what is offered first. */
+    @Test
+    fun `the corner digit comes before the accents`() {
+        hold("e")
+        assertEquals("3", view.popupItems.first())
+        assertEquals(0, view.popupChoice)
+    }
+
+    @Test
+    fun `letting go without moving takes the first, as the keycap said`() {
+        val (x, y) = hold("e")
+        send(MotionEvent.ACTION_UP, x, y)
+        assertEquals("3", typed.toString())
+    }
+
+    @Test
+    fun `sliding along the row picks a different one`() {
+        val (x, y) = hold("e")
+        send(MotionEvent.ACTION_MOVE, x + 40 * density, y)
+        assertTrue("nothing was chosen", view.popupChoice > 0)
+        val chosen = view.popupItems[view.popupChoice]
+        send(MotionEvent.ACTION_UP, x + 40 * density, y)
+        assertEquals(chosen, typed.toString())
+    }
+
+    /**
+     * A key whose only alternate is the corner digit has nothing to choose between.
+     *
+     * "q" and "p" have no accents in any language Android ships a keyboard for, so holding them simply gives the
+     * digit, with no row to slide along.
+     */
+    @Test
+    fun `a key with one alternate just gives it, with no row to choose from`() {
+        val (x, y) = hold("q")
+        assertEquals(emptyList<String>(), view.popupItems)
+        assertEquals("1", typed.toString())
+        send(MotionEvent.ACTION_UP, x, y)
+        assertEquals("letting go must not type it twice", "1", typed.toString())
+    }
+
+    @Test
+    fun `a letter off the top row offers only its accents`() {
+        hold("a")
+        assertEquals(listOf("á", "â", "ä", "à", "ã", "æ", "å", "ā"), view.popupItems)
+    }
+
+    @Test
+    fun `a capital key offers capital accents`() {
+        show(FieldRules(), shift = Shift.ONCE)
+        hold("A")
+        assertEquals("Á", view.popupItems.first())
+    }
+
+    @Test
+    fun `the row closes when the finger lifts`() {
+        val (x, y) = hold("e")
+        send(MotionEvent.ACTION_UP, x, y)
+        assertEquals(emptyList<String>(), view.popupItems)
+    }
+
+    /**
+     * Every alternate has to be reachable, including for the keys at the very edges.
+     *
+     * "q" and "p" sit against the sides, and a row of accents centred on them would hang half off the screen.
+     */
+    @Test
+    fun `the row stays inside the keyboard, even at the edges`() {
+        for (label in listOf("a", "l", "z", "e", "o", "u", "i", "s")) {
+            hold(label)
+            val boxes = view.popupBoxes
+            assertTrue("no row opened for $label", boxes.isNotEmpty())
+            for (box in boxes) {
+                assertTrue("$label: an alternate runs off the left", box.left >= -0.5f)
+                assertTrue("$label: an alternate runs off the right", box.right <= view.width + 0.5f)
+                assertTrue("$label: an alternate is above the keyboard", box.top >= -0.5f)
+                assertTrue(
+                    "$label: an alternate is only ${box.width / density} dp wide",
+                    box.width / density >= 24f && box.height / density >= 24f,
+                )
+            }
+            val (x, y) = centre(label)
+            send(MotionEvent.ACTION_UP, x, y)
+            typed.setLength(0)
+        }
     }
 
     /** Sliding between letters is how a fast thumb corrects itself: the letter it lets go on is the one meant. */

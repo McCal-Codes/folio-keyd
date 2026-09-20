@@ -22,6 +22,7 @@ class SetupActivity : Activity() {
 
     /** Refreshed in [onResume], because both steps happen in someone else's screen. */
     private lateinit var status: TextView
+    private lateinit var forget: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,6 +48,14 @@ class SetupActivity : Activity() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             setPadding(0, 0, 0, (14 * dp).toInt())
         })
+
+        fun button(text: String, onClick: () -> Unit) = Button(this).apply {
+            this.text = text
+            setOnClickListener { onClick() }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { bottomMargin = (10 * dp).toInt() }
+        }
 
         fun action(text: String, onClick: () -> Unit) = column.addView(Button(this).apply {
             this.text = text
@@ -89,6 +98,14 @@ class SetupActivity : Activity() {
             setHintTextColor(Color.parseColor("#6E6E73"))
         })
 
+        body(getString(R.string.setup_learning))
+        forget = button(getString(R.string.setup_forget_none)) {
+            getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).apply()
+            forget.text = getString(R.string.setup_forgot)
+            forget.isEnabled = false
+        }
+        column.addView(forget)
+
         setContentView(ScrollView(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(column)
@@ -97,6 +114,10 @@ class SetupActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        val words = Learned.decode(getSharedPreferences("keys", MODE_PRIVATE).getString(LEARNED, null)).size
+        forget.text =
+            if (words == 0) getString(R.string.setup_forget_none) else getString(R.string.setup_forget, words)
+        forget.isEnabled = words > 0
         val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         // Asked of the input-method service rather than read out of Settings: an app is allowed this one.
         val added = runCatching {
@@ -112,5 +133,10 @@ class SetupActivity : Activity() {
                 SetupState.IN_USE -> R.string.setup_state_in_use
             },
         )
+    }
+
+    private companion object {
+        /** The same place the service keeps them. */
+        const val LEARNED = "learnedWords"
     }
 }

@@ -27,6 +27,13 @@ interface Ime {
      */
     fun suggest(word: String)
 
+    /**
+     * A word was finished. Keep it if it is worth keeping.
+     *
+     * Only ever called for fields that allow it - never a password, never one that asked not to be learned from.
+     */
+    fun learn(word: String)
+
     /** Swap the letters for the emoji grid, or back again. */
     fun showEmoji(showing: Boolean)
 }
@@ -54,6 +61,18 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     private val word = StringBuilder()
 
     private fun wordChanged() = ime.suggest(if (rules.password) "" else word.toString())
+
+    /**
+     * The word just ended, by a space or a full stop or anything else that is not a letter.
+     *
+     * This is the only moment a word is offered for learning: while it is still being typed it is a prefix, and
+     * every prefix of every word is not something worth remembering.
+     */
+    private fun finished() {
+        val done = word.toString()
+        word.setLength(0)
+        if (done.isNotEmpty() && !rules.ephemeral) ime.learn(done)
+    }
 
     private fun forget() {
         if (word.isEmpty()) return
@@ -83,7 +102,11 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         // The key already carries the right case: the layout builds an upper-case key when shift is on.
         ime.connection?.commitText(text, 1) ?: return
         // A letter continues the word; anything else - a space, a full stop, a bracket - ends it.
-        if (text.length == 1 && (text[0].isLetter() || text[0] == '\'')) word.append(text) else word.setLength(0)
+        if (text.length == 1 && (text[0].isLetter() || text[0] == '\'')) {
+            word.append(text)
+        } else {
+            finished()
+        }
         wordChanged()
         if (shift == Shift.ONCE) {
             shift = Shift.OFF
@@ -139,6 +162,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val connection = ime.connection ?: return
         val action = ime.editorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
             ?: EditorInfo.IME_ACTION_UNSPECIFIED
+        finished()
+        wordChanged()
         when {
             rules.multiline -> connection.commitText("\n", 1)
             action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED ->

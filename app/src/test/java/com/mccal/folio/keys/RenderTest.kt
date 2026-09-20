@@ -111,6 +111,14 @@ class RenderTest {
             letters(it)
             it.suggestions = listOf("recieve", "receive", "relieve", "reprieve")
         }
+        render("accents-dark", 411, 891, night = true) {
+            letters(it)
+            it.holdForRender("e")
+        }
+        render("accents-right-dark", 411, 891, night = true) {
+            letters(it)
+            it.holdForRender("o")
+        }
         render("password-light", 411, 891, night = false) {
             letters(it, FieldRules(password = true, actionLabel = "Done"))
         }

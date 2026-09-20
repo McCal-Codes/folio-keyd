@@ -41,6 +41,7 @@ class KeysService : InputMethodService(), Ime {
     private val background by lazy { Handler(thinking.looper) }
     private val main = Handler(Looper.getMainLooper())
     private var dictionary: Dictionary? = null
+    private var learned: Learned? = null
     private var proximity: Suggestions.Proximity? = null
     private var proximityFor: List<Placement>? = null
 
@@ -58,7 +59,10 @@ class KeysService : InputMethodService(), Ime {
     override fun onCreate() {
         super.onCreate()
         // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
-        background.post { dictionary = runCatching { Dictionary.load(this) }.getOrNull() }
+        background.post {
+            dictionary = runCatching { Dictionary.load(this) }.getOrNull()
+            learned = Learned.decode(prefs.getString(LEARNED, null))
+        }
     }
 
     override fun onDestroy() {
@@ -83,7 +87,9 @@ class KeysService : InputMethodService(), Ime {
                     proximity = Suggestions.Proximity(keys)
                     proximityFor = keys
                 }
-                val found = runCatching { Suggestions.forWord(word, words, proximity) }.getOrDefault(emptyList())
+                val found = runCatching {
+                    Suggestions.forWord(word, words, proximity, learned)
+                }.getOrDefault(emptyList())
                 main.post {
                     // A job already running cannot be cancelled, so it checks on the way out whether the word it
                     // was asked about is still the word being typed. Without this a slow answer for "te" lands
@@ -95,6 +101,34 @@ class KeysService : InputMethodService(), Ime {
             suggesting,
             THINK_MS,
         )
+    }
+
+    /**
+     * Decided on the suggestion thread, because it asks the dictionary two questions.
+     *
+     * Saved every time rather than on a timer: an input method is killed without warning, and a word learned and
+     * then lost teaches nothing. It is a few hundred bytes.
+     */
+    override fun learn(word: String) {
+        background.post {
+            val words = dictionary ?: return@post
+            val store = learned ?: Learned().also { learned = it }
+            val lower = word.lowercase()
+            val known = words.contains(lower)
+            if (!Learned.worthLearning(lower, known, nearMiss = false)) return@post
+            // The expensive question last, and only for words that got this far.
+            if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) return@post
+            store.learn(lower)
+            prefs.edit().putString(LEARNED, store.encode()).apply()
+        }
+    }
+
+    /** Everything it has picked up about how someone writes, gone. */
+    fun forgetLearned() {
+        background.post {
+            learned?.clear()
+            prefs.edit().remove(LEARNED).apply()
+        }
     }
 
     /**
@@ -186,6 +220,8 @@ class KeysService : InputMethodService(), Ime {
         keyboard?.rules = actions.rules   // one reading of the field, not two
         // A new field starts on the letters: nobody opens a password box wanting the emoji they left open.
         showEmoji(false)
+        // Re-read in case the setup screen has been used to forget everything since the last field.
+        background.post { learned = Learned.decode(prefs.getString(LEARNED, null)) }
     }
 
     // ---- Ime -----------------------------------------------------------------------------------------------------
@@ -209,6 +245,7 @@ class KeysService : InputMethodService(), Ime {
         /** Less of the app than this left showing, and an extracted field is more use than a sliver. */
         const val ROOM_FOR_THE_APP_DP = 130f
         const val RECENTS = "emojiRecents"
+        const val LEARNED = "learnedWords"
 
         /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
         const val THINK_MS = 40L

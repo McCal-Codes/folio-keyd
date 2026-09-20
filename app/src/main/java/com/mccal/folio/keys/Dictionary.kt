@@ -99,6 +99,28 @@ class Dictionary private constructor(
         return low
     }
 
+    /**
+     * Whether a word is within one edit of a common word.
+     *
+     * Used to decide that something is a slip rather than a word: "teh" is one swap from "the", and learning it
+     * would put it in the strip next to "the" for good. Only common words count, because being one edit from
+     * something obscure is no evidence of anything.
+     */
+    fun nearCommonWord(word: String, proximity: Suggestions.Proximity?): Boolean {
+        val lower = word.lowercase()
+        val first = lower.first()
+        for (candidate in listOf(first) + proximity?.neighbours(first).orEmpty()) {
+            for (length in word.length - 1..word.length + 1) {
+                if (length < 1) continue
+                for (index in byShape(candidate, length)) {
+                    if (rank(index) > COMMON) continue
+                    if (Suggestions.distance(lower, word(index).lowercase(), 1, proximity) <= 1) return true
+                }
+            }
+        }
+        return false
+    }
+
     fun contains(word: String): Boolean {
         val index = lowerBound { compare(it, word) >= 0 }
         return index < size && compare(index, word) == 0
@@ -108,6 +130,9 @@ class Dictionary private constructor(
         const val ASSET = "words-en-us.txt"
 
         private val EMPTY = IntArray(0)
+
+        /** Common enough that a word one edit away from it is probably a slip. */
+        const val COMMON = 35
 
         private fun lower(b: Byte): Int {
             val c = b.toInt() and 0xFF

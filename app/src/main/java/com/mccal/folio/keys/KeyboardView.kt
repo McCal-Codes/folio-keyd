@@ -137,6 +137,16 @@ class KeyboardView(context: Context) : View(context) {
      * few pixels off the one it meant, and a keyboard that insists the lift land back inside the original rectangle
      * simply loses the letter.
      */
+    /**
+     * The row of alternates above a held key.
+     *
+     * [choice] follows the finger, so sliding along the row picks one and letting go takes it. Letting go without
+     * having moved takes the first, which is what the keycap promised in its corner.
+     */
+    private class Popup(val items: List<String>, val boxes: List<Box>, var choice: Int)
+
+    private var popup: Popup? = null
+
     private class Press(val origin: Placement, val downX: Float) {
         var placement: Placement = origin
         var swiping = false
@@ -177,6 +187,7 @@ class KeyboardView(context: Context) : View(context) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         stopRepeat()   // a keyboard hidden mid-hold must not keep deleting
+        closePopup()
         for (press in presses.values) cancelHold(press)
         presses.clear()
     }
@@ -266,6 +277,7 @@ class KeyboardView(context: Context) : View(context) {
         }
         tools = placeToolbar()
         keyNodes.invalidateRoot()
+        openPendingHold()
     }
 
     /** The toolbar: hide the keyboard, and the three editing actions a field always supports. */
@@ -343,6 +355,30 @@ class KeyboardView(context: Context) : View(context) {
             drawKeyFace(canvas, placement, held)
         }
         drawPreview(canvas)
+        drawPopup(canvas)
+    }
+
+    /** The row of alternates, drawn last so it sits over everything. */
+    private fun drawPopup(canvas: Canvas) {
+        val open = popup ?: return
+        val radius = KEY_RADIUS_DP * dp
+        val outer = open.boxes.first()
+        val last = open.boxes.last()
+        scratch.set(outer.left - 3 * dp, outer.top - 3 * dp, last.right + 3 * dp, last.bottom + 3 * dp)
+        fill.color = theme.preview
+        canvas.drawRoundRect(scratch, radius, radius, fill)
+        for ((index, box) in open.boxes.withIndex()) {
+            if (index == open.choice) {
+                scratch.set(box.left, box.top, box.right, box.bottom)
+                fill.color = theme.accent
+                canvas.drawRoundRect(scratch, radius, radius, fill)
+            }
+            val offset = sizeLabel(box.height * 0.46f)
+            text.color = if (index == open.choice) theme.onAccent else theme.label
+            canvas.drawText(
+                open.items[index], (box.left + box.right) / 2, (box.top + box.bottom) / 2 + offset, text,
+            )
+        }
     }
 
     /** Whether a finger is on this key. A handful of identity checks, rather than hashing every key every frame. */
@@ -494,6 +530,33 @@ class KeyboardView(context: Context) : View(context) {
     internal val placements: List<Placement> get() = placedKeys
     internal val toolbarPlacements: List<Placement> get() = tools
 
+    /** What the open row of alternates is offering, and which one is chosen. A test should not have to guess. */
+    internal val popupItems: List<String> get() = popup?.items.orEmpty()
+    internal val popupChoice: Int get() = popup?.choice ?: -1
+    internal val popupBoxes: List<Box> get() = popup?.boxes.orEmpty()
+
+    /**
+     * Opens the row of alternates for a key, so a picture of it can be taken without waiting on a finger.
+     *
+     * Remembered rather than opened straight away, because a render sets the keyboard up before it has been laid
+     * out, and there are no keys to hang a row of alternates over until there is a layout.
+     */
+    internal fun holdForRender(label: String) {
+        pendingHold = label
+        if (width > 0) openPendingHold()
+    }
+
+    private var pendingHold: String? = null
+
+    private fun openPendingHold() {
+        val label = pendingHold ?: return
+        val placement = placedKeys.firstOrNull { it.key.label == label } ?: return
+        val items = Alternates.forKey(placement.key.label, placement.key.hint)
+        // The same rule a finger gets: one alternate is taken, not offered.
+        if (items.size < 2) return
+        popup = openPopup(placement, items)
+    }
+
     private fun keyAt(x: Float, y: Float): Placement? = nearest(placedKeys, x, y) ?: nearest(tools, x, y)
 
     /**
@@ -540,6 +603,7 @@ class KeyboardView(context: Context) : View(context) {
                 if (up(event.getPointerId(index), event.getX(index), event.getY(index))) performClick()
             }
             MotionEvent.ACTION_CANCEL -> {
+                closePopup()
                 for (press in presses.values) cancelHold(press)
                 presses.clear()
                 stopRepeat()
@@ -571,16 +635,52 @@ class KeyboardView(context: Context) : View(context) {
      * has set for touch and hold in accessibility.
      */
     private fun startHold(press: Press) {
-        val alternate = press.origin.key.hint ?: return
         if (press.origin.key.kind != KeyKind.CHAR) return
+        val items = Alternates.forKey(press.origin.key.label, press.origin.key.hint)
+        if (items.isEmpty()) return
         val task = Runnable {
-            press.handled = true
-            listener?.onText(alternate)
             performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            if (items.size == 1) {
+                // Nothing to choose between, so holding simply gives it.
+                press.handled = true
+                listener?.onText(items.first())
+            } else {
+                popup = openPopup(press.origin, items)
+            }
             invalidate()
         }
         press.hold = task
         repeat.postDelayed(task, ViewConfiguration.getLongPressTimeout().toLong())
+    }
+
+    /**
+     * Lays the alternates out in a row over the key, kept inside the board.
+     *
+     * Centred on the key where it can be, and pushed back inside the panel where it cannot - a row of accents half
+     * off the edge of the screen is a row of accents you cannot reach.
+     */
+    private fun openPopup(on: Placement, items: List<String>): Popup {
+        val box = on.box
+        // Narrower than a key: nine of them at full key width is a row that spans the whole board and stops
+        // looking like it belongs to the key underneath it. Never below a fingertip, though.
+        val item = max(box.width * 0.78f, POPUP_MIN_DP * dp)
+        val width = item * items.size
+        val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        val centre = (box.left + box.right) / 2
+        val left = (centre - width / 2).coerceIn(edge, max(edge, width.let { this.width - edge - it }))
+        val height = box.height * 1.15f
+        val bottom = box.top - POPUP_LIFT_DP * dp
+        val top = max(panelPad, bottom - height)
+        val boxes = items.indices.map { Box(left + it * item, top, left + (it + 1) * item, bottom) }
+        // The one under the finger to begin with is the first: letting go without moving keeps the old behaviour.
+        return Popup(items, boxes, 0)
+    }
+
+    private fun closePopup(): Popup? {
+        val open = popup ?: return null
+        popup = null
+        invalidate()
+        return open
     }
 
     private fun cancelHold(press: Press) {
@@ -591,6 +691,17 @@ class KeyboardView(context: Context) : View(context) {
     /** Swipe the space bar to move the cursor, and the backspace to take a word at a time. */
     private fun move(pointer: Int, x: Float, y: Float) {
         val press = presses[pointer] ?: return
+        val open = popup
+        if (open != null) {
+            val over = open.boxes.indexOfFirst { x >= it.left && x < it.right }
+            // Off the end of the row keeps the nearest one rather than losing the choice altogether.
+            val choice = if (over >= 0) over else if (x < open.boxes.first().left) 0 else open.items.lastIndex
+            if (choice != open.choice) {
+                open.choice = choice
+                invalidate()
+            }
+            return
+        }
         val dx = x - press.downX
         when (press.origin.key.kind) {
             // The space bar is wide and a fast thumb wanders across it. The swipe only begins after a deliberate
@@ -637,6 +748,12 @@ class KeyboardView(context: Context) : View(context) {
     private fun up(pointer: Int, x: Float, y: Float): Boolean {
         val press = presses.remove(pointer) ?: return false
         cancelHold(press)
+        closePopup()?.let { open ->
+            if (repeatingFor === press) stopRepeat()
+            listener?.onText(open.items[open.choice])
+            invalidate()
+            return true
+        }
         if (repeatingFor === press) stopRepeat()
         invalidate()
         if (press.swiping || press.handled) return false
@@ -721,6 +838,8 @@ class KeyboardView(context: Context) : View(context) {
         const val DELETE_WORD_DP = 24f
         const val HIT_SLOP_DP = 14f       // how far outside a key still belongs to it
         const val HYSTERESIS_DP = 12f     // how far clear of a key a finger must be to have left it
+        const val POPUP_MIN_DP = 30f      // no alternate narrower than a fingertip
+        const val POPUP_LIFT_DP = 4f
         const val HANDLE_W_DP = 44f
         const val HANDLE_H_DP = 4f
         const val PANEL_PAD_DP = 6f      // the gap around the panel, so it floats rather than fills

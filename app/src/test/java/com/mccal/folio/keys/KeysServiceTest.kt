@@ -42,6 +42,7 @@ class KeysServiceTest {
         var shift = Shift.OFF
         var emojiShowing = false
         var suggestedFor = mutableListOf<String>()
+        var taught = mutableListOf<String>()
 
         override fun switchKeyboard() { switches++ }
         var hides = 0
@@ -57,6 +58,10 @@ class KeysServiceTest {
 
         override fun suggest(word: String) {
             suggestedFor += word
+        }
+
+        override fun learn(word: String) {
+            taught += word
         }
     }
 
@@ -147,6 +152,50 @@ class KeysServiceTest {
         start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
         type("hunter2")
         assertTrue("asked about ${ime.suggestedFor}", ime.suggestedFor.all { it.isEmpty() })
+    }
+
+    // ---- learning -----------------------------------------------------------------------------------------------
+
+    @Test
+    fun `a finished word is offered for learning`() {
+        type("mccal ")
+        assertEquals(listOf("mccal"), ime.taught)
+    }
+
+    /** A word still being typed is a prefix, and every prefix of every word is not worth remembering. */
+    @Test
+    fun `a word still being typed is not learned`() {
+        type("mcca")
+        assertEquals(emptyList<String>(), ime.taught)
+    }
+
+    @Test
+    fun `a full stop finishes a word just as a space does`() {
+        type("folio.")
+        assertEquals(listOf("folio"), ime.taught)
+    }
+
+    @Test
+    fun `pressing return finishes the word`() {
+        type("folio")
+        actions.onAction()
+        assertEquals(listOf("folio"), ime.taught)
+    }
+
+    /** Nothing typed into a password field is kept, whatever else is true. */
+    @Test
+    fun `nothing is learned from a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("hunter2 correcthorse ")
+        assertEquals(emptyList<String>(), ime.taught)
+    }
+
+    /** An app can ask not to be learned from, and that is not negotiable by any setting of ours. */
+    @Test
+    fun `nothing is learned when the app asked not to be`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        type("something private ")
+        assertEquals(emptyList<String>(), ime.taught)
     }
 
     // ---- taking a suggestion ------------------------------------------------------------------------------------

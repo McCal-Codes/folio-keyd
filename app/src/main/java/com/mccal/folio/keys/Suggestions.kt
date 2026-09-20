@@ -78,7 +78,12 @@ object Suggestions {
      *
      * [typed] is the word so far, with no spaces in it.
      */
-    fun forWord(typed: String, words: Words, proximity: Proximity?): List<String> {
+    fun forWord(
+        typed: String,
+        words: Words,
+        proximity: Proximity?,
+        learned: Learned? = null,
+    ): List<String> {
         if (typed.isEmpty()) return emptyList()
         val lower = typed.lowercase()
         val scored = HashMap<String, Int>()
@@ -116,6 +121,26 @@ object Suggestions {
                         scored.merge(word, cost, ::min)
                     }
                 }
+            }
+        }
+
+        // What someone has typed before, judged on the same scale: a name they use constantly should beat a word
+        // the language happens to contain but they never write.
+        if (learned != null) {
+            for (word in learned.all()) {
+                if (word.equals(typed, ignoreCase = true)) continue
+                val lowerWord = word.lowercase()
+                val cost = when {
+                    lowerWord.startsWith(lower) -> learned.score(word) + (word.length - typed.length)
+                    typed.length < SHORTEST_CORRECTABLE -> continue
+                    else -> {
+                        val allowed = if (typed.length <= 4) 1 else 2
+                        val distance = distance(lower, lowerWord, allowed, proximity)
+                        if (distance > allowed) continue
+                        distance * DISTANCE_WEIGHT + learned.score(word)
+                    }
+                }
+                scored.merge(word, cost, ::min)
             }
         }
 
@@ -183,7 +208,7 @@ object Suggestions {
     }
 
     /** Below this there is not enough typed for "wrong" to mean anything. */
-    private const val SHORTEST_CORRECTABLE = 3
+    internal const val SHORTEST_CORRECTABLE = 3
     /** Bigger than any commonness score, so no amount of being common beats being a further edit away. */
     private const val DISTANCE_WEIGHT = 1000
 }
