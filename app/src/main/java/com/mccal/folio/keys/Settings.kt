@@ -29,6 +29,10 @@ data class Settings(
     val accents: Boolean = true,
     /** The bubble that shows the letter above your finger. Never shown in a password field whatever this says. */
     val keyPreview: Boolean = true,
+    /** Flick a key downwards for the character printed in its corner - the digit on the top row. */
+    val flickForAlternate: Boolean = true,
+    /** Flick a letter upwards for its capital. */
+    val flickForCapital: Boolean = true,
     /** The click. Follows the phone's own touch-sound setting as well; this can only turn it further off. */
     val sound: Boolean = true,
     /** The tap you feel. Follows the phone's own vibration setting as well. */
@@ -45,6 +49,8 @@ data class Settings(
             putBoolean(NUMBER_ROW, numberRow)
             putBoolean(ACCENTS, accents)
             putBoolean(KEY_PREVIEW, keyPreview)
+            putBoolean(FLICK_ALTERNATE, flickForAlternate)
+            putBoolean(FLICK_CAPITAL, flickForCapital)
             putBoolean(SOUND, sound)
             putBoolean(VIBRATE, vibrate)
         }.apply()
@@ -59,6 +65,8 @@ data class Settings(
         const val NUMBER_ROW = "numberRow"
         const val ACCENTS = "accents"
         const val KEY_PREVIEW = "keyPreview"
+        const val FLICK_ALTERNATE = "flickAlternate"
+        const val FLICK_CAPITAL = "flickCapital"
         const val SOUND = "sound"
         const val VIBRATE = "vibrate"
 
@@ -74,6 +82,8 @@ data class Settings(
                 numberRow = read(NUMBER_ROW, fallback.numberRow),
                 accents = read(ACCENTS, fallback.accents),
                 keyPreview = read(KEY_PREVIEW, fallback.keyPreview),
+                flickForAlternate = read(FLICK_ALTERNATE, fallback.flickForAlternate),
+                flickForCapital = read(FLICK_CAPITAL, fallback.flickForCapital),
                 sound = read(SOUND, fallback.sound),
                 vibrate = read(VIBRATE, fallback.vibrate),
             )

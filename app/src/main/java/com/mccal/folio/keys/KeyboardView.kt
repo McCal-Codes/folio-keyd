@@ -154,7 +154,7 @@ class KeyboardView(context: Context) : View(context) {
 
     private var popup: Popup? = null
 
-    private class Press(val origin: Placement, val downX: Float) {
+    private class Press(val origin: Placement, val downX: Float, val downY: Float) {
         var placement: Placement = origin
         var swiping = false
         var cursorAnchor = downX
@@ -184,6 +184,15 @@ class KeyboardView(context: Context) : View(context) {
         isHapticFeedbackEnabled = true
         setWillNotDraw(false)
         ViewCompat.setAccessibilityDelegate(this, keyNodes)
+    }
+
+    /** Everything a finger might have left behind. Called when a new field opens, in case one did. */
+    fun forgetTouches() {
+        closePopup()
+        for (press in presses.values) cancelHold(press)
+        presses.clear()
+        stopRepeat()
+        invalidate()
     }
 
     private fun stopRepeat() {
@@ -639,8 +648,9 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun down(pointer: Int, x: Float, y: Float) {
+        if (popup != null && presses.isEmpty()) closePopup()   // left open by a press that never ended
         val placement = keyAt(x, y) ?: return
-        val press = Press(placement, x)
+        val press = Press(placement, x, y)
         presses[pointer] = press
         if (settings.vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         if (settings.sound) feedback.play(placement.key.kind)
@@ -650,6 +660,25 @@ class KeyboardView(context: Context) : View(context) {
         }
         startHold(press)
         invalidate()
+    }
+
+    /**
+     * What flicking a key gives, or null when it gives nothing.
+     *
+     * **Down** is the character printed in the key's corner - the digit on the top row. It is the same thing
+     * holding the key gives, without the wait, and it is already written on the keycap so nothing is hidden.
+     * **Up** is the capital. Both are the fastest way to reach a character that would otherwise cost a whole
+     * layer change or a shift.
+     */
+    private fun flick(key: Key, up: Boolean): String? {
+        if (key.kind != KeyKind.CHAR) return null
+        if (up) {
+            if (!settings.flickForCapital) return null
+            val capital = key.output.uppercase()
+            return capital.takeIf { it != key.output }
+        }
+        if (!settings.flickForAlternate) return null
+        return key.hint
     }
 
     /**
@@ -721,6 +750,7 @@ class KeyboardView(context: Context) : View(context) {
     /** Swipe the space bar to move the cursor, and the backspace to take a word at a time. */
     private fun move(pointer: Int, x: Float, y: Float) {
         val press = presses[pointer] ?: return
+        val dy = y - press.downY
         val open = popup
         if (open != null) {
             val over = open.boxes.indexOfFirst { x >= it.left && x < it.right }
@@ -736,7 +766,13 @@ class KeyboardView(context: Context) : View(context) {
         when (press.origin.key.kind) {
             // The space bar is wide and a fast thumb wanders across it. The swipe only begins after a deliberate
             // journey - a whole key's worth - and counts its characters from there, so a drifted space is a space.
-            KeyKind.SPACE -> if (press.swiping || abs(dx) > CURSOR_START_DP * dp) {
+            // Down off the space bar puts the keyboard away, the way swiping a sheet down closes it. Checked
+            // before the cursor, because a downward journey is not a sideways one however far it goes.
+            KeyKind.SPACE -> if (!press.swiping && dy > HIDE_DP * dp && abs(dy) > abs(dx)) {
+                cancelHold(press)
+                press.swiping = true
+                listener?.onHide()
+            } else if (press.swiping || abs(dx) > CURSOR_START_DP * dp) {
                 cancelHold(press)
                 if (!press.swiping) {
                     press.swiping = true
@@ -759,6 +795,21 @@ class KeyboardView(context: Context) : View(context) {
             // Sliding from one letter to the next is how a fast typist corrects mid-press, and how they leave a key
             // at all. Only letters follow the finger: sliding off shift and letting go is how you take it back.
             KeyKind.CHAR -> {
+                // A deliberate flick up or down, before anything else gets a say. It has to be a long way and
+                // clearly more vertical than sideways, because the drift of ordinary fast typing is neither - and
+                // a keyboard that mistook drift for a gesture would be the space bar problem all over again.
+                if (!press.swiping && abs(dy) > GESTURE_DP * dp && abs(dy) > abs(dx) * VERTICAL_BIAS) {
+                    val flicked = flick(press.origin.key, up = dy < 0)
+                    if (flicked != null) {
+                        cancelHold(press)
+                        press.swiping = true
+                        press.handled = true
+                        listener?.onText(flicked)
+                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        invalidate()
+                        return
+                    }
+                }
                 // Not the moment the finger crosses the seam: at speed a thumb is already travelling towards the
                 // next letter as it lifts, and a key that changed on the midpoint would turn "the" into "yjr". The
                 // letter only changes once the finger is properly clear of the one it is on.
@@ -884,6 +935,9 @@ class KeyboardView(context: Context) : View(context) {
         const val HIT_SLOP_DP = 14f       // how far outside a key still belongs to it
         const val HYSTERESIS_DP = 12f     // how far clear of a key a finger must be to have left it
         const val POPUP_MIN_DP = 30f      // no alternate narrower than a fingertip
+        const val GESTURE_DP = 28f        // a flick, rather than the drift of typing fast
+        const val HIDE_DP = 34f           // down off the space bar puts the keyboard away
+        const val VERTICAL_BIAS = 1.4f    // and clearly more up-and-down than side-to-side
         const val POPUP_LIFT_DP = 4f
         const val HANDLE_W_DP = 44f
         const val HANDLE_H_DP = 4f

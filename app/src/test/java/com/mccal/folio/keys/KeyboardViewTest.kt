@@ -256,6 +256,125 @@ class KeyboardViewTest {
         assertEquals("x", typed.toString())
     }
 
+    // ---- flicking a key -----------------------------------------------------------------------------------
+
+    private fun flick(label: String, by: Float) {
+        val (x, y) = centre(label)
+        send(MotionEvent.ACTION_DOWN, x, y)
+        send(MotionEvent.ACTION_MOVE, x, y + by * density)
+        send(MotionEvent.ACTION_UP, x, y + by * density)
+    }
+
+    @Test
+    fun `flicking a key down gives the character printed in its corner`() {
+        flick("e", 40f)
+        assertEquals("3", typed.toString())
+    }
+
+    @Test
+    fun `flicking a letter up gives its capital`() {
+        flick("e", -40f)
+        assertEquals("E", typed.toString())
+    }
+
+    @Test
+    fun `a key with nothing in its corner gives nothing when flicked down`() {
+        flick("a", 40f)
+        assertEquals("a", typed.toString())
+    }
+
+    /**
+     * The drift of typing fast must never be read as a flick.
+     *
+     * This is the space bar problem in another costume: a thumb rolling off a key moves a few millimetres, and a
+     * keyboard that treated that as a gesture would spray digits and capitals through everything.
+     */
+    @Test
+    fun `ordinary drift is not a flick`() {
+        for (drift in listOf(6f, 12f, 20f)) {
+            typed.setLength(0)
+            flick("e", drift)
+            assertEquals("a drift of $drift dp was read as a flick", "e", typed.toString())
+            typed.setLength(0)
+            flick("e", -drift)
+            assertEquals("a drift of -$drift dp was read as a flick", "e", typed.toString())
+        }
+    }
+
+    /** A sideways journey is a slide between letters, however long, and never a flick. */
+    @Test
+    fun `a sideways slide is not a flick`() {
+        val (x, y) = centre("e")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        send(MotionEvent.ACTION_MOVE, x + 60 * density, y + 20 * density)
+        send(MotionEvent.ACTION_UP, x + 60 * density, y + 20 * density)
+        assertEquals("no digit should have been typed", false, typed.contains("3"))
+    }
+
+    /**
+     * Switched off, a downward journey is an ordinary slide again.
+     *
+     * Which means it types the key it lands on - "d" sits under "e" - rather than the digit. That is the right
+     * answer: with the gesture gone there is nothing special about the direction.
+     */
+    @Test
+    fun `flicks can be switched off`() {
+        view.settings = Settings(flickForAlternate = false, flickForCapital = false)
+        flick("e", 40f)
+        assertEquals("no digit should appear", false, typed.contains("3"))
+        typed.setLength(0)
+        flick("e", -40f)
+        assertEquals("no capital should appear", false, typed.contains("E"))
+    }
+
+    /** Down off the space bar puts the keyboard away; sideways still moves the cursor. */
+    @Test
+    fun `flicking the space bar down hides the keyboard`() {
+        val (x, y) = centre("space")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        send(MotionEvent.ACTION_MOVE, x, y + 50 * density)
+        send(MotionEvent.ACTION_UP, x, y + 50 * density)
+        assertEquals(listOf("hide"), toolbar)
+        assertEquals("no space should have been typed", "", typed.toString())
+    }
+
+    @Test
+    fun `a drifting thumb does not hide the keyboard`() {
+        val (x, y) = centre("space")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        send(MotionEvent.ACTION_MOVE, x, y + 14 * density)
+        send(MotionEvent.ACTION_UP, x, y + 14 * density)
+        assertEquals(emptyList<String>(), toolbar)
+        assertEquals(" ", typed.toString())
+    }
+
+    // ---- everything a finger left behind ---------------------------------------------------------------------
+
+    /**
+     * A press that never got its release.
+     *
+     * The window can be taken away mid-touch - a call arrives, the app closes - and the release never comes. What
+     * is left behind must not still be there when the next field opens, or the keyboard answers nothing.
+     */
+    @Test
+    fun `a press with no release is forgotten when a new field opens`() {
+        val (x, y) = centre("a")
+        send(MotionEvent.ACTION_DOWN, x, y)
+        view.forgetTouches()
+        assertEquals(emptyList<String>(), view.popupItems)
+        tap("b")
+        assertEquals("b", typed.toString())
+    }
+
+    @Test
+    fun `a row of alternates left open does not swallow the next press`() {
+        hold("e")
+        assertTrue(view.popupItems.isNotEmpty())
+        view.forgetTouches()
+        tap("b")
+        assertEquals("b", typed.toString())
+    }
+
     // ---- the row of alternates ------------------------------------------------------------------------------
 
     private fun hold(label: String): Pair<Float, Float> {

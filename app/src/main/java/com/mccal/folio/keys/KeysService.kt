@@ -1,7 +1,6 @@
 package com.mccal.folio.keys
 
 import android.content.Context
-import android.graphics.Region
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -233,26 +232,16 @@ class KeysService : InputMethodService(), Ime {
     }
 
     /**
-     * The keyboard's window only covers what it draws.
+     * Deliberately not overridden.
      *
-     * The board floats with a margin around it, and without this the whole margin belongs to the keyboard: a tap
-     * just above the keys, meant for the app, would be swallowed by an invisible strip.
+     * There was a version of this that claimed a touchable region, so that the few pixels of margin around the
+     * floating panel passed taps through to the app behind. The numbers it used were a child view's, and
+     * `onComputeInsets` wants them in the window - which is the same thing right up until the input view stops
+     * filling the window. In fullscreen mode the extract field sits above it, everything shifts, and the region
+     * lands somewhere the keys are not: the keyboard draws perfectly and answers nothing at all.
+     *
+     * A six-pixel margin is not worth a keyboard that sometimes does not work, so Android works the insets out.
      */
-    override fun onComputeInsets(outInsets: Insets) {
-        super.onComputeInsets(outInsets)
-        // Whichever panel is actually on screen. A hidden view keeps its last bounds, so asking the keyboard while
-        // the emoji grid is showing would describe a window that is no longer the one being touched.
-        val view = listOfNotNull(keyboard, emoji).firstOrNull { it.visibility == View.VISIBLE } ?: return
-        if (view.width == 0 || view.height == 0) return
-        // How much room the app gets is left exactly as Android worked it out. Overriding it here was wrong: the
-        // numbers are window coordinates and these are a child view's, so the app was told the keyboard took less
-        // room than it does and left the field being typed into underneath it.
-        val pad = (PANEL_PAD_DP * resources.displayMetrics.density).toInt()
-        outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
-        outInsets.touchableRegion.set(
-            Region(view.left + pad, view.top + pad, view.right - pad, view.bottom),
-        )
-    }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
@@ -264,6 +253,9 @@ class KeysService : InputMethodService(), Ime {
         keyboard?.rules = actions.rules   // one reading of the field, not two
         // A new field starts on the letters: nobody opens a password box wanting the emoji they left open.
         showEmoji(false)
+        // And with nothing held over from the last one. A touch that never got its release - the window taken
+        // away mid-press, a call arriving - would otherwise leave a finger down forever.
+        keyboard?.forgetTouches()
         // Re-read in case the setup screen has been used to forget everything since the last field.
         background.post { learned = Learned.decode(prefs.getString(LEARNED, null)) }
         // Ask the editor to keep telling us where the cursor is. Most will not, which is why nothing depends on it.

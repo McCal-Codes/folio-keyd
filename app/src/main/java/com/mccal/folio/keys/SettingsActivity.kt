@@ -117,6 +117,17 @@ class SettingsActivity : Activity() {
             getString(R.string.settings_preview), getString(R.string.settings_preview_note), settings.keyPreview,
         ) { settings.copy(keyPreview = it) }
 
+        heading(getString(R.string.settings_gestures))
+        option(
+            getString(R.string.settings_flick_down), getString(R.string.settings_flick_down_note),
+            settings.flickForAlternate,
+        ) { settings.copy(flickForAlternate = it) }
+        option(
+            getString(R.string.settings_flick_up), getString(R.string.settings_flick_up_note),
+            settings.flickForCapital,
+        ) { settings.copy(flickForCapital = it) }
+        note(getString(R.string.settings_gestures_note))
+
         heading(getString(R.string.settings_feel))
         option(
             getString(R.string.settings_sound), getString(R.string.settings_sound_note), settings.sound,

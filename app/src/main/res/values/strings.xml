@@ -22,6 +22,7 @@
     <string name="settings_open">Settings</string>
     <string name="settings_typing">TYPING</string>
     <string name="settings_keys">KEYS</string>
+    <string name="settings_gestures">GESTURES</string>
     <string name="settings_feel">FEEL</string>
     <string name="settings_suggestions">Suggestions</string>
     <string name="settings_suggestions_note">A row above the keys offering words. Never in a password field.</string>
@@ -44,4 +45,9 @@
     <string name="settings_sound_note">Android\'s own keypress sounds.</string>
     <string name="settings_vibrate_note">A short tap when a key goes down.</string>
     <string name="settings_system_note">Sound and vibration also follow the phone\'s own settings, so turning them on here cannot turn them on there.</string>
+    <string name="settings_flick_down">Flick a key down for its corner character</string>
+    <string name="settings_flick_down_note">The digit printed on the top row, without waiting for a long press. It is already on the keycap, so nothing is hidden.</string>
+    <string name="settings_flick_up">Flick a letter up for a capital</string>
+    <string name="settings_flick_up_note">Faster than shift for a single letter.</string>
+    <string name="settings_gestures_note">The space bar keeps its own: swipe across it to move the cursor, and down to put the keyboard away. Swipe left on backspace to take a whole word. Flicks need a deliberate journey, so the drift of typing fast is never mistaken for one.</string>
 </resources>
