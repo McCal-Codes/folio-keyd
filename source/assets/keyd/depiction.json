@@ -63,6 +63,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.1.1",
+          "notes": {
+            "en": "The top of Settings says whether Keyd is on and chosen, with the button that fixes the missing step. About shows the version, what's new and where to report a problem. The gear in Android's keyboard list opens Settings."
+          }
+        },
+        {
           "version": "0.1.0",
           "notes": {
             "en": "The first release: typing, corrections, learning, shortcuts, emoji, clipboard history, the split around the fold, and six languages."
