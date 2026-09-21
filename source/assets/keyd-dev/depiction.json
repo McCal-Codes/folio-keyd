@@ -1,0 +1,31 @@
+{
+  "$schema": "https://folio.mccal.dev/schema/v1/depiction.schema.json",
+  "format": 1,
+  "tint": "#B44A0C",
+  "blocks": [
+    {
+      "type": "markdown",
+      "text": {
+        "en": "Keyd Dev is Keyd with a Developer page, for testing it and reporting what goes wrong. **Expect more bugs than Keyd:** new things land here first. If you want a keyboard that just works, get Keyd. It installs beside Keyd under its own name and orange icon, and it's the same version as Keyd.\n\n**Detailed logging** records what the keyboard does: fields opened, how long the word list and each suggestion took, and whether a fix was offered. Never the letters you type, and never an error's message. **Recent errors** keeps crashes and slow suggestions. **Share** hands a text report to Android's share sheet; nothing leaves the phone unless you send it.\n\nLike Keyd, it asks for no permissions at all, including no Internet permission."
+      }
+    },
+    {
+      "type": "compatibility",
+      "screens": [
+        "cover",
+        "inner"
+      ]
+    },
+    {
+      "type": "changelog",
+      "entries": [
+        {
+          "version": "0.1.1",
+          "notes": {
+            "en": "The first Keyd Dev: a Developer page with detailed logging, recent errors and a report to share."
+          }
+        }
+      ]
+    }
+  ]
+}
