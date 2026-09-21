@@ -25,15 +25,8 @@
     <string name="setup_forgot">Forgotten.</string>
     <string name="settings_title">Keyd settings</string>
     <string name="settings_open">Settings</string>
-    <string name="settings_typing">TYPING</string>
-    <string name="settings_look">SIZE AND LOOK</string>
-    <string name="settings_keys">KEYS</string>
-    <string name="settings_gestures">GESTURES</string>
-    <string name="settings_feel">FEEL</string>
     <string name="settings_suggestions">Suggestions</string>
-    <string name="settings_suggestions_note">A row above the keys offering words. Never in a password field.</string>
     <string name="settings_autocorrect">Fix clear typos</string>
-    <string name="settings_autocorrect_note">Replaces a word that is not a word, when one word is clearly what you meant. Never changes a real word, and backspace puts back exactly what you typed. Off when suggestions are off.</string>
     <string name="settings_learn">Learn new words</string>
     <string name="settings_learn_note">Remembers words it does not know, so it stops suggesting something else instead. Never from a password field, or from an app that asks it not to.</string>
     <string name="settings_capitals">Capital at the start of a sentence</string>
@@ -45,11 +38,8 @@
     <string name="settings_accents">Hold a key for accents</string>
     <string name="settings_accents_note">é, ñ, ü and the rest. The digits in the corners of the top row still work either way.</string>
     <string name="settings_preview">Show the letter above your finger</string>
-    <string name="settings_preview_note">Never in a password field.</string>
     <string name="settings_sound">Sound</string>
     <string name="settings_vibrate">Vibration</string>
-    <string name="settings_sound_note">Android\'s own keypress sounds.</string>
-    <string name="settings_vibrate_note">A short tap when a key goes down.</string>
     <string name="settings_system_note">Sound and vibration also follow the phone\'s own settings, so turning them on here cannot turn them on there.</string>
     <string name="settings_flick_down">Flick a key down for its corner character</string>
     <string name="settings_flick_down_note">The digit printed on the top row, without waiting for a long press. It is already on the keycap, so nothing is hidden.</string>
@@ -72,14 +62,10 @@
     <string name="settings_split_always">Always</string>
     <string name="settings_split_never">Never</string>
     <string name="settings_cursor_swipe">Swipe the space bar to move the cursor</string>
-    <string name="settings_cursor_swipe_note">Needs a deliberate journey, so a drifting thumb still types a space.</string>
     <string name="settings_delete_word">Swipe left on backspace for a whole word</string>
-    <string name="settings_delete_word_note">Faster than holding it down.</string>
     <string name="settings_swipe_hide">Swipe down on the space bar to hide</string>
-    <string name="settings_swipe_hide_note">The chevron in the corner does the same thing.</string>
     <string name="settings_reset">Put everything back to normal</string>
     <string name="shortcuts_title">Text shortcuts</string>
-    <string name="shortcuts_open">Text shortcuts</string>
     <string name="shortcuts_note">A short word that stands for a longer one: type it, and the phrase is offered first in the strip. It is only ever offered — nothing is replaced until you tap it.</string>
     <string name="shortcuts_trigger_hint">Short word, e.g. omw</string>
     <string name="shortcuts_phrase_hint">What it stands for, e.g. on my way</string>
@@ -99,4 +85,45 @@
     <string name="clipboard_pin_spoken">Pin %1$s</string>
     <string name="clipboard_unpin_spoken">Unpin %1$s</string>
     <string name="clipboard_forget_spoken">Forget %1$s</string>
+
+    <!-- The grouped settings screen: page names, rows that lead somewhere, and one footer per group. -->
+    <string name="page_main">Keyd</string>
+    <string name="page_typing">Typing</string>
+    <string name="page_keys">Keys and gestures</string>
+    <string name="page_look">Look and size</string>
+    <string name="page_feel">Sound and vibration</string>
+    <string name="page_clipboard">Clipboard</string>
+    <string name="page_privacy">Privacy</string>
+    <string name="row_languages">Languages</string>
+    <string name="row_shortcuts">Text shortcuts</string>
+    <string name="value_on">On</string>
+    <string name="value_off">Off</string>
+    <string name="value_none">None</string>
+    <string name="value_no_internet">No Internet access</string>
+    <plurals name="value_shortcuts">
+        <item quantity="one">%1$d shortcut</item>
+        <item quantity="other">%1$d shortcuts</item>
+    </plurals>
+    <string name="footer_corrections">Only a word that is not a word is fixed, and backspace puts back exactly what you typed. Neither works in a password field.</string>
+    <string name="footer_main">Keyd asks for no permissions at all, including no Internet permission, so what it sees cannot leave this phone.</string>
+    <string name="header_keys">KEYS</string>
+    <string name="header_flicks">FLICKS</string>
+    <string name="header_space">SPACE BAR AND BACKSPACE</string>
+    <string name="header_what_it_knows">WHAT IT KNOWS</string>
+    <string name="row_internet">Internet access</string>
+    <string name="row_permissions">Permissions</string>
+    <string name="row_learned">Words it has learned</string>
+    <string name="row_forget">Forget them</string>
+    <string name="footer_privacy">Android warns that a keyboard can see what you type. That is true of every keyboard: the system sends it your keystrokes. Keyd has no Internet permission, so what it sees cannot leave this phone.</string>
+    <plurals name="confirm_forget">
+        <item quantity="one">Forget the word Keyd has learned?</item>
+        <item quantity="other">Forget the %1$d words Keyd has learned?</item>
+    </plurals>
+    <string name="back_to">‹ %1$s</string>
+    <string name="confirm_forget_detail">It will start suggesting other words for them again. This cannot be undone.</string>
+    <string name="confirm_reset">Put every setting back to normal?</string>
+    <string name="confirm_reset_detail">Learned words, shortcuts and clipboard history stay as they are.</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_forget">Forget</string>
+    <string name="action_reset">Reset</string>
 </resources>
