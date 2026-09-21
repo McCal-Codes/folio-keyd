@@ -127,4 +127,42 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_forget">Forget</string>
     <string name="action_reset">Reset</string>
+    <!-- The card at the top of Settings, and About -->
+    <string name="status_version">Version %1$s</string>
+    <string name="status_in_use">On, and your keyboard</string>
+    <string name="status_added">On, but another keyboard is chosen</string>
+    <string name="status_not_added">Not turned on yet</string>
+    <string name="status_turn_on">Turn on Keyd</string>
+    <string name="status_choose">Choose Keyd</string>
+    <string name="header_about">ABOUT</string>
+    <string name="row_version">Version</string>
+    <string name="row_whats_new">What\'s new</string>
+    <string name="row_report">Report a problem</string>
+    <string name="footer_about">Report a problem opens GitHub in your browser. Keyd itself still has no internet access.</string>
+
+    <!-- Keyd Dev only -->
+    <string name="page_developer">Developer</string>
+    <string name="value_no_errors">No errors</string>
+    <plurals name="value_errors">
+        <item quantity="one">%1$d error</item>
+        <item quantity="other">%1$d errors</item>
+    </plurals>
+    <string name="footer_developer_row">Only in Keyd Dev. The Keyd from the Market doesn\'t have this row.</string>
+    <string name="settings_dev_logging">Detailed logging</string>
+    <string name="footer_dev_logging">Records what the keyboard does: fields opened, how long the word list and each suggestion took, and whether a fix was offered. Never the letters you type, and never an error\'s message, since that can quote its input. Kept on this phone, the last %1$d lines.</string>
+    <string name="header_recent_errors">RECENT ERRORS</string>
+    <string name="row_errors">Errors</string>
+    <string name="row_share_report">Share log and errors</string>
+    <string name="row_clear_log">Clear log and errors</string>
+    <string name="footer_dev_share">Share opens Android\'s share sheet with one text message. Nothing leaves the phone unless you send it.</string>
+    <string name="report_subject">Keyd developer report</string>
+    <string name="header_build">BUILD</string>
+    <string name="row_app">App</string>
+    <string name="row_commit">Commit</string>
+    <string name="whats_new_heading">What\'s New in Keyd</string>
+    <string name="fixes_and_improvements">Fixes and Improvements</string>
+    <string name="header_version_history">VERSION HISTORY</string>
+    <string name="action_continue">Continue</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
 </resources>

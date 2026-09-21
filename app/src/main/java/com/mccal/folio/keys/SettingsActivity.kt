@@ -47,6 +47,8 @@ class SettingsActivity : Activity() {
         FEEL(R.string.page_feel, MAIN),
         CLIPBOARD(R.string.page_clipboard, MAIN),
         PRIVACY(R.string.page_privacy, MAIN),
+        DEVELOPER(R.string.page_developer, MAIN),
+        WHATS_NEW(R.string.row_whats_new, MAIN),
     }
 
     private lateinit var settings: Settings
@@ -81,8 +83,11 @@ class SettingsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DevLog.catchCrashes(this)
         settings = Settings.load(prefs)
-        page = savedInstanceState?.getString(PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() } ?: Page.MAIN
+        page = savedInstanceState?.getString(PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() }
+            // Like Folio: the first time Settings opens after an update, it opens on what's new.
+            ?: if (WhatsNew.shouldShow(this, versionName())) Page.WHATS_NEW else Page.MAIN
         colors = Palette(
             (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
         )
@@ -164,7 +169,8 @@ class SettingsActivity : Activity() {
                 setOnClickListener { show(parent) }
             })
         }
-        column.addView(TextView(this).apply {
+        // What's New draws its own centred header, as Folio's does.
+        if (page != Page.WHATS_NEW) column.addView(TextView(this).apply {
             text = getString(page.title)
             setTextColor(colors.text)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f)
@@ -181,6 +187,8 @@ class SettingsActivity : Activity() {
             Page.FEEL -> feel(column)
             Page.CLIPBOARD -> clipboard(column)
             Page.PRIVACY -> privacy(column)
+            Page.DEVELOPER -> developer(column)
+            Page.WHATS_NEW -> whatsNew(column)
         }
         scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -201,6 +209,7 @@ class SettingsActivity : Activity() {
     // ---- Pages ---------------------------------------------------------------------------------------------------
 
     private fun main(column: LinearLayout) {
+        status(column)
         group(column) {
             nav(it, SettingsIcon.Glyph.LANGUAGES, "#0071E3", getString(R.string.row_languages), languages()) {
                 openLanguages()
@@ -236,6 +245,285 @@ class SettingsActivity : Activity() {
             }
         }
         footer(column, getString(R.string.footer_main))
+        if (DevLog.isDevBuild(packageName)) {
+            val errors = DevLog.errors(this).size
+            group(column) {
+                nav(
+                    it, SettingsIcon.Glyph.KEYS, "#B44A0C", getString(R.string.page_developer),
+                    if (errors == 0) getString(R.string.value_no_errors)
+                    else resources.getQuantityString(R.plurals.value_errors, errors, errors),
+                ) { show(Page.DEVELOPER) }
+            }
+            footer(column, getString(R.string.footer_developer_row))
+        }
+        header(column, getString(R.string.header_about))
+        group(column) {
+            value(it, getString(R.string.row_version), versionName())
+            link(it, getString(R.string.row_whats_new)) { show(Page.WHATS_NEW) }
+            link(it, getString(R.string.row_report)) {
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(ISSUES_URL))) }
+            }
+        }
+        footer(column, getString(R.string.footer_about))
+    }
+
+    /**
+     * The card at the top: which keyboard this is, and whether Android is actually using it. Android keeps "added"
+     * and "chosen" on two different screens and says nothing about either afterwards, so this reads them back, with
+     * the one button that fixes whichever step is missing.
+     */
+    private fun status(column: LinearLayout) {
+        val manager = getSystemService(InputMethodManager::class.java)
+        val state = setupState(
+            added = ourMethod()?.let { method -> manager?.enabledInputMethodList?.any { it.id == method.id } } == true,
+            current = runCatching { AndroidSettings.Secure.getString(contentResolver, AndroidSettings.Secure.DEFAULT_INPUT_METHOD) }.getOrNull(),
+            packageName = packageName,
+        )
+        group(column) { card ->
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
+                addView(android.widget.ImageView(context).apply {
+                    setImageDrawable(applicationInfo.loadIcon(packageManager))
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(dp(60f), dp(60f)).apply { marginEnd = dp(14f) })
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(TextView(context).apply {
+                        text = applicationInfo.loadLabel(packageManager)
+                        setTextColor(colors.text)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+                        typeface = Typeface.DEFAULT_BOLD
+                    })
+                    addView(TextView(context).apply {
+                        text = getString(R.string.status_version, versionName())
+                        setTextColor(colors.secondary)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                    })
+                    addView(TextView(context).apply {
+                        text = getString(when (state) {
+                            SetupState.IN_USE -> R.string.status_in_use
+                            SetupState.ADDED -> R.string.status_added
+                            SetupState.NOT_ADDED -> R.string.status_not_added
+                        })
+                        setTextColor(if (state == SetupState.IN_USE) colors.on else colors.link)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                    })
+                }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                isFocusable = true
+                card.addView(this)
+            }
+            when (state) {
+                SetupState.NOT_ADDED -> link(card, getString(R.string.status_turn_on)) {
+                    runCatching { startActivity(Intent(AndroidSettings.ACTION_INPUT_METHOD_SETTINGS)) }
+                }
+                SetupState.ADDED -> link(card, getString(R.string.status_choose)) { manager?.showInputMethodPicker() }
+                SetupState.IN_USE -> Unit
+            }
+        }
+    }
+
+    private fun versionName(): String =
+        runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
+
+    private fun versionCode(): Long =
+        runCatching { packageManager.getPackageInfo(packageName, 0).longVersionCode }.getOrDefault(0L)
+
+    private fun buildLine(): String = "$packageName ${versionName()} (${versionCode()}) ${BuildConfig.GIT_COMMIT}"
+
+    private var fixesOpen = false
+    private val historyOpen = mutableSetOf<String>()
+
+    /**
+     * What's New, laid out like Folio's: the icon, the title and a version pill; each new feature with its icon, a
+     * bold title and a line about it; changes and fixes folded into one group; every earlier release under Version
+     * History. All of it comes from the CHANGELOG.md bundled into this build.
+     */
+    private fun whatsNew(column: LinearLayout) {
+        val notes = WhatsNew.notes(this)
+        val version = WhatsNew.releaseVersion(versionName())
+        val release = notes.firstOrNull { it.version == version } ?: notes.firstOrNull()
+        column.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(12f), 0, dp(8f))
+            addView(android.widget.ImageView(context).apply {
+                setImageDrawable(applicationInfo.loadIcon(packageManager))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(dp(72f), dp(72f)))
+            addView(TextView(context).apply {
+                text = getString(R.string.whats_new_heading)
+                setTextColor(colors.text)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                isAccessibilityHeading = true
+                setPadding(0, dp(14f), 0, 0)
+            })
+            release?.let { notes ->
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(8f), 0, 0)
+                    addView(TextView(context).apply {
+                        text = getString(R.string.status_version, notes.version)
+                        setTextColor(colors.link)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                        typeface = Typeface.DEFAULT_BOLD
+                        val tint = colors.link
+                        background = GradientDrawable().apply { setColor(tint); alpha = 40; cornerRadius = dp(10f).toFloat() }
+                        setPadding(dp(10f), dp(4f), dp(10f), dp(4f))
+                    })
+                    notes.date?.takeIf { !it.equals("Unreleased", true) }?.let { date ->
+                        addView(TextView(context).apply {
+                            text = date
+                            setTextColor(colors.secondary)
+                            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                            setPadding(dp(8f), 0, 0, 0)
+                        })
+                    }
+                })
+            }
+        })
+        val sections = release?.sections.orEmpty()
+        val features = sections.filter { it.first.equals("Added", true) }.flatMap { it.second }.map(WhatsNew::split)
+        val others = sections.filterNot { it.first.equals("Added", true) }.flatMap { it.second }.map(WhatsNew::split)
+        features.forEach { note ->
+            column.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(4f), dp(14f), dp(4f), 0)
+                val (glyph, tile) = WhatsNew.glyph(note.title ?: note.detail)
+                addView(SettingsIcon(context, glyph, Color.parseColor(tile)),
+                    LinearLayout.LayoutParams(dp(36f), dp(36f)).apply { marginEnd = dp(14f); topMargin = dp(2f) })
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    note.title?.let { title ->
+                        addView(TextView(context).apply {
+                            text = title
+                            setTextColor(colors.text)
+                            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                            typeface = Typeface.DEFAULT_BOLD
+                        })
+                    }
+                    addView(TextView(context).apply {
+                        text = note.detail
+                        setTextColor(colors.secondary)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                        setLineSpacing(0f, 1.1f)
+                    })
+                }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                isFocusable = true
+            })
+        }
+        if (others.isNotEmpty()) group(column) { card ->
+            disclosure(card, getString(R.string.fixes_and_improvements), "${others.size}", fixesOpen) {
+                fixesOpen = !fixesOpen
+                render(keepScroll = true)
+            }
+            if (fixesOpen) others.forEach { note ->
+                row(card, iconSpace = false).apply { addView(label(note.title?.let { "$it: ${note.detail}" } ?: note.detail)) }
+            }
+        }
+        val older = notes.filter { it != release }
+        if (older.isNotEmpty()) header(column, getString(R.string.header_version_history))
+        older.forEach { notes ->
+            val open = notes.version in historyOpen
+            group(column) { card ->
+                disclosure(card, getString(R.string.status_version, notes.version), notes.date, open) {
+                    if (open) historyOpen -= notes.version else historyOpen += notes.version
+                    render(keepScroll = true)
+                }
+                if (open) notes.sections.forEach { (_, items) ->
+                    items.forEach { text ->
+                        row(card, iconSpace = false).apply { addView(label("• " + text.replace("**", ""))) }
+                    }
+                }
+            }
+        }
+        column.addView(TextView(this).apply {
+            text = getString(R.string.action_continue)
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            minHeight = dp(52f)
+            val fill = colors.link
+            background = GradientDrawable().apply { setColor(fill); cornerRadius = dp(14f).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(20f) }
+            setOnClickListener { show(Page.MAIN) }
+        })
+    }
+
+    /** A row that opens and closes what's under it, with the count or date on the right, like iOS disclosure rows. */
+    private fun disclosure(card: LinearLayout, title: String, value: String?, open: Boolean, toggle: () -> Unit) {
+        row(card, iconSpace = false).apply {
+            addView(label(title))
+            value?.let { addView(trailing(it)) }
+            addView(TextView(context).apply {
+                text = if (open) "⌃" else "⌄"
+                setTextColor(colors.secondary)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            })
+            isClickable = true
+            background = selectable()
+            contentDescription = listOfNotNull(title, value).joinToString(", ")
+            stateDescription = getString(if (open) R.string.state_expanded else R.string.state_collapsed)
+            setOnClickListener { toggle() }
+        }
+    }
+
+    /** Keyd Dev only: switch detailed logging on, see recent errors, and share or clear them. */
+    private fun developer(column: LinearLayout) {
+        group(column) {
+            switchRow(it, getString(R.string.settings_dev_logging), DevLog.loggingOn(this)) { on -> DevLog.setLogging(this, on) }
+        }
+        footer(column, getString(R.string.footer_dev_logging, DevLog.MAX_LINES))
+        header(column, getString(R.string.header_recent_errors))
+        val errors = DevLog.errors(this)
+        group(column) { card ->
+            if (errors.isEmpty()) value(card, getString(R.string.row_errors), getString(R.string.value_none))
+            errors.take(10).forEach { entry ->
+                val first = entry.lineSequence().first()
+                row(card, iconSpace = false).apply {
+                    addView(TextView(context).apply {
+                        text = first.substringAfter(' ').substringAfter(' ')
+                        setTextColor(colors.text)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    })
+                    // Entries start "yyyy-MM-dd HH:mm:ss"; the time is enough beside the name.
+                    addView(trailing(first.split(' ').getOrNull(1).orEmpty()))
+                    isFocusable = true
+                }
+            }
+        }
+        group(column) {
+            link(it, getString(R.string.row_share_report)) {
+                val text = DevLog.report(this, buildLine())
+                runCatching {
+                    startActivity(Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).setType("text/plain")
+                            .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.report_subject))
+                            .putExtra(Intent.EXTRA_TEXT, text),
+                        getString(R.string.row_share_report),
+                    ))
+                }
+            }
+            action(it, getString(R.string.row_clear_log), enabled = true) {
+                DevLog.clear(this)
+                render(keepScroll = true)
+            }
+        }
+        footer(column, getString(R.string.footer_dev_share))
+        header(column, getString(R.string.header_build))
+        group(column) {
+            value(it, getString(R.string.row_app), packageName)
+            value(it, getString(R.string.row_version), "${versionName()} (${versionCode()})")
+            value(it, getString(R.string.row_commit), BuildConfig.GIT_COMMIT)
+        }
     }
 
     private fun typing(column: LinearLayout) {
@@ -509,6 +797,36 @@ class SettingsActivity : Activity() {
         }
     }
 
+    /** A switch for something outside [Settings], like logging: same look, its own storage. */
+    private fun switchRow(card: LinearLayout, title: String, on: Boolean, changed: (Boolean) -> Unit) {
+        row(card, iconSpace = false).apply {
+            addView(label(title))
+            val switch = Switch(context).apply {
+                isChecked = on
+                thumbTintList = ColorStateList.valueOf(Color.WHITE)
+                trackTintList = ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                    intArrayOf(colors.on, colors.off),
+                )
+                contentDescription = title
+                setOnCheckedChangeListener { _, checked -> changed(checked) }
+            }
+            addView(switch)
+            setOnClickListener { switch.toggle() }
+            background = selectable()
+        }
+    }
+
+    /** A row that does something ordinary, in the link colour: red is kept for rows that throw something away. */
+    private fun link(card: LinearLayout, title: String, run: () -> Unit) {
+        row(card, iconSpace = false).apply {
+            addView(label(title, colors.link))
+            isClickable = true
+            background = selectable()
+            setOnClickListener { run() }
+        }
+    }
+
     /** One choice out of a few, as a list with a tick - clearer than a row of buttons that only dim when unchosen. */
     private fun <T> pick(card: LinearLayout, options: List<Pair<String, T>>, current: T, update: (T) -> Settings) {
         val ticks = mutableListOf<Pair<T, Pair<View, TextView>>>()
@@ -581,5 +899,6 @@ class SettingsActivity : Activity() {
         const val LEARNED = "learnedWords"
         const val SHORTCUTS = "shortcuts"
         const val PAGE = "page"
+        const val ISSUES_URL = "https://github.com/McCal-Codes/folio-keyd/issues"
     }
 }

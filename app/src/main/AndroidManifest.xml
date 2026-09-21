@@ -32,10 +32,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Exported because Android's keyboard list opens it from its own process, from the gear beside Keyd. -->
         <activity
             android:name=".SettingsActivity"
             android:label="@string/settings_title"
-            android:exported="false" />
+            android:exported="true" />
         <activity
             android:name=".ShortcutsActivity"
             android:label="@string/shortcuts_title"
