@@ -73,6 +73,7 @@ class KeysService : InputMethodService(), Ime {
 
     override fun onCreate() {
         super.onCreate()
+        DevLog.catchCrashes(this)
         spanTheCutout()
         // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
         background.post {
@@ -127,7 +128,11 @@ class KeysService : InputMethodService(), Ime {
      */
     private fun loadDictionary(language: Language) {
         if (loadedFor == language && dictionary != null) return
-        dictionary = runCatching { Dictionary.load(this, language) }.getOrNull()
+        val started = android.os.SystemClock.elapsedRealtime()
+        dictionary = runCatching { Dictionary.load(this, language) }
+            .onFailure { DevLog.error(this, "Dictionary.load", it) }.getOrNull()
+        DevLog.event(this, "dictionary", "ms" to android.os.SystemClock.elapsedRealtime() - started,
+            "loaded" to if (dictionary != null) 1 else 0)
         loadedFor = if (dictionary != null) language else null
         // Which keys are where has changed, so what counts as a near miss has changed with it.
         proximity = null
@@ -166,6 +171,7 @@ class KeysService : InputMethodService(), Ime {
         val keys = keyboard?.placements
         background.postDelayed(
             {
+                val started = android.os.SystemClock.elapsedRealtime()
                 val words = dictionary ?: return@postDelayed
                 // Rebuilt whenever the keys have moved - unfolding splits the keyboard, and correcting against
                 // where the keys used to be is worse than not correcting by proximity at all.
@@ -187,6 +193,10 @@ class KeysService : InputMethodService(), Ime {
                         (learned?.count(word.lowercase()) ?: 0) == 0 &&
                         shortcuts?.expand(word) == null
                 }.getOrDefault(false)
+                // Timings and counts only: the word itself never goes in the log.
+                val took = android.os.SystemClock.elapsedRealtime() - started
+                DevLog.event(this, "suggest", "ms" to took, "found" to found.size, "fixed" to if (fix != null) 1 else 0)
+                if (took > DevLog.SLOW_MS) DevLog.problem(this, "slow-suggestion", "ms" to took)
                 main.post {
                     // A job already running cannot be cancelled, so it checks on the way out whether the word it
                     // was asked about is still the word being typed. Without this a slow answer for "te" lands
@@ -375,6 +385,8 @@ class KeysService : InputMethodService(), Ime {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        DevLog.event(this, "field", "class" to ((info?.inputType ?: 0) and android.text.InputType.TYPE_MASK_CLASS),
+            "restarting" to if (restarting) 1 else 0)
         // Re-read each time a field opens, so a change on the settings screen takes effect without a restart.
         val chosen = Settings.load(prefs)
         actions.settings = chosen

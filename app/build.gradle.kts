@@ -3,7 +3,7 @@ plugins {
 }
 
 // Semantic version, same rule as Folio: versionCode = MAJOR * 10000 + MINOR * 100 + PATCH.
-val keysVersion = "0.1.0"
+val keysVersion = "0.1.1"
 
 android {
     namespace = "com.mccal.folio.keys"
@@ -15,6 +15,11 @@ android {
         minSdk = 31
         targetSdk = 36
         versionName = keysVersion
+        // Which commit a build came from, for Keyd Dev's Developer page. "unknown" outside a git checkout.
+        val commit = runCatching {
+            providers.exec { commandLine("git", "rev-parse", "--short", "HEAD") }.standardOutput.asText.get().trim()
+        }.getOrDefault("").ifEmpty { "unknown" }
+        buildConfigField("String", "GIT_COMMIT", "\"$commit\"")
         versionCode = keysVersion.substringBefore('-').split('.')
             .let { (major, minor, patch) -> major.toInt() * 10000 + minor.toInt() * 100 + patch.toInt() }
     }
@@ -41,11 +46,28 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             manifestPlaceholders["appLabel"] = "Keyd"
         }
-        // Its own app id, so a test build sits beside a release instead of replacing the keyboard you rely on.
-        getByName("debug") {
+        // Keyd Dev: the release build under its own id, signed with the same key, so it can be shipped from the
+        // source beside Keyd and updated like it. The Developer page (logging, recent errors) is only in this and
+        // in debug builds.
+        create("dev") {
+            initWith(getByName("release"))
             applicationIdSuffix = ".dev"
             manifestPlaceholders["appLabel"] = "Keyd Dev"
+            matchingFallbacks += listOf("release")
         }
+        // A local debug build is signed with this machine's debug key, so it gets an id of its own too: installed
+        // over Keyd Dev it would be refused, because the signatures differ.
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["appLabel"] = "Keyd Debug"
+        }
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+    // Keyd Dev and Keyd Debug share the orange icon, so neither is mistaken for the Keyd from the Market.
+    sourceSets {
+        getByName("dev").res.srcDir("src/debug/res")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

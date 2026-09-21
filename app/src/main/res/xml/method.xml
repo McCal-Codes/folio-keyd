@@ -8,7 +8,7 @@
   be would be a lie the system acts on.
 -->
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
-    android:settingsActivity="com.mccal.folio.keys.SetupActivity"
+    android:settingsActivity="com.mccal.folio.keys.SettingsActivity"
     android:supportsSwitchingToNextInputMethod="true">
     <subtype
         android:label="@string/subtype_en_us"
