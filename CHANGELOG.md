@@ -4,7 +4,7 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
-## [0.1.1] - Unreleased
+## [0.1.1] - 2026-09-21
 
 ### Added
 - **Knows whether it's on:** Settings opens with Keyd's version and whether it's turned on and chosen as your keyboard, with the one button that fixes whichever step is missing.
