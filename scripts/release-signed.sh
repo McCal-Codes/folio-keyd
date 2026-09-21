@@ -47,6 +47,7 @@ for variant in release dev; do
     (cd "$out" && shasum -a 256 "$name" >> SHA256SUMS.txt)
     sha=$(shasum -a 256 "$out/$name" | cut -d' ' -f1)
     size=$(stat -f%z "$out/$name" 2>/dev/null || stat -c%s "$out/$name")
+    mkdir -p "$root/source/packages/$package"
     cat > "$root/source/packages/$package/app.json" <<JSON
 {
   "url": "https://github.com/$repo/releases/download/v$version/$name",
