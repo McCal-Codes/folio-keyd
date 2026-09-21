@@ -47,7 +47,8 @@ jobs:
           SOURCE_DATE_EPOCH: ${{ github.event.repository.pushed_at }}
         run: python3 source/tools/build.py
       - name: Refuse to publish an unsigned source
-        run: test -f source/_site/entry.json.sig || { echo "No signature: set the FOLIO_SOURCE_KEY secret."; exit 1; }
+        run: |
+          test -f source/_site/entry.json.sig || { echo "No signature: set the FOLIO_SOURCE_KEY secret."; exit 1; }
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
