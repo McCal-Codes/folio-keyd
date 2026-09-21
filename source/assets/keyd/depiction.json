@@ -1,0 +1,74 @@
+{
+  "$schema": "https://folio.mccal.dev/schema/v1/depiction.schema.json",
+  "format": 1,
+  "tint": "#2C5B63",
+  "blocks": [
+    {
+      "type": "screenshots",
+      "images": [
+        "assets/keyd/1-typing.webp",
+        "assets/keyd/2-emoji.webp",
+        "assets/keyd/3-symbols.webp"
+      ]
+    },
+    {
+      "type": "markdown",
+      "text": {
+        "en": "Keyd is the keyboard for Folio. It is a separate app because Android requires a keyboard to be its own input method, so the launcher can't contain one.\n\nIt types, corrects, learns, suggests, expands shortcuts, does emoji, splits around the fold, and speaks six languages: English, German, Spanish, French, Italian and Portuguese, each with its own keys, accents and word list.\n\n**It asks for no permissions at all**, including no Internet permission. That isn't a promise in a privacy policy: Android enforces it. The word list is on the phone and the lookup is on the phone, so nothing it sees can leave, because it has no way to send anything.\n\nAutocorrect only fixes clear typos, never a real word, and one backspace always undoes it. The suggestion strip agrees with what autocorrect would do. Words you type that no dictionary knows are learned on the phone, never from a password field and never from an app that asks it not to. Swearing is never corrected into another word."
+      }
+    },
+    {
+      "type": "featureList",
+      "items": [
+        {
+          "en": "Splits around the crease on a book fold, so no key sits on the hinge"
+        },
+        {
+          "en": "Suggestions, a spell check, and autocorrect for clear typos only"
+        },
+        {
+          "en": "Six languages, each with its own keys, accents and words"
+        },
+        {
+          "en": "Accents on a long press, printed in the corner of the key"
+        },
+        {
+          "en": "Clipboard history: never from a password field, forgotten after an hour unless pinned"
+        },
+        {
+          "en": "Shortcuts: omw for on my way, and your own"
+        },
+        {
+          "en": "Flick a key for what's printed on it; swipe the space bar to move the cursor"
+        },
+        {
+          "en": "Emoji in your phone's own font"
+        },
+        {
+          "en": "Light, dark or the system's, and a high-contrast option"
+        },
+        {
+          "en": "No permissions, and no Internet permission"
+        }
+      ]
+    },
+    {
+      "type": "compatibility",
+      "screens": [
+        "cover",
+        "inner"
+      ]
+    },
+    {
+      "type": "changelog",
+      "entries": [
+        {
+          "version": "0.1.0",
+          "notes": {
+            "en": "The first release: typing, corrections, learning, shortcuts, emoji, clipboard history, the split around the fold, and six languages."
+          }
+        }
+      ]
+    }
+  ]
+}
