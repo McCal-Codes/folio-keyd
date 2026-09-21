@@ -11,6 +11,9 @@ on:
   pull_request:
     paths: ["source/**", ".github/workflows/source.yml"]
   workflow_dispatch:
+  # Re-sign every Monday so the index never outlives its maxAge between pushes; Folio refuses a stale source.
+  schedule:
+    - cron: "0 6 * * 1"
 
 permissions:
   contents: read
@@ -44,7 +47,7 @@ jobs:
         env:
           # The private key lives only here, as a repository secret. Folio ships the public half.
           FOLIO_SOURCE_KEY: ${{ secrets.FOLIO_SOURCE_KEY }}
-          SOURCE_DATE_EPOCH: ${{ github.event.repository.pushed_at }}
+          SOURCE_DATE_EPOCH: ${{ github.event_name == 'push' && github.event.repository.pushed_at || '' }}
         run: python3 source/tools/build.py
       - name: Refuse to publish an unsigned source
         run: |
