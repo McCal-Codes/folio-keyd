@@ -113,6 +113,9 @@ class KeysService : InputMethodService(), Ime {
         val history = Clipboard.load(prefs, now)
         // Every field that opens would otherwise rewrite the list to say the same thing. A keyboard opens a lot.
         if (history.firstOrNull()?.text == text) return
+        // Forgotten or cleared, but Android still has it: saving it again would undo what they just did.
+        if (Clipboard.wasLetGo(prefs, text)) return
+        Clipboard.moveOn(prefs)
         Clipboard.save(prefs, Clipboard.remembering(history, text, now))
     }
 
@@ -332,6 +335,11 @@ class KeysService : InputMethodService(), Ime {
         val updated = change(Clipboard.load(prefs, now))
         Clipboard.save(prefs, updated)
         clipboard?.clips = updated
+        // If what Android holds is no longer in the list, it was forgotten or cleared just now: note it, or the next
+        // field to open would read it and put it straight back.
+        Clipboard.readable(Clipboard.manager(this), actions.rules)
+            ?.takeIf { current -> updated.none { it.text == current } }
+            ?.let { Clipboard.letGo(prefs, it) }
     }
 
     /**
