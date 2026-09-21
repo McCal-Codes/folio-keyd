@@ -139,9 +139,6 @@
     <string name="row_whats_new">What\'s new</string>
     <string name="row_report">Report a problem</string>
     <string name="footer_about">Report a problem opens GitHub in your browser. Keyd itself still has no internet access.</string>
-    <string name="whats_new_title">What\'s new in %1$s</string>
-    <string name="whats_new_text">The top of Settings says whether Keyd is on and chosen, with the button that fixes whichever step is missing.\n\nAbout shows the version, what\'s new and where to report a problem.\n\nThe gear beside Keyd in Android\'s keyboard list opens these settings instead of the setup screen.</string>
-    <string name="action_done">Done</string>
 
     <!-- Keyd Dev only -->
     <string name="page_developer">Developer</string>
@@ -162,4 +159,10 @@
     <string name="header_build">BUILD</string>
     <string name="row_app">App</string>
     <string name="row_commit">Commit</string>
+    <string name="whats_new_heading">What\'s New in Keyd</string>
+    <string name="fixes_and_improvements">Fixes and Improvements</string>
+    <string name="header_version_history">VERSION HISTORY</string>
+    <string name="action_continue">Continue</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
 </resources>

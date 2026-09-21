@@ -62,7 +62,7 @@ this repository its entire English dictionary everywhere except the machine it w
 
 None of it replaces typing on a real phone, which is still the test that matters.
 
-The debug build installs as `com.mccal.folio.keys.dev` so it sits beside a release rather than replacing the keyboard
+The debug build installs as `com.mccal.keyd.debug` ("Keyd Debug"), and the `dev` build type as the release-signed Keyd Dev (`com.mccal.keyd.dev`), so it sits beside a release rather than replacing the keyboard
 you rely on. Install it, then open Keyd — it walks through the two steps Android makes you take, and explains the
 warning on the second one.
 

@@ -5,6 +5,13 @@ plugins {
 // Semantic version, same rule as Folio: versionCode = MAJOR * 10000 + MINOR * 100 + PATCH.
 val keysVersion = "0.1.1"
 
+// Bundle the changelog so Keyd can show What's New after an update, the same way Folio does.
+val bundleChangelog = tasks.register<Copy>("bundleChangelog") {
+    from(rootProject.file("CHANGELOG.md"))
+    into(layout.buildDirectory.dir("generated/changelog"))
+}
+tasks.named("preBuild") { dependsOn(bundleChangelog) }
+
 android {
     namespace = "com.mccal.folio.keys"
     compileSdk = 36
@@ -67,6 +74,7 @@ android {
     }
     // Keyd Dev and Keyd Debug share the orange icon, so neither is mistaken for the Keyd from the Market.
     sourceSets {
+        getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/changelog").get().asFile)
         getByName("dev").res.srcDir("src/debug/res")
     }
     compileOptions {
