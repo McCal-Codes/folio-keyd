@@ -57,6 +57,9 @@ class KeysServiceTest {
             clipboardShowing = showing
         }
 
+        var copies = 0
+        override fun copied() { copies++ }
+
         override fun showEmoji(showing: Boolean) {
             emojiShowing = showing
         }
@@ -95,6 +98,39 @@ class KeysServiceTest {
     }
 
     private fun type(word: String) = word.forEach { actions.onText(it.toString()) }
+
+    // ---- text that did not come from Keyd -------------------------------------------------------------------------
+
+    /** Puts text in the field the way a paste, an app's autofill or `adb input text` does: straight in, past Keyd. */
+    private fun fromOutside(value: String) {
+        val editable = field.editable!!
+        editable.append(value)
+        android.text.Selection.setSelection(editable, editable.length)
+    }
+
+    @Test
+    fun `a key typed after text already in the field adds to it`() {
+        fromOutside("Folded or open, it fits the wind")
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("o")
+        assertEquals("Folded or open, it fits the windo", text)
+    }
+
+    @Test
+    fun `text pasted in while typing is kept when typing goes on`() {
+        type("hi ")
+        fromOutside("Folded or open, it fits the wind")
+        type("ow")
+        assertEquals("hi Folded or open, it fits the window", text)
+    }
+
+    @Test
+    fun `the toolbar's Copy tells the keyboard to look at the clipboard`() {
+        // It used to rely on the next field opening, so what someone copied from the toolbar wasn't in the history
+        // until they had moved on - the one moment they were most likely to want it back.
+        actions.onCopy()
+        assertEquals(1, ime.copies)
+    }
 
     // ---- the word being typed -----------------------------------------------------------------------------------
 

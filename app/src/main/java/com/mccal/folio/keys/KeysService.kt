@@ -262,7 +262,7 @@ class KeysService : InputMethodService(), Ime {
 
                 override fun onForgetClip(text: String) = editClips { Clipboard.forgetting(it, text) }
 
-                override fun onClearClips() = editClips { Clipboard.cleared() }
+                override fun onClearClips() = editClips { Clipboard.cleared(it) }
 
                 override fun onBackspace() = actions.onBackspace()
 
@@ -304,6 +304,17 @@ class KeysService : InputMethodService(), Ime {
      * stored at the moment someone looks, and the hour an unpinned clip lives means a list read earlier can be
      * showing something that has since expired.
      */
+    /**
+     * After the toolbar's Copy: the app copies, then the clipboard changes, so look shortly afterwards - twice, because
+     * a slow app can take longer than the first look, and a clip already at the top is skipped rather than saved again.
+     * Only while a field is still connected; nothing here keeps running once the keyboard has gone.
+     */
+    override fun copied() {
+        for (wait in COPY_LOOKS) {
+            main.postDelayed({ if (currentInputConnection != null) rememberClip(actions.settings) }, wait)
+        }
+    }
+
     override fun showClipboard(showing: Boolean) {
         if (showing) {
             showEmoji(false)
@@ -459,6 +470,9 @@ class KeysService : InputMethodService(), Ime {
         const val RECENTS = "emojiRecents"
         const val LEARNED = "learnedWords"
         const val SHORTCUTS = "shortcuts"
+
+        /** When to look at the clipboard after Copy, in milliseconds. */
+        val COPY_LOOKS = longArrayOf(150, 600)
 
         /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
         const val THINK_MS = 40L

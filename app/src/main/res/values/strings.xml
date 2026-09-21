@@ -96,6 +96,7 @@
     <string name="settings_clipboard_note">Keeps what you copy so you can put it back without leaving the keyboard. Nothing from a password field, nothing an app marks sensitive, and forgotten after an hour unless you pin it. It stays on this phone: Keyd has no way to send anything anywhere.</string>
     <string name="clipboard_empty">Nothing copied yet</string>
     <string name="clipboard_clear">Clear all</string>
+    <string name="clipboard_clear_unpinned">Clear unpinned</string>
     <string name="clipboard_pin_spoken">Pin %1$s</string>
     <string name="clipboard_unpin_spoken">Unpin %1$s</string>
     <string name="clipboard_forget_spoken">Forget %1$s</string>

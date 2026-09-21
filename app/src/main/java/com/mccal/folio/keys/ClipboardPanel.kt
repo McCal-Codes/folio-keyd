@@ -48,6 +48,10 @@ internal class ClipboardPanel(context: Context) : View(context) {
         fun onLetters()
     }
 
+    /** "Clear unpinned" when something is pinned, because that is all it clears; "Clear all" otherwise. */
+    internal val clearLabel: Int
+        get() = if (clips.any { it.pinned }) R.string.clipboard_clear_unpinned else R.string.clipboard_clear
+
     var listener: Listener? = null
 
     /** Owned by the service, which is what reads and writes the stored list. Pinned first, then newest. */
@@ -224,7 +228,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
             val cy = (top + bottom) / 2
             val caption = when (index) {
                 0 -> context.getString(R.string.emoji_letters)
-                1 -> context.getString(R.string.clipboard_clear)
+                1 -> context.getString(clearLabel)
                 else -> "⌫"
             }
             canvas.drawText(caption, cx, cy + baseline, label)
@@ -388,7 +392,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
         }
         return when (id - clips.size * 3) {
             0 -> context.getString(R.string.emoji_letters)
-            1 -> context.getString(R.string.clipboard_clear)
+            1 -> context.getString(clearLabel)
             else -> Spoken.name(Key("", KeyKind.BACKSPACE), Shift.OFF)
         }
     }

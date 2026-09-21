@@ -83,7 +83,12 @@ internal object Clipboard {
     fun forgetting(history: List<Clip>, text: String): List<Clip> = history.filterNot { it.text == text }
 
     /** Everything, pins included: the button someone reaches for when they pasted the wrong thing into the list. */
-    fun cleared(): List<Clip> = emptyList()
+    /**
+     * What Clear leaves: the pinned clips. A pin is someone saying they meant to keep it, so clearing takes only
+     * what came and goes on its own - the way Gboard and SwiftKey clear - and needs no "are you sure" to be safe.
+     * Turning clipboard history off in Settings still forgets everything, which is what that switch says.
+     */
+    fun cleared(clips: List<Clip>): List<Clip> = clips.filter { it.pinned }
 
     fun load(prefs: SharedPreferences, now: Long): List<Clip> = runCatching {
         val array = JSONArray(prefs.getString(PREFS_KEY, null) ?: return emptyList())

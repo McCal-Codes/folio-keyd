@@ -59,6 +59,12 @@ interface Ime {
 
     /** Swap the letters for what has been copied lately, or back. */
     fun showClipboard(showing: Boolean)
+
+    /**
+     * The toolbar's Copy was pressed. The app does the copying, so the clipboard changes a moment later; this is
+     * the keyboard's cue to look then, which is the one moment besides a field opening that it has reason to.
+     */
+    fun copied() {}
 }
 
 /**
@@ -368,7 +374,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onClipboardPanel() = ime.showClipboard(true)
 
-    override fun onCopy() = menu(android.R.id.copy)
+    override fun onCopy() {
+        menu(android.R.id.copy)
+        ime.copied()
+    }
 
     override fun onPaste() = menu(android.R.id.paste)
 
