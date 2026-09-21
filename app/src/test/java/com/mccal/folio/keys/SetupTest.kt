@@ -11,7 +11,7 @@ import org.junit.Test
  */
 class SetupTest {
 
-    private val us = "com.mccal.folio.keys"
+    private val us = "com.mccal.keyd"
     private val ours = "$us/.KeysService"
     private val samsung = "com.samsung.android.honeyboard/.service.HoneyBoardService"
 

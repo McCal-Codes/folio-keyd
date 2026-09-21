@@ -9,15 +9,33 @@ android {
     namespace = "com.mccal.folio.keys"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.mccal.folio.keys"
+        // The id Folio's Market knows Keyd by, and names in its <queries> so it can tell Keyd is installed. It can
+        // never change after the first release: Android treats a new id as a different app.
+        applicationId = "com.mccal.keyd"
         minSdk = 31
         targetSdk = 36
         versionName = keysVersion
         versionCode = keysVersion.substringBefore('-').split('.')
             .let { (major, minor, patch) -> major.toInt() * 10000 + minor.toInt() * 100 + patch.toInt() }
     }
+    // Signed with the same key as Folio, from the same four variables, so there is one keystore to look after.
+    // Without all four a release build comes out unsigned, which is fine for checking it and useless for shipping it.
+    val releaseSigning = listOf(
+        "FOLIO_RELEASE_STORE_FILE", "FOLIO_RELEASE_STORE_PASSWORD", "FOLIO_RELEASE_KEY_ALIAS", "FOLIO_RELEASE_KEY_PASSWORD",
+    ).associateWith { System.getenv(it) }
+    if (releaseSigning.values.all { !it.isNullOrBlank() }) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseSigning.getValue("FOLIO_RELEASE_STORE_FILE")!!)
+                storePassword = releaseSigning.getValue("FOLIO_RELEASE_STORE_PASSWORD")
+                keyAlias = releaseSigning.getValue("FOLIO_RELEASE_KEY_ALIAS")
+                keyPassword = releaseSigning.getValue("FOLIO_RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         getByName("release") {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

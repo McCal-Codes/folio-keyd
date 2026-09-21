@@ -1,0 +1,7 @@
+{
+  "name": "Keyd",
+  "description": "Keyd, the keyboard for Folio. A separate app, because Android requires a keyboard to be its own input method.",
+  "icon": "assets/icon.png",
+  "issuesUrl": "https://github.com/McCal-Codes/folio-keyd/issues",
+  "maxAgeDays": 30
+}

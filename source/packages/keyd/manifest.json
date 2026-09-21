@@ -1,0 +1,19 @@
+{
+  "$schema": "https://folio.mccal.dev/schema/v1/manifest.schema.json",
+  "format": 1,
+  "id": "com.mccal.keyd",
+  "name": "Keyd",
+  "version": "0.1.0",
+  "author": { "name": "McCal" },
+  "minFolio": "0.7.0",
+  "section": "tweaks",
+  "kind": ["externalApp"],
+  "permissions": [],
+  "screens": ["cover", "inner"],
+  "license": "MIT",
+  "icon": "assets/icons/keyd.png",
+  "description": "A keyboard for Folio. It types, corrects, learns, suggests, expands shortcuts, does emoji, splits around a fold, and speaks six languages. It asks for no permissions at all, including no Internet permission.",
+  "via": [
+    { "store": "obtainium", "repoUrl": "https://github.com/McCal-Codes/folio-keyd", "id": "com.mccal.keyd" }
+  ]
+}
