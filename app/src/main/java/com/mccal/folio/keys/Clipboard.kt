@@ -34,6 +34,7 @@ internal object Clipboard {
     const val KEEP_MILLIS = 60 * 60 * 1000L
 
     private const val PREFS_KEY = "clipboard"
+    private const val LET_GO_KEY = "clipboardLetGo"
 
     data class Clip(val text: String, val at: Long, val pinned: Boolean = false)
 
@@ -82,8 +83,12 @@ internal object Clipboard {
 
     fun forgetting(history: List<Clip>, text: String): List<Clip> = history.filterNot { it.text == text }
 
-    /** Everything, pins included: the button someone reaches for when they pasted the wrong thing into the list. */
-    fun cleared(): List<Clip> = emptyList()
+    /**
+     * What Clear leaves: the pinned clips. A pin is someone saying they meant to keep it, so clearing takes only
+     * what came and goes on its own - the way Gboard and SwiftKey clear - and needs no "are you sure" to be safe.
+     * Turning clipboard history off in Settings still forgets everything, which is what that switch says.
+     */
+    fun cleared(clips: List<Clip>): List<Clip> = clips.filter { it.pinned }
 
     fun load(prefs: SharedPreferences, now: Long): List<Clip> = runCatching {
         val array = JSONArray(prefs.getString(PREFS_KEY, null) ?: return emptyList())
@@ -95,6 +100,11 @@ internal object Clipboard {
         current(clips, now)
     }.getOrDefault(emptyList())
 
+    /** Something new was copied, so what was let go of is no longer on the clipboard to come back. */
+    fun moveOn(prefs: SharedPreferences) {
+        prefs.edit().remove(LET_GO_KEY).apply()
+    }
+
     fun save(prefs: SharedPreferences, history: List<Clip>) {
         val array = JSONArray()
         for (clip in history) {
@@ -104,8 +114,28 @@ internal object Clipboard {
     }
 
     /** Forgets the lot, including what is on disk: Settings' own button, and what a reset has to reach. */
+    /**
+     * Marks what is on the clipboard as let go of: forgotten, or cleared from the list while Android still holds it.
+     *
+     * Without this, the next field to open read the clipboard, found the text no longer at the top of the list, and
+     * saved it again, so Forget and Clear seemed to do nothing. Only a fingerprint is kept, never the text, and a
+     * different copy replaces it, so this can't grow or keep anything someone wanted gone.
+     */
+    fun letGo(prefs: SharedPreferences, text: String) {
+        prefs.edit().putString(LET_GO_KEY, fingerprint(text)).apply()
+    }
+
+    /**
+     * True for the text last let go of, so it isn't saved again just because the clipboard still has it. The mark
+     * lasts only until something else is copied: copying that same text again after that is a new copy, and is kept.
+     */
+    fun wasLetGo(prefs: SharedPreferences, text: String): Boolean = prefs.getString(LET_GO_KEY, null) == fingerprint(text)
+
+    private fun fingerprint(text: String): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+
     fun clear(prefs: SharedPreferences) {
-        prefs.edit().remove(PREFS_KEY).apply()
+        prefs.edit().remove(PREFS_KEY).remove(LET_GO_KEY).apply()
     }
 
     fun manager(context: Context): ClipboardManager? =

@@ -113,6 +113,9 @@ class KeysService : InputMethodService(), Ime {
         val history = Clipboard.load(prefs, now)
         // Every field that opens would otherwise rewrite the list to say the same thing. A keyboard opens a lot.
         if (history.firstOrNull()?.text == text) return
+        // Forgotten or cleared, but Android still has it: saving it again would undo what they just did.
+        if (Clipboard.wasLetGo(prefs, text)) return
+        Clipboard.moveOn(prefs)
         Clipboard.save(prefs, Clipboard.remembering(history, text, now))
     }
 
@@ -262,7 +265,7 @@ class KeysService : InputMethodService(), Ime {
 
                 override fun onForgetClip(text: String) = editClips { Clipboard.forgetting(it, text) }
 
-                override fun onClearClips() = editClips { Clipboard.cleared() }
+                override fun onClearClips() = editClips { Clipboard.cleared(it) }
 
                 override fun onBackspace() = actions.onBackspace()
 
@@ -304,6 +307,17 @@ class KeysService : InputMethodService(), Ime {
      * stored at the moment someone looks, and the hour an unpinned clip lives means a list read earlier can be
      * showing something that has since expired.
      */
+    /**
+     * After the toolbar's Copy: the app copies, then the clipboard changes, so look shortly afterwards - twice, because
+     * a slow app can take longer than the first look, and a clip already at the top is skipped rather than saved again.
+     * Only while a field is still connected; nothing here keeps running once the keyboard has gone.
+     */
+    override fun copied() {
+        for (wait in COPY_LOOKS) {
+            main.postDelayed({ if (currentInputConnection != null) rememberClip(actions.settings) }, wait)
+        }
+    }
+
     override fun showClipboard(showing: Boolean) {
         if (showing) {
             showEmoji(false)
@@ -321,6 +335,11 @@ class KeysService : InputMethodService(), Ime {
         val updated = change(Clipboard.load(prefs, now))
         Clipboard.save(prefs, updated)
         clipboard?.clips = updated
+        // If what Android holds is no longer in the list, it was forgotten or cleared just now: note it, or the next
+        // field to open would read it and put it straight back.
+        Clipboard.readable(Clipboard.manager(this), actions.rules)
+            ?.takeIf { current -> updated.none { it.text == current } }
+            ?.let { Clipboard.letGo(prefs, it) }
     }
 
     /**
@@ -459,6 +478,9 @@ class KeysService : InputMethodService(), Ime {
         const val RECENTS = "emojiRecents"
         const val LEARNED = "learnedWords"
         const val SHORTCUTS = "shortcuts"
+
+        /** When to look at the clipboard after Copy, in milliseconds. */
+        val COPY_LOOKS = longArrayOf(150, 600)
 
         /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
         const val THINK_MS = 40L

@@ -78,7 +78,7 @@ in; what follows is ordered by what someone would notice first, not by what is m
    does use the network — so the key has to say so plainly rather than quietly become the exception to the promise.
 2. **A pinned clip becomes a shortcut.** `Shortcuts` and pinned clips both exist and know nothing about each other.
    One step, and the two features are better for it.
-3. **Clear all should ask first.** It takes pinned clips with it, and a pin is someone saying they meant to keep it.
+3. ~~**Clear all should ask first.**~~ Done differently: Clear leaves pinned clips alone, as Gboard and SwiftKey do, and says "Clear unpinned" when there are any. A pin is someone saying they meant to keep it, so nothing needs asking.
 
 **Next — the reason to write this keyboard rather than use Gboard**
 

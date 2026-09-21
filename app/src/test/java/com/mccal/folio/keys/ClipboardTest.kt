@@ -7,6 +7,7 @@ import android.content.Context
 import android.os.PersistableBundle
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -114,11 +115,28 @@ class ClipboardTest {
         assertEquals(listOf("kept"), later.map { it.text })
     }
 
-    @Test fun `forgetting one leaves the rest, and clearing leaves nothing`() {
+    @Test fun `forgetting one leaves the rest, and clearing leaves only what was pinned`() {
         var history = Clipboard.remembering(emptyList(), "one", now)
         history = Clipboard.remembering(history, "two", now + 1)
         assertEquals(listOf("two"), Clipboard.forgetting(history, "one").map { it.text })
-        assertEquals(emptyList<Clipboard.Clip>(), Clipboard.cleared())
+        assertEquals(emptyList<Clipboard.Clip>(), Clipboard.cleared(history))
+        // A pin is someone saying they meant to keep it, so Clear leaves it where it is.
+        val pinned = Clipboard.pinning(history, "one", true)
+        assertEquals(listOf("one"), Clipboard.cleared(pinned).map { it.text })
+    }
+
+    @Test fun `what was let go of is known by its fingerprint, and a new copy is not`() {
+        Clipboard.letGo(prefs, "my address")
+        assertTrue(Clipboard.wasLetGo(prefs, "my address"))
+        assertFalse(Clipboard.wasLetGo(prefs, "something new"))
+        // Only a fingerprint is stored, never the text itself.
+        assertFalse(prefs.all.values.any { it.toString().contains("my address") })
+        // Once something else is copied, copying the same text again later is a new copy.
+        Clipboard.moveOn(prefs)
+        assertFalse(Clipboard.wasLetGo(prefs, "my address"))
+        Clipboard.letGo(prefs, "my address")
+        Clipboard.clear(prefs)
+        assertFalse(Clipboard.wasLetGo(prefs, "my address"))
     }
 
     @Test fun `what is saved comes back, and an expired clip does not`() {

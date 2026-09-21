@@ -106,6 +106,12 @@ class ClipboardPanelTest {
         assertEquals(listOf("kept" to false), pinned)
     }
 
+    @Test fun `Clear says it leaves pinned clips when there are any`() {
+        assertEquals(R.string.clipboard_clear, panel.clearLabel)
+        panel.clips = listOf(Clipboard.Clip("kept", now, pinned = true), Clipboard.Clip("loose", now - 1))
+        assertEquals(R.string.clipboard_clear_unpinned, panel.clearLabel)
+    }
+
     @Test fun `the tabs are letters, clear all and backspace`() {
         assertEquals(3, panel.tabCount)
         val y = panel.height - 30 * density
