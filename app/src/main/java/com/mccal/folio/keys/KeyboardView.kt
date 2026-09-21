@@ -63,6 +63,9 @@ class KeyboardView(context: Context) : View(context) {
         /** Swap the letters for the emoji. */
         fun onEmojiPanel()
 
+        /** Swap the letters for what has been copied lately. */
+        fun onClipboardPanel()
+
         /** A word from the strip, tapped. */
         fun onSuggestion(word: String)
         fun onHide()
@@ -332,6 +335,7 @@ class KeyboardView(context: Context) : View(context) {
             Key("Select all", KeyKind.SELECT_ALL),
             Key("Copy", KeyKind.COPY),
             Key("Paste", KeyKind.PASTE),
+            Key("Clipboard", KeyKind.CLIPBOARD),
         )
         // Even across the whole width: a row of icons bunched in one corner is the difference between a toolbar and
         // a few buttons someone left there.
@@ -465,6 +469,10 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.GLOBE -> Icons.globe(canvas, cx, cy, icon, stroke)
             KeyKind.ACTION -> if (key.label.length > 4) drawLabel(canvas, key.label, cx, cy, box, ink)
                 else Icons.enter(canvas, cx, cy, icon * 1.1f, stroke)
+            // The space bar is labelled where its width is known, which is here rather than in the row.
+            KeyKind.SPACE -> drawLabel(
+                canvas, spaceLabel(box.width / dp, language, key.label), cx, cy, box, ink,
+            )
             else -> drawLabel(canvas, key.label, cx, cy, box, ink)
         }
 
@@ -534,6 +542,7 @@ class KeyboardView(context: Context) : View(context) {
                 KeyKind.SELECT_ALL -> Icons.selectAll(canvas, cx, cy, size, stroke, fill)
                 KeyKind.COPY -> Icons.copy(canvas, cx, cy, size, stroke)
                 KeyKind.PASTE -> Icons.paste(canvas, cx, cy, size, stroke, fill)
+                KeyKind.CLIPBOARD -> Icons.clipboard(canvas, cx, cy, size, stroke, fill)
                 else -> Unit
             }
         }
@@ -885,6 +894,7 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.LAYER -> l.onLayer(Layer.valueOf(key.output))
             KeyKind.ACTION -> l.onAction()
             KeyKind.GLOBE -> l.onSwitchKeyboard()
+            KeyKind.CLIPBOARD -> l.onClipboardPanel()
             KeyKind.HIDE -> l.onHide()
             KeyKind.SELECT_ALL -> l.onSelectAll()
             KeyKind.COPY -> l.onCopy()

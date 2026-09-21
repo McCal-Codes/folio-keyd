@@ -69,7 +69,7 @@ class SetupActivity : Activity() {
         body(getString(R.string.setup_intro))
         action(getString(R.string.setup_step_one)) {
             // A new task, or Android's settings join ours: the screen stays on our back stack, and every later
-            // launch of Folio Keys resumes into Settings instead of this screen.
+            // launch of Keyd resumes into Settings instead of this screen.
             startActivity(
                 Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )

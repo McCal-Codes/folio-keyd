@@ -32,7 +32,11 @@ enum class Language(
 
     ITALIAN("it-IT", "Italiano", listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")),
 
-    PORTUGUESE("pt-PT", "Português", listOf("qwertyuiop", "asdfghjkl", "zxcvbnm"));
+    /**
+     * Portuguese gets the same treatment as Spanish: ç is a letter people type constantly — não, começar, ação —
+     * not an accent worth a long press. Android's own pt-PT layout puts it at the end of the home row too.
+     */
+    PORTUGUESE("pt-PT", "Português", listOf("qwertyuiop", "asdfghjklç", "zxcvbnm"));
 
     /** The word list that ships for this language. */
     val dictionary: String get() = "words-$tag.txt"

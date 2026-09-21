@@ -143,4 +143,32 @@ class LayoutsTest {
             }
         }
     }
+
+    /**
+     * The space bar names the language when there is room, and says "space" when there isn't.
+     *
+     * Six languages and one globe key: without this, the only way to find out which was on was to type a word and
+     * see what came back corrected.
+     */
+    @Test
+    fun `the space bar names the language when it fits`() {
+        assertEquals("English", spaceLabel(200f, Language.ENGLISH, "space"))
+        assertEquals("Français", spaceLabel(200f, Language.FRENCH, "space"))
+        assertEquals("Português", spaceLabel(200f, Language.PORTUGUESE, "space"))
+        // A narrow bar keeps the plain word rather than shrinking a name nobody could read.
+        assertEquals("space", spaceLabel(90f, Language.PORTUGUESE, "space"))
+        assertEquals("space", spaceLabel(SPACE_NAME_MIN_DP - 1f, Language.ENGLISH, "space"))
+        assertEquals("English", spaceLabel(SPACE_NAME_MIN_DP, Language.ENGLISH, "space"))
+    }
+
+    /** Every language Keyd ships has a name short enough to sit on the bar; a longer one would fall back. */
+    @Test
+    fun `every language's own name fits the bar`() {
+        for (language in Language.entries) {
+            assertEquals(
+                "${language.tag} should name itself on a wide bar",
+                language.ownName, spaceLabel(240f, language, "space"),
+            )
+        }
+    }
 }

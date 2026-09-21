@@ -16,7 +16,7 @@ import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
 
 /**
- * Folio Keys.
+ * Keyd.
  *
  * This is wiring: it owns the view, hands it to [TextActions], and passes along what Android tells it. The behaviour -
  * what each key does, which layer is showing, how shift behaves - lives in [TextActions], where it can be tested.
@@ -29,6 +29,7 @@ class KeysService : InputMethodService(), Ime {
     private val actions = TextActions(this)
     private var keyboard: KeyboardView? = null
     private var emoji: EmojiPanel? = null
+    private var clipboard: ClipboardPanel? = null
     private var root: View? = null
 
     /**
@@ -96,6 +97,23 @@ class KeysService : InputMethodService(), Ime {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             }
         }
+    }
+
+    /**
+     * Takes whatever is on the clipboard now, if the field allows it and the setting is on.
+     *
+     * Called when a field opens and again after the toolbar's Copy, which are the two moments the keyboard is on
+     * screen and the clipboard has just changed. There is no listener: Android only tells the focused app anyway,
+     * and a keyboard that polls in the background would be exactly the thing this app promises not to be.
+     */
+    private fun rememberClip(settings: Settings) {
+        if (!settings.clipboardHistory) return
+        val text = Clipboard.readable(Clipboard.manager(this), actions.rules) ?: return
+        val now = System.currentTimeMillis()
+        val history = Clipboard.load(prefs, now)
+        // Every field that opens would otherwise rewrite the list to say the same thing. A keyboard opens a lot.
+        if (history.firstOrNull()?.text == text) return
+        Clipboard.save(prefs, Clipboard.remembering(history, text, now))
     }
 
     /**
@@ -230,8 +248,30 @@ class KeysService : InputMethodService(), Ime {
                 override fun onLetters() = showEmoji(false)
             }
         }
+        val clips = ClipboardPanel(this).also {
+            it.visibility = View.GONE
+            it.listener = object : ClipboardPanel.Listener {
+                override fun onClip(text: String) {
+                    actions.onText(text)
+                    showClipboard(false)
+                }
+
+                override fun onPinClip(text: String, pinned: Boolean) = editClips {
+                    Clipboard.pinning(it, text, pinned)
+                }
+
+                override fun onForgetClip(text: String) = editClips { Clipboard.forgetting(it, text) }
+
+                override fun onClearClips() = editClips { Clipboard.cleared() }
+
+                override fun onBackspace() = actions.onBackspace()
+
+                override fun onLetters() = showClipboard(false)
+            }
+        }
         keyboard = keys
         emoji = grid
+        clipboard = clips
         actions.refresh()
         return FrameLayout(this).also { root = it }.apply {
             layoutParams = ViewGroup.LayoutParams(
@@ -239,6 +279,7 @@ class KeysService : InputMethodService(), Ime {
             )
             addView(keys)
             addView(grid)
+            addView(clips)
         }
     }
 
@@ -250,9 +291,36 @@ class KeysService : InputMethodService(), Ime {
     }
 
     override fun showEmoji(showing: Boolean) {
+        if (showing) showClipboard(false)
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         emoji?.visibility = if (showing) View.VISIBLE else View.GONE
         if (showing) emoji?.opened()
+    }
+
+    /**
+     * Swaps the letters for the clipboard, or back.
+     *
+     * The list is read when it opens rather than kept in step as clips arrive: what is on screen should be what is
+     * stored at the moment someone looks, and the hour an unpinned clip lives means a list read earlier can be
+     * showing something that has since expired.
+     */
+    override fun showClipboard(showing: Boolean) {
+        if (showing) {
+            showEmoji(false)
+            clipboard?.clips = Clipboard.load(prefs, System.currentTimeMillis())
+            clipboard?.appearance = actions.settings.appearance
+            clipboard?.highContrast = actions.settings.highContrast
+        }
+        keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
+        clipboard?.visibility = if (showing) View.VISIBLE else View.GONE
+    }
+
+    /** One place that changes the stored list and puts the panel back in step with it. */
+    private fun editClips(change: (List<Clipboard.Clip>) -> List<Clipboard.Clip>) {
+        val now = System.currentTimeMillis()
+        val updated = change(Clipboard.load(prefs, now))
+        Clipboard.save(prefs, updated)
+        clipboard?.clips = updated
     }
 
     /**
@@ -307,8 +375,13 @@ class KeysService : InputMethodService(), Ime {
         emoji?.highContrast = chosen.highContrast
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
-        // A new field starts on the letters: nobody opens a password box wanting the emoji they left open.
+        // A keyboard may read the clipboard while it is the one on screen, so this is the moment to look. The field
+        // has just been read, which is what decides whether anything may be kept from it at all.
+        rememberClip(chosen)
+        // A new field starts on the letters: nobody opens a password box wanting the emoji, or the list of things
+        // they copied, that they left open.
         showEmoji(false)
+        showClipboard(false)
         // And with nothing held over from the last one. A touch that never got its release - the window taken
         // away mid-press, a call arriving - would otherwise leave a finger down forever.
         keyboard?.forgetTouches()

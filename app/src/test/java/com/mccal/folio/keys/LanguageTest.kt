@@ -25,6 +25,26 @@ class LanguageTest {
 
     private fun dictionary(language: Language) = Dictionary.load(context, language)
 
+    /**
+     * The file on disk is named exactly as the language asks for it.
+     *
+     * A Mac doesn't care about the case of a filename and Linux does, so `words-en-us.txt` satisfies a build here
+     * and loses the whole English dictionary on anyone else's machine — including the one that makes the release.
+     * Reading the directory gives the real name, which is the only way to see the difference from here.
+     */
+    @Test
+    fun `every word list is named exactly as its language asks for it`() {
+        val assets = generateSequence(java.io.File("").absoluteFile) { it.parentFile }
+            .first { java.io.File(it, "settings.gradle.kts").exists() }
+            .let { java.io.File(it, "app/src/main/assets") }
+        val onDisk = assets.list().orEmpty().toSet()
+        for (language in Language.entries) {
+            assertTrue("${language.tag} wants ${language.dictionary}, and the assets hold " +
+                onDisk.filter { it.lowercase() == language.dictionary.lowercase() },
+                language.dictionary in onDisk)
+        }
+    }
+
     @Test
     fun `every language has a word list that loads`() {
         for (language in Language.entries) {
@@ -121,6 +141,24 @@ class LanguageTest {
         assertEquals("azertyuiop", Language.FRENCH.rows.first())
         assertEquals("qwertzuiop", Language.GERMAN.rows.first())
         assertTrue("Spanish needs an ñ key", Language.SPANISH.rows[1].contains('ñ'))
+        // The same principle, and the same place: a letter a language types constantly is a key, not a long press.
+        assertTrue("Portuguese needs a ç key", Language.PORTUGUESE.rows[1].contains('ç'))
+        assertEquals("Spanish and Portuguese put their extra letter in the same place",
+            Language.SPANISH.rows[1].length, Language.PORTUGUESE.rows[1].length)
+    }
+
+    /**
+     * A letter promoted to a key still has its accents behind it, and is still a letter the dictionary knows.
+     *
+     * Moving ç out of the long-press list would have been the easy mistake: it is where ć and č live, and Portuguese
+     * words are full of it.
+     */
+    @Test
+    fun `a promoted letter keeps its accents and its words`() {
+        assertTrue("ç behind c is still offered", "ç" in Alternates.forKey("c", null, Language.PORTUGUESE))
+        val words = dictionary(Language.PORTUGUESE)
+        val missing = listOf("começar", "ação", "coração").filterNot { words.contains(it) }
+        assertEquals("the Portuguese list is missing $missing", emptyList<String>(), missing)
     }
 
     /** The digit in the corner belongs to the position, not the letter: on AZERTY the first key is "a" and gives 1. */
