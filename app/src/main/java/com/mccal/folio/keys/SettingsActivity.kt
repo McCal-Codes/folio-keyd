@@ -66,6 +66,9 @@ class SettingsActivity : Activity() {
         val link = if (dark) Color.parseColor("#0A84FF") else Color.parseColor("#0066CC")
         val destructive = if (dark) Color.parseColor("#FF453A") else Color.parseColor("#D70015")
         val on = if (dark) Color.parseColor("#30D158") else Color.parseColor("#1B7A33")
+        // An off switch's track. The divider grey was 1.71:1 on a white card in light mode, with a white thumb on it:
+        // too faint to see there was a control at all. This clears the 3:1 a control needs (WCAG 1.4.11).
+        val off = if (dark) Color.parseColor("#636366") else Color.parseColor("#8E8E93")
     }
 
     private lateinit var colors: Palette
@@ -113,16 +116,38 @@ class SettingsActivity : Activity() {
         render()
     }
 
+    /**
+     * Saves a change without rebuilding the page. A switch already shows its new state and a tick list moves its own
+     * tick, so only rows that depend on another are touched - rebuilding everything used to send TalkBack's focus
+     * back to the top of the page after every switch.
+     */
     private fun change(update: Settings) {
         settings = update
         settings.save(prefs)
-        // Read back rather than trusting the copy: saving can change more than the one switch (suggestions off
-        // turns autocorrect off with it), and the page should show what is actually stored.
+        // Read back rather than trusting the copy: saving can change more than the one switch.
         settings = Settings.load(prefs)
-        render(keepScroll = true)
+        refreshDependents()
+    }
+
+    /** Autocorrect follows suggestions: off and greyed while the strip is off, its own choice kept for when it's back. */
+    private var autocorrect: Switch? = null
+    private var autocorrectLabel: TextView? = null
+    private var autocorrectRow: View? = null
+
+    private fun refreshDependents() {
+        val switch = autocorrect ?: return
+        val enabled = settings.suggestions
+        switch.setOnCheckedChangeListener(null)   // showing the state is not the person changing it
+        switch.isChecked = Settings.correcting(settings)
+        switch.isEnabled = enabled
+        switch.setOnCheckedChangeListener { _, checked -> change(settings.copy(autocorrect = checked)) }
+        autocorrectLabel?.setTextColor(if (enabled) colors.text else colors.secondary)
+        autocorrectRow?.isEnabled = enabled
+        autocorrectRow?.isClickable = enabled
     }
 
     private fun render(keepScroll: Boolean = false) {
+        autocorrect = null
         val y = if (keepScroll) scroll?.scrollY ?: 0 else 0
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -463,46 +488,67 @@ class SettingsActivity : Activity() {
                 thumbTintList = ColorStateList.valueOf(Color.WHITE)
                 trackTintList = ColorStateList(
                     arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                    intArrayOf(colors.on, colors.divider),
+                    intArrayOf(colors.on, colors.off),
                 )
                 // The row says what it is; the switch is only the state, so TalkBack reads one thing, not two.
                 contentDescription = title
                 setOnCheckedChangeListener { _, checked -> change(update(checked)) }
             }
             addView(switch)
-            // The whole row is the target, not just the 40-pixel switch at its end.
-            if (enabled) {
-                setOnClickListener { switch.toggle() }
-                background = selectable()
-            }
+            // The whole row is the target, not just the 40-pixel switch at its end. It asks the switch itself, so a
+            // row that is greyed out at the moment does nothing, and one that comes back to life works again.
+            setOnClickListener { if (switch.isEnabled) switch.toggle() }
+            background = selectable()
             isEnabled = enabled
+            isClickable = enabled
+            if (title == getString(R.string.settings_autocorrect)) {
+                autocorrect = switch
+                autocorrectLabel = getChildAt(0) as? TextView
+                autocorrectRow = this
+            }
         }
     }
 
     /** One choice out of a few, as a list with a tick - clearer than a row of buttons that only dim when unchosen. */
     private fun <T> pick(card: LinearLayout, options: List<Pair<String, T>>, current: T, update: (T) -> Settings) {
+        val ticks = mutableListOf<Pair<T, Pair<View, TextView>>>()
+        var chosen = current
+        fun show() = ticks.forEach { (value, parts) ->
+            val (row, tick) = parts
+            tick.visibility = if (value == chosen) View.VISIBLE else View.INVISIBLE
+            row.isSelected = value == chosen
+        }
         for ((text, value) in options) {
             row(card, iconSpace = false).apply {
                 addView(label(text))
-                if (value == current) addView(TextView(context).apply {
+                val tick = TextView(context).apply {
                     this.text = "✓"
                     setTextColor(colors.link)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                })
+                }
+                addView(tick)
+                ticks += value to (this to tick)
                 isClickable = true
-                isSelected = value == current
                 background = selectable()
                 accessibilityDelegate = object : View.AccessibilityDelegate() {
                     override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
                         super.onInitializeAccessibilityNodeInfo(host, info)
                         info.isCheckable = true
-                        info.isChecked = value == current
+                        info.isChecked = value == chosen
                     }
                 }
-                setOnClickListener { if (value != current) change(update(value)) }
+                setOnClickListener {
+                    if (value == chosen) return@setOnClickListener
+                    chosen = value
+                    change(update(value))
+                    show()
+                    // The tick moved without the page being rebuilt; say so, as a tapped radio button does.
+                    sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_CLICKED)
+                }
             }
         }
+        show()
     }
 
     private fun value(card: LinearLayout, title: String, value: String) {

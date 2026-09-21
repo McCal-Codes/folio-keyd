@@ -103,6 +103,18 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun `a change leaves the page where it is, so TalkBack stays on the row`() {
+        val a = open()
+        a.tap("Keys and gestures")
+        val before = a.text("Swipe left on backspace for a whole word")
+        a.tap("Swipe left on backspace for a whole word")
+        a.tap(a.getString(R.string.settings_flick_up))
+        // The same views, not a rebuilt page: rebuilding sent TalkBack's focus back to the top after every switch.
+        assertTrue(before === a.text("Swipe left on backspace for a whole word"))
+        assertFalse(a.stored().deleteWordSwipe)
+    }
+
+    @Test
     fun `turning suggestions off shows autocorrect going off with it`() {
         val a = open()
         a.tap("Suggestions")
