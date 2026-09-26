@@ -73,11 +73,8 @@ in; what follows is ordered by what someone would notice first, not by what is m
 
 **Now — small, and closing gaps someone meets this week**
 
-1. **A voice key.** There is no microphone anywhere in the source, and every other keyboard has one, so its absence
-   reads as missing rather than principled. It hands typing to the phone's own voice keyboard, which is not Keyd and
-   does use the network — so the key has to say so plainly rather than quietly become the exception to the promise.
-2. **A pinned clip becomes a shortcut.** `Shortcuts` and pinned clips both exist and know nothing about each other.
-   One step, and the two features are better for it.
+1. ~~**A voice key.**~~ Done in 0.2.0: the mic hands you to the phone's voice keyboard and says plainly that it isn't Keyd and uses the network.
+2. ~~**A pinned clip becomes a shortcut.**~~ Done in 0.2.0: hold a pinned clip.
 3. ~~**Clear all should ask first.**~~ Done differently: Clear leaves pinned clips alone, as Gboard and SwiftKey do, and says "Clear unpinned" when there are any. A pin is someone saying they meant to keep it, so nothing needs asking.
 
 **Next — the reason to write this keyboard rather than use Gboard**
@@ -85,9 +82,7 @@ in; what follows is ordered by what someone would notice first, not by what is m
 4. **Per-app profiles.** Theme, layout, shelf, gestures and learning, decided per app from `EditorInfo.packageName`,
    which needs no accessibility service. Nothing else offers it, the keyboard already knows which app it is typing
    into, and it is the line in *Why another keyboard* that is still a promise.
-5. **Export and import what it learned.** `Learned` and `Shortcuts` live on one phone only, so a new phone starts
-   from nothing and nobody notices until it happens to them. A document picker needs no permission, so this can be
-   done without touching the promise.
+5. ~~**Export and import what it learned.**~~ Done in 0.2.0, through the file picker, with no permission.
 
 **Then — the quality that decides whether anyone keeps it**
 
@@ -103,8 +98,7 @@ in; what follows is ordered by what someone would notice first, not by what is m
 
 8. **Emoji search.** The panel has categories and recents, and the emoji carry no names or keywords at all — so this
    is a data job before it is a search box.
-9. **A cursor pad.** Arrows and select-word, finishing the editing the toolbar started with select all, copy and
-   paste.
+9. ~~**A cursor pad.**~~ Done in 0.2.0: arrows, word jumps, line start and end, select, cut and select all.
 10. **Multilingual typing.** Two dictionaries at once rather than one subtype at a time, which is what bilingual
     typing actually needs.
 11. **One-handed and floating.** Split solves the reach problem on a fold; a tall slab is the case this answers.

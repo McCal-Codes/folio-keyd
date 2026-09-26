@@ -4,6 +4,23 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.2.0] - Unreleased
+
+### Added
+- **Cursor pad:** a toolbar key that swaps the letters for arrows, word jumps, line start and end, select, cut and select all.
+- **Voice key:** a mic on the toolbar, and at the end of the suggestion strip while you type. It hands you to your phone's own voice keyboard, which is not Keyd and does use the Internet. It only shows when your phone has one.
+- **Key styles:** Folio, Material or Samsung, under Look and size.
+- **Pinned clip to shortcut:** hold a pinned clip to make it a text shortcut.
+- **Report a problem:** three questions and a preview of every line before anything is shared. After a crash, Settings offers to send one. Never what you type.
+- **Move to a new phone:** export your learned words and shortcuts to a file, and import them on the next phone. No permission needed.
+- **Diagnostic log:** off unless you turn it on, and off again by itself after 24 hours.
+
+### Fixed
+- The keyboard could get stuck taking the whole screen after you hid it, until the app was closed. Thanks to Roby for the report and the video.
+- Rotating or unfolding the phone dropped a chosen light or dark look, and high contrast, until the next text field.
+- The emoji and clipboard panels vibrated even with Vibration turned off.
+- A held key kept repeating if the keyboard was hidden while it was down.
+
 ## [0.1.1] - 2026-09-21
 
 ### Added
