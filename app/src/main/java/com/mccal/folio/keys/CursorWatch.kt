@@ -46,4 +46,63 @@ object CursorWatch {
     }
 
     private const val MARGIN_PX = 2f
+
+    /** How long a "hidden" reading has to stand before the screen is taken. */
+    const val SETTLE_MS = 250L
+
+    /** What the service should do next with a reading. */
+    enum class Next { NOTHING, CHECK_LATER }
+
+    /**
+     * Whether the screen is taken, decided over time rather than from one reading.
+     *
+     * One reading is not enough. When a multi-line field grows after return, or while the keyboard slides away, the
+     * editor briefly reports the cursor below where the keys were, and the app moves it a moment later. Taking the
+     * screen on that report left WhatsApp stuck behind a fullscreen keyboard until it was closed, because the old
+     * flag was only cleared when the field itself changed. So a hidden reading has to stand for [SETTLE_MS], only
+     * counts while the keyboard is on screen, and everything is forgotten each time the keyboard goes or comes back.
+     */
+    class Decision {
+        /** The screen is taken because the cursor was really behind the keys. */
+        var taken = false
+            private set
+
+        /** A hidden reading is waiting to be confirmed. */
+        var pending = false
+            private set
+
+        fun report(where: Where, windowShown: Boolean): Next {
+            if (!windowShown) {
+                pending = false
+                return Next.NOTHING
+            }
+            return when (where) {
+                Where.HIDDEN -> if (pending || taken) Next.NOTHING else {
+                    pending = true
+                    Next.CHECK_LATER
+                }
+                Where.VISIBLE -> {
+                    pending = false
+                    Next.NOTHING
+                }
+                Where.UNKNOWN -> Next.NOTHING
+            }
+        }
+
+        /** The re-check after [SETTLE_MS]. True if the screen should be taken now. */
+        fun confirm(windowShown: Boolean): Boolean {
+            val due = pending && windowShown
+            pending = false
+            if (due) taken = true
+            return due
+        }
+
+        /** The keyboard went, came back, or a new field opened. True if the screen had been taken. */
+        fun reset(): Boolean {
+            val was = taken
+            taken = false
+            pending = false
+            return was
+        }
+    }
 }

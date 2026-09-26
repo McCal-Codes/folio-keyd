@@ -33,13 +33,24 @@ class KeysService : InputMethodService(), Ime {
     private var root: View? = null
 
     /**
-     * Set once the editor has told us the cursor is behind the keys, and cleared when a new field is opened.
+     * Whether the editor has told us the cursor is behind the keys, confirmed over [CursorWatch.SETTLE_MS].
      *
-     * It latches on purpose. Going fullscreen moves everything, which changes where the cursor is, which would
-     * change the answer again - a keyboard flickering in and out of fullscreen while someone types is far worse
-     * than either state. Once taking the screen is the right answer for a field, it stays the answer.
+     * It latches while the keyboard stays up. Going fullscreen moves everything, which changes where the cursor is,
+     * which would change the answer again - a keyboard flickering in and out of fullscreen while someone types is far
+     * worse than either state. But it is forgotten whenever the keyboard goes away or a field opens: a latch that
+     * outlived the keyboard kept WhatsApp fullscreen on every tap until the app was closed.
      */
-    private var cursorHidden = false
+    private val cursor = CursorWatch.Decision()
+
+    /** Between onWindowShown and onWindowHidden. Cursor reports outside that are the keyboard coming or going. */
+    private var windowShown = false
+
+    private val settle = Runnable {
+        if (cursor.confirm(windowShown)) {
+            DevLog.event(this, "fullscreen", "taken" to 1)
+            updateFullscreenMode()
+        }
+    }
 
     private val prefs by lazy { getSharedPreferences("keys", Context.MODE_PRIVATE) }
 
@@ -156,6 +167,7 @@ class KeysService : InputMethodService(), Ime {
     }
 
     override fun onDestroy() {
+        main.removeCallbacks(settle)
         super.onDestroy()
         thinking.quitSafely()
     }
@@ -364,9 +376,9 @@ class KeysService : InputMethodService(), Ime {
         if (info != null && info.imeOptions and EditorInfo.IME_FLAG_NO_FULLSCREEN != 0) return false
         // The editor has told us the line being typed on is behind the keys, and no amount of resizing is going to
         // fix that, so the screen is taken and the text shown in a field of its own.
-        if (cursorHidden) return true
+        if (cursor.taken) return true
         val density = resources.displayMetrics.density
-        val shown = listOfNotNull(keyboard, emoji).firstOrNull { it.visibility == View.VISIBLE }
+        val shown = listOfNotNull(keyboard, emoji, clipboard).firstOrNull { it.visibility == View.VISIBLE }
         val keyboardDp = (shown?.height ?: 0) / density
         return roomAbove(resources.configuration.screenHeightDp.toFloat(), keyboardDp) < ROOM_FOR_THE_APP_DP
     }
@@ -385,6 +397,8 @@ class KeysService : InputMethodService(), Ime {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        // The same field tapped again after the keyboard was hidden arrives here without onFinishInput in between.
+        forgetCursor()
         DevLog.event(this, "field", "class" to ((info?.inputType ?: 0) and android.text.InputType.TYPE_MASK_CLASS),
             "restarting" to if (restarting) 1 else 0)
         // Re-read each time a field opens, so a change on the settings screen takes effect without a restart.
@@ -443,8 +457,25 @@ class KeysService : InputMethodService(), Ime {
     /** A new field is a fresh question: whatever was true of the last one says nothing about this one. */
     override fun onFinishInput() {
         super.onFinishInput()
-        if (cursorHidden) {
-            cursorHidden = false
+        forgetCursor()
+    }
+
+    override fun onWindowShown() {
+        super.onWindowShown()
+        windowShown = true
+    }
+
+    override fun onWindowHidden() {
+        super.onWindowHidden()
+        windowShown = false
+        forgetCursor()
+    }
+
+    /** Every time the keyboard comes or goes, whether the screen should be taken is asked again from nothing. */
+    private fun forgetCursor() {
+        main.removeCallbacks(settle)
+        if (cursor.reset()) {
+            DevLog.event(this, "fullscreen", "taken" to 0)
             updateFullscreenMode()
         }
     }
@@ -456,17 +487,17 @@ class KeysService : InputMethodService(), Ime {
      */
     override fun onUpdateCursorAnchorInfo(info: CursorAnchorInfo) {
         super.onUpdateCursorAnchorInfo(info)
-        if (cursorHidden || isFullscreenMode) return
+        if (cursor.taken || isFullscreenMode) return
         val view = root ?: return
-        if (view.width == 0) return
+        if (view.width == 0 || !view.isLaidOut || !view.isShown) return
         val marker = floatArrayOf(info.insertionMarkerHorizontal, info.insertionMarkerBottom)
         info.matrix.mapPoints(marker)
         val where = view.locationOnScreen().let { top ->
             CursorWatch.read(marker[1], top, info.insertionMarkerFlags)
         }
-        if (where == CursorWatch.Where.HIDDEN) {
-            cursorHidden = true
-            updateFullscreenMode()
+        when (cursor.report(where, windowShown)) {
+            CursorWatch.Next.CHECK_LATER -> main.postDelayed(settle, CursorWatch.SETTLE_MS)
+            CursorWatch.Next.NOTHING -> if (!cursor.pending) main.removeCallbacks(settle)
         }
     }
 
