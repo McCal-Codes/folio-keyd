@@ -469,6 +469,9 @@ class KeysService : InputMethodService(), Ime {
         super.onWindowHidden()
         windowShown = false
         forgetCursor()
+        // Hiding keeps the view attached, so onDetachedFromWindow never runs: a backspace held by one finger while
+        // another hides the keyboard would otherwise keep deleting out of sight, and a long-press popup would wait.
+        keyboard?.forgetTouches()
     }
 
     /** Every time the keyboard comes or goes, whether the screen should be taken is asked again from nothing. */
