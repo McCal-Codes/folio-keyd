@@ -65,6 +65,12 @@ interface Ime {
      * the keyboard's cue to look then, which is the one moment besides a field opening that it has reason to.
      */
     fun copied() {}
+
+    /** Hand typing to the phone's voice keyboard. Keyd comes back when it is done. */
+    fun startVoice() {}
+
+    /** Swap the letters for the cursor pad, or back. */
+    fun showCursorPad(showing: Boolean) {}
 }
 
 /**
@@ -380,6 +386,25 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     override fun onPaste() = menu(android.R.id.paste)
+
+    fun onCut() = menu(android.R.id.cut)
+
+    override fun onVoice() = ime.startVoice()
+
+    override fun onCursorPad() = ime.showCursorPad(true)
+
+    /**
+     * One step from the cursor pad, as the key a hardware keyboard would send: an arrow, Ctrl and an arrow for a
+     * word, Home or End for the line, with Shift held while selecting. Editors, terminals and web pages all
+     * understand those, which a setSelection call worked out from text we can't fully see would not.
+     */
+    fun onMove(code: Int, meta: Int) {
+        val connection = ime.connection ?: return
+        val time = android.os.SystemClock.uptimeMillis()
+        connection.sendKeyEvent(KeyEvent(time, time, KeyEvent.ACTION_DOWN, code, 0, meta))
+        connection.sendKeyEvent(KeyEvent(time, time, KeyEvent.ACTION_UP, code, 0, meta))
+        forget()
+    }
 
     private fun menu(action: Int) {
         ime.connection?.performContextMenuAction(action)

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What is written under each icon on the cursor pad. Short, because a key is only so wide. -->
+    <string name="cursor_pad_line_start">Line start</string>
+    <string name="cursor_pad_up">Up</string>
+    <string name="cursor_pad_line_end">Line end</string>
+    <string name="cursor_pad_left">Left</string>
+    <string name="cursor_pad_select">Select</string>
+    <string name="cursor_pad_right">Right</string>
+    <string name="cursor_pad_word">Word</string>
+    <string name="cursor_pad_down">Down</string>
+    <string name="cursor_pad_select_all">Select all</string>
+    <string name="cursor_pad_cut">Cut</string>
+
+    <!-- What a screen reader says for each key, which can be longer than what fits on it. -->
+    <string name="cursor_pad_line_start_spoken">Move to line start</string>
+    <string name="cursor_pad_up_spoken">Up</string>
+    <string name="cursor_pad_line_end_spoken">Move to line end</string>
+    <string name="cursor_pad_left_spoken">Left</string>
+    <string name="cursor_pad_select_spoken">Select as you move</string>
+    <string name="cursor_pad_right_spoken">Right</string>
+    <string name="cursor_pad_word_left_spoken">Previous word</string>
+    <string name="cursor_pad_down_spoken">Down</string>
+    <string name="cursor_pad_word_right_spoken">Next word</string>
+    <string name="cursor_pad_letters_spoken">Back to letters</string>
+    <string name="cursor_pad_select_all_spoken">Select all</string>
+    <string name="cursor_pad_cut_spoken">Cut</string>
+    <string name="cursor_pad_backspace_spoken">Backspace</string>
+
+    <!-- The state of the Select key, read after its name. -->
+    <string name="cursor_pad_on">On</string>
+    <string name="cursor_pad_off">Off</string>
+</resources>

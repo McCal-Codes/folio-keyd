@@ -138,17 +138,44 @@ object Icons {
      */
     fun clipboard(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint, fill: Paint) {
         val half = size / 2
-        val board = RectF(cx - half * 0.72f, cy - half, cx + half * 0.72f, cy + half)
-        canvas.drawRoundRect(board, size * 0.12f, size * 0.12f, stroke)
+        rect.set(cx - half * 0.72f, cy - half, cx + half * 0.72f, cy + half)
+        canvas.drawRoundRect(rect, size * 0.12f, size * 0.12f, stroke)
         // The clip at the top, filled so it reads as a clip rather than another line.
-        val clip = RectF(cx - half * 0.3f, cy - half - size * 0.08f, cx + half * 0.3f, cy - half + size * 0.14f)
-        canvas.drawRoundRect(clip, size * 0.06f, size * 0.06f, fill)
+        rect.set(cx - half * 0.3f, cy - half - size * 0.08f, cx + half * 0.3f, cy - half + size * 0.14f)
+        canvas.drawRoundRect(rect, size * 0.06f, size * 0.06f, fill)
         // Two lines of something written down.
         for (line in 0..1) {
             val y = cy - size * 0.06f + line * size * 0.26f
             canvas.drawLine(cx - half * 0.4f, y, cx + half * 0.4f, y, stroke)
         }
     }
+
+    /** A microphone: the capsule, the cradle under it, and the stand. */
+    fun mic(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        rect.set(cx - half * 0.32f, cy - half, cx + half * 0.32f, cy + half * 0.2f)
+        canvas.drawRoundRect(rect, half * 0.32f, half * 0.32f, stroke)
+        rect.set(cx - half * 0.62f, cy - half * 0.6f, cx + half * 0.62f, cy + half * 0.5f)
+        canvas.drawArc(rect, 0f, 180f, false, stroke)
+        canvas.drawLine(cx, cy + half * 0.5f, cx, cy + half, stroke)
+    }
+
+    /** Four arrows from the middle: the key that opens the cursor pad. */
+    fun move(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        val head = half * 0.3f
+        canvas.drawLine(cx - half, cy, cx + half, cy, stroke)
+        canvas.drawLine(cx, cy - half, cx, cy + half, stroke)
+        for ((dx, dy) in DIRECTIONS) {
+            val tipX = cx + dx * half
+            val tipY = cy + dy * half
+            // Each head is the tip plus two points stepped back along the arrow and out to either side.
+            canvas.drawLine(tipX, tipY, tipX - dx * head + dy * head, tipY - dy * head + dx * head, stroke)
+            canvas.drawLine(tipX, tipY, tipX - dx * head - dy * head, tipY - dy * head - dx * head, stroke)
+        }
+    }
+
+    private val DIRECTIONS = arrayOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f)
 
     /** A pushpin: the head, and the point it goes in by. Filled when the clip is pinned, outlined when it is not. */
     fun pin(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint, fill: Paint, pinned: Boolean) {

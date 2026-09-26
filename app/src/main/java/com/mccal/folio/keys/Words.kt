@@ -41,6 +41,8 @@ object Spoken {
         KeyKind.PASTE -> "Paste"
         KeyKind.CLIPBOARD -> "Clipboard history"
         KeyKind.EMOJI -> "Emoji"
+        KeyKind.VOICE -> "Voice typing, opens your phone's voice keyboard"
+        KeyKind.CURSOR_PAD -> "Cursor pad"
         KeyKind.SUGGESTION -> key.output
         KeyKind.ACTION, KeyKind.CHAR -> key.label
     }

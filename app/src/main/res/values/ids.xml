@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A custom accessibility action, which needs an id of its own. -->
+    <item name="action_make_shortcut" type="id" />
+</resources>
