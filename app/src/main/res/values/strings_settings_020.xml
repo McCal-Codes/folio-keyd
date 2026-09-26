@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings for Keyd 0.2.0: the toolbar keys, key styles, reporting a problem, and moving to a new phone. -->
+<resources>
+    <!-- Keys and gestures -->
+    <string name="header_toolbar">TOOLBAR</string>
+    <string name="settings_voice_key">Voice key</string>
+    <string name="settings_cursor_pad_key">Cursor pad key</string>
+    <string name="footer_toolbar">The mic hands you to your phone\'s own voice keyboard. That keyboard is not Keyd and does use the Internet. Keyd comes back when you\'re done. The cursor pad has arrows, word jumps, select, cut and select all.</string>
+
+    <!-- Look and size -->
+    <string name="header_key_style">KEY STYLE</string>
+    <string name="settings_key_style_folio">Folio</string>
+    <string name="settings_key_style_material">Material</string>
+    <string name="settings_key_style_samsung">Samsung</string>
+    <string name="footer_key_style">Folio has rounded keys. Material has rounder keys in Gboard\'s colors. Samsung has squarer keys and Samsung\'s blue.</string>
+
+    <!-- The card after a crash -->
+    <string name="crash_title">Keyd stopped unexpectedly</string>
+    <string name="crash_send">Send a report</string>
+    <string name="crash_not_now">Not now</string>
+    <string name="footer_crash">It happened the last time you typed. A report helps get it fixed.</string>
+
+    <!-- Report a problem -->
+    <string name="page_report">Report a problem</string>
+    <string name="page_preview">Preview</string>
+    <string name="report_intro">Tell us what happened. The more exact the steps, the faster it gets fixed.</string>
+    <string name="header_what_happened">WHAT HAPPENED</string>
+    <string name="report_app">Which app were you typing in?</string>
+    <string name="report_did">What did you do?</string>
+    <string name="report_saw">What happened?</string>
+    <string name="header_include">INCLUDE</string>
+    <string name="include_device">Phone and Keyd version</string>
+    <string name="include_settings">Keyd\'s settings</string>
+    <string name="include_settings_note">Switches only, no words</string>
+    <string name="include_errors">Recent errors</string>
+    <string name="include_errors_none">None recorded</string>
+    <string name="include_log">Diagnostic log</string>
+    <string name="include_log_empty">Nothing logged</string>
+    <plurals name="include_log_lines">
+        <item quantity="one">%1$d line</item>
+        <item quantity="other">%1$d lines</item>
+    </plurals>
+    <string name="footer_include">Never the letters you type. An error keeps its name and where it happened, not its message, because a message can quote its input.</string>
+    <string name="report_preview">Preview report</string>
+    <string name="footer_report_send">Send it on GitHub (McCal-Codes/folio-keyd) or in the Folio Discord. Nothing leaves this phone unless you send it.</string>
+    <string name="preview_note">This is every line that will be shared.</string>
+    <string name="preview_share">Share…</string>
+    <string name="footer_preview">Opens Android\'s share sheet. Pick the app to send it with, or copy it.</string>
+    <string name="report_subject_user">Keyd report</string>
+
+    <!-- Privacy -->
+    <string name="header_move">MOVE TO A NEW PHONE</string>
+    <string name="row_export">Export words and shortcuts…</string>
+    <string name="row_import">Import from a file…</string>
+    <string name="footer_move">One file, saved wherever you choose with Android\'s file picker. No permission needed and nothing is uploaded. Importing adds to what\'s here and never replaces it.</string>
+    <string name="header_diagnostics">DIAGNOSTICS</string>
+    <string name="settings_diagnostic_log">Keep a diagnostic log</string>
+    <string name="footer_diagnostics">Records what the keyboard does, like fields opened and how long suggestions took. Never what you type. Turns itself off after 24 hours, and goes into a report only if you include it.</string>
+    <string name="import_added">Added %1$s and %2$s</string>
+    <plurals name="import_words">
+        <item quantity="one">%1$d word</item>
+        <item quantity="other">%1$d words</item>
+    </plurals>
+    <plurals name="import_shortcuts">
+        <item quantity="one">%1$d shortcut</item>
+        <item quantity="other">%1$d shortcuts</item>
+    </plurals>
+    <string name="import_not_backup">That file isn\'t a Keyd backup, so nothing was added.</string>
+    <string name="import_newer">That backup is from a newer Keyd. Update Keyd, then import it again.</string>
+    <string name="import_failed">Couldn\'t read that file, so nothing was added.</string>
+    <string name="export_done">Saved your words and shortcuts.</string>
+    <string name="export_failed">Couldn\'t save the file. Nothing was changed.</string>
+
+    <!-- Text shortcuts, opened from a pinned clip -->
+    <string name="shortcuts_from_clip">From a pinned clip. Pick a few letters to type instead.</string>
+</resources>

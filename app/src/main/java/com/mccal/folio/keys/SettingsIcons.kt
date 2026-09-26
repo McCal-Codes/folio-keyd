@@ -20,7 +20,7 @@ import android.view.View
 @android.annotation.SuppressLint("ViewConstructor")
 internal class SettingsIcon(context: Context, private val glyph: Glyph, private val tile: Int) : View(context) {
 
-    enum class Glyph { LANGUAGES, SHORTCUTS, TYPING, KEYS, LOOK, SOUND, CLIPBOARD, PRIVACY }
+    enum class Glyph { LANGUAGES, SHORTCUTS, TYPING, KEYS, LOOK, SOUND, CLIPBOARD, PRIVACY, WARNING }
 
     private val density = context.resources.displayMetrics.density
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.FILL }
@@ -82,6 +82,17 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
                 path.close()
                 canvas.drawPath(path, fill)
                 canvas.drawArc(cx - g * .1f, cy - g * .3f, cx + g * .4f, cy + g * .3f, -50f, 100f, false, stroke)
+            }
+            Glyph.WARNING -> {
+                // A triangle with an exclamation mark, the sign every platform uses for "something went wrong".
+                path.reset()
+                path.moveTo(cx, cy - g * .45f)
+                path.lineTo(cx + g * .48f, cy + g * .38f)
+                path.lineTo(cx - g * .48f, cy + g * .38f)
+                path.close()
+                canvas.drawPath(path, stroke)
+                canvas.drawLine(cx, cy - g * .12f, cx, cy + g * .1f, stroke)
+                canvas.drawCircle(cx, cy + g * .24f, stroke.strokeWidth * .7f, fill)
             }
             Glyph.PRIVACY -> {
                 // A padlock.
