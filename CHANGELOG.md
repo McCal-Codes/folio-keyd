@@ -4,7 +4,7 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-09-26
 
 ### Added
 - **Cursor pad:** a toolbar key that swaps the letters for arrows, word jumps, line start and end, select, cut and select all.
