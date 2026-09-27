@@ -93,12 +93,11 @@ class ShortcutsActivity : Activity() {
         }
         column.addView(list)
 
-        setContentView(
-            ScrollView(this).apply {
-                setBackgroundColor(Color.BLACK)
-                addView(column)
-            },
-        )
+        scroll = ScrollView(this).apply {
+            setBackgroundColor(Color.BLACK)
+            addView(column)
+        }
+        setContentView(scroll)
         redraw()
         prefill(intent)
     }
@@ -119,6 +118,10 @@ class ShortcutsActivity : Activity() {
         trigger.setText("")
         trigger.requestFocus()
         fromClip.visibility = TextView.VISIBLE
+        openedFromClip = true
+        // Focusing the box scrolls it to the top, which pushed the note saying where the phrase came from out of
+        // sight on a cover screen. The page is short, so starting at the top keeps both in view.
+        scroll.post { scroll.scrollTo(0, 0) }
         // Once used, the extra is spent: turning the phone shouldn't put a clip back that was already dealt with.
         intent.removeExtra(EXTRA_EXPANSION)
     }
@@ -136,7 +139,13 @@ class ShortcutsActivity : Activity() {
         fromClip.visibility = TextView.GONE
         save()
         redraw()
+        // From a clip, making the shortcut was the whole errand: go back to whatever was being typed in.
+        if (openedFromClip) finish()
     }
+
+    /** True when the keyboard opened this page for one clip, rather than someone browsing their shortcuts. */
+    private var openedFromClip = false
+    private lateinit var scroll: ScrollView
 
     private fun save() = prefs.edit().putString(SHORTCUTS, shortcuts.encode()).apply()
 

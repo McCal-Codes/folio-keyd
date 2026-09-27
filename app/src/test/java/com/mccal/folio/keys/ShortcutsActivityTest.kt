@@ -54,4 +54,27 @@ class ShortcutsActivityTest {
         assertEquals(View.GONE, note.visibility)
         assertTrue(a.all().filterIsInstance<EditText>().all { it.text.isEmpty() })
     }
+
+    /** From a clip, making the shortcut is the whole errand, so Add goes back to what was being typed in. */
+    @Test
+    fun `adding a shortcut from a clip closes the page`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val a = open(Intent(context, ShortcutsActivity::class.java).putExtra(ShortcutsActivity.EXTRA_EXPANSION, "OK's"))
+        val (trigger, _) = a.all().filterIsInstance<EditText>()
+        trigger.setText("oks")
+        a.all().filterIsInstance<android.widget.Button>().single().performClick()
+        assertTrue(a.isFinishing)
+        val saved = Shortcuts.decode(a.getSharedPreferences("keys", Context.MODE_PRIVATE).getString("shortcuts", null))
+        assertEquals(1, saved.size)
+    }
+
+    @Test
+    fun `adding one the ordinary way keeps the page open`() {
+        val a = open(Intent(ApplicationProvider.getApplicationContext(), ShortcutsActivity::class.java))
+        val (trigger, phrase) = a.all().filterIsInstance<EditText>()
+        trigger.setText("brb")
+        phrase.setText("be right back")
+        a.all().filterIsInstance<android.widget.Button>().single().performClick()
+        assertTrue(!a.isFinishing)
+    }
 }
