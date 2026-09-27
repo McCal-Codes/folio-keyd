@@ -296,7 +296,15 @@ class KeysService : InputMethodService(), Ime {
                         startActivity(
                             android.content.Intent(this@KeysService, ShortcutsActivity::class.java)
                                 .putExtra(ShortcutsActivity.EXTRA_EXPANSION, text)
-                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                // A task of its own, kept out of Recents: otherwise it opens on top of Keyd's
+                                // settings, and Back after making the shortcut lands there instead of in the app
+                                // that was being typed in.
+                                .addFlags(
+                                    android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                                        android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT or
+                                        android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK or
+                                        android.content.Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS,
+                                ),
                         )
                     }
                     requestHideSelf(0)
