@@ -20,6 +20,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.2.0",
+          "notes": {
+            "en": "Everything in Keyd 0.2.0. Report a problem and the diagnostic log are now in Keyd too; here the log doesn't switch itself off after a day."
+          }
+        },
+        {
           "version": "0.1.1",
           "notes": {
             "en": "The first Keyd Dev: a Developer page with detailed logging, recent errors and a report to share."

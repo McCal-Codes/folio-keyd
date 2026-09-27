@@ -63,6 +63,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.2.0",
+          "notes": {
+            "en": "Fixes the keyboard staying fullscreen after you hid it (thanks, Roby). Adds a cursor pad, a voice key that hands you to your phone's voice keyboard, Folio, Material and Samsung key styles, pinned clips as text shortcuts, Report a problem with a preview of every line, and export and import of what it learned."
+          }
+        },
+        {
           "version": "0.1.1",
           "notes": {
             "en": "The top of Settings says whether Keyd is on and chosen, with the button that fixes the missing step. About shows the version, what's new and where to report a problem. The gear in Android's keyboard list opens Settings."
