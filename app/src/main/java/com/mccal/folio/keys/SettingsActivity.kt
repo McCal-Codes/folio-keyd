@@ -13,16 +13,21 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings as AndroidSettings
+import android.text.Editable
+import android.text.InputType
 import android.text.TextUtils
+import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 
@@ -49,6 +54,8 @@ class SettingsActivity : Activity() {
         PRIVACY(R.string.page_privacy, MAIN),
         DEVELOPER(R.string.page_developer, MAIN),
         WHATS_NEW(R.string.row_whats_new, MAIN),
+        REPORT(R.string.page_report, MAIN),
+        PREVIEW(R.string.page_preview, REPORT),
     }
 
     private lateinit var settings: Settings
@@ -75,6 +82,11 @@ class SettingsActivity : Activity() {
 
     private lateinit var colors: Palette
 
+    // What the report form holds. Kept here rather than in the fields, because every page switch rebuilds the
+    // fields, and saved with the page so turning the phone doesn't lose what someone wrote.
+    private var answers = DevLog.Answers()
+    private var include = DevLog.Include()
+
     // Android 16 no longer calls onBackPressed for an app that targets it; the system's back gesture goes through
     // this callback instead, and only while there is a page to step back to.
     private val back: Any? by lazy {
@@ -88,6 +100,14 @@ class SettingsActivity : Activity() {
         page = savedInstanceState?.getString(PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() }
             // Like Folio: the first time Settings opens after an update, it opens on what's new.
             ?: if (WhatsNew.shouldShow(this, versionName())) Page.WHATS_NEW else Page.MAIN
+        savedInstanceState?.let { state ->
+            answers = DevLog.Answers(
+                state.getString(ANSWER_APP).orEmpty(), state.getString(ANSWER_DID).orEmpty(), state.getString(ANSWER_SAW).orEmpty(),
+            )
+            state.getBooleanArray(INCLUDE)?.takeIf { it.size == 4 }?.let { flags ->
+                include = DevLog.Include(flags[0], flags[1], flags[2], flags[3])
+            }
+        }
         colors = Palette(
             (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
         )
@@ -105,6 +125,10 @@ class SettingsActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(PAGE, page.name)
+        outState.putString(ANSWER_APP, answers.app)
+        outState.putString(ANSWER_DID, answers.did)
+        outState.putString(ANSWER_SAW, answers.saw)
+        outState.putBooleanArray(INCLUDE, booleanArrayOf(include.device, include.settings, include.errors, include.log))
     }
 
     // Keyd supports Android 12, which has no OnBackInvokedDispatcher: there, this is still how Back arrives. From
@@ -189,6 +213,8 @@ class SettingsActivity : Activity() {
             Page.PRIVACY -> privacy(column)
             Page.DEVELOPER -> developer(column)
             Page.WHATS_NEW -> whatsNew(column)
+            Page.REPORT -> report(column)
+            Page.PREVIEW -> preview(column)
         }
         scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -210,6 +236,7 @@ class SettingsActivity : Activity() {
 
     private fun main(column: LinearLayout) {
         status(column)
+        if (DevLog.crashedSinceLooked(this)) crashCard(column)
         group(column) {
             nav(it, SettingsIcon.Glyph.LANGUAGES, "#0071E3", getString(R.string.row_languages), languages()) {
                 openLanguages()
@@ -260,11 +287,127 @@ class SettingsActivity : Activity() {
         group(column) {
             value(it, getString(R.string.row_version), versionName())
             link(it, getString(R.string.row_whats_new)) { show(Page.WHATS_NEW) }
-            link(it, getString(R.string.row_report)) {
-                runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(ISSUES_URL))) }
-            }
+            link(it, getString(R.string.row_report)) { show(Page.REPORT) }
         }
         footer(column, getString(R.string.footer_about))
+    }
+
+    /**
+     * Shown after Keyd has crashed, until the person either sends a report or says not now. The crash is already
+     * written down; this only asks, once, whether they want to pass it on.
+     */
+    private fun crashCard(column: LinearLayout) {
+        group(column) { card ->
+            row(card, iconSpace = true).apply {
+                addView(SettingsIcon(context, SettingsIcon.Glyph.WARNING, Color.parseColor("#D70015")),
+                    LinearLayout.LayoutParams(dp(29f), dp(29f)).apply { marginEnd = dp(13f) })
+                addView(label(getString(R.string.crash_title)))
+                isFocusable = true
+            }
+            link(card, getString(R.string.crash_send)) { show(Page.REPORT) }
+            link(card, getString(R.string.crash_not_now)) {
+                DevLog.markLooked(this)
+                render(keepScroll = true)
+            }
+        }
+        footer(column, getString(R.string.footer_crash))
+    }
+
+    /**
+     * The report form: three questions in the person's own words, and which of Keyd's own records to add. Nothing
+     * here is sent; the next page shows the whole report, and only its Share button hands it to anyone.
+     */
+    private fun report(column: LinearLayout) {
+        footer(column, getString(R.string.report_intro))
+        header(column, getString(R.string.header_what_happened))
+        group(column) { card ->
+            question(card, getString(R.string.report_app), answers.app, multiLine = false) { answers = answers.copy(app = it) }
+            question(card, getString(R.string.report_did), answers.did, multiLine = true) { answers = answers.copy(did = it) }
+            question(card, getString(R.string.report_saw), answers.saw, multiLine = true) { answers = answers.copy(saw = it) }
+        }
+        header(column, getString(R.string.header_include))
+        val errors = DevLog.errors(this).size
+        val lines = DevLog.lines(this).size
+        // A log with nothing in it would add a section that says so; the switch is off and greyed instead.
+        if (lines == 0 && include.log) include = include.copy(log = false)
+        group(column) { card ->
+            switchRow(card, getString(R.string.include_device), include.device) { include = include.copy(device = it) }
+            switchRow(card, getString(R.string.include_settings), include.settings,
+                subtitle = getString(R.string.include_settings_note)) { include = include.copy(settings = it) }
+            switchRow(card, getString(R.string.include_errors), include.errors,
+                subtitle = if (errors == 0) getString(R.string.include_errors_none)
+                else resources.getQuantityString(R.plurals.value_errors, errors, errors),
+            ) { include = include.copy(errors = it) }
+            switchRow(card, getString(R.string.include_log), include.log,
+                subtitle = if (lines == 0) getString(R.string.include_log_empty)
+                else resources.getQuantityString(R.plurals.include_log_lines, lines, lines),
+                enabled = lines > 0,
+            ) { include = include.copy(log = it) }
+        }
+        footer(column, getString(R.string.footer_include))
+        primary(column, getString(R.string.report_preview)) { show(Page.PREVIEW) }
+        footer(column, getString(R.string.footer_report_send))
+    }
+
+    /** Every line that would be shared, exactly as it will go, and the one button that shares it. */
+    private fun preview(column: LinearLayout) {
+        val text = DevLog.report(this, buildLine(), answers, include)
+        footer(column, getString(R.string.preview_note))
+        group(column) { card ->
+            card.addView(TextView(this).apply {
+                this.text = text
+                setTextColor(colors.text)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                typeface = Typeface.MONOSPACE
+                setTextIsSelectable(true)
+                setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
+            })
+        }
+        primary(column, getString(R.string.preview_share)) {
+            runCatching {
+                startActivity(Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.report_subject_user))
+                        .putExtra(Intent.EXTRA_TEXT, text),
+                    getString(R.string.preview_share),
+                ))
+                // Whether it was actually sent is the other app's business; opening the sheet means it was seen.
+                DevLog.markLooked(this)
+            }
+        }
+        footer(column, getString(R.string.footer_preview))
+    }
+
+    /** One question on the report form: its label above, a field the label names for TalkBack, 48dp at least. */
+    private fun question(card: LinearLayout, title: String, current: String, multiLine: Boolean, changed: (String) -> Unit) {
+        row(card, iconSpace = false).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.NO_GRAVITY
+            val field = EditText(context).apply {
+                id = View.generateViewId()
+                setText(current)
+                setTextColor(colors.text)
+                setHintTextColor(colors.secondary)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+                minHeight = dp(48f)
+                background = null
+                setPadding(0, dp(4f), 0, dp(4f))
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                    (if (multiLine) InputType.TYPE_TEXT_FLAG_MULTI_LINE else 0)
+                addTextChangedListener(object : TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                    override fun afterTextChanged(s: Editable?) = changed(s?.toString().orEmpty())
+                })
+            }
+            addView(TextView(context).apply {
+                text = title
+                setTextColor(colors.secondary)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                labelFor = field.id
+            })
+            addView(field, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
     }
 
     /**
@@ -441,19 +584,7 @@ class SettingsActivity : Activity() {
                 }
             }
         }
-        column.addView(TextView(this).apply {
-            text = getString(R.string.action_continue)
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            minHeight = dp(52f)
-            val fill = colors.link
-            background = GradientDrawable().apply { setColor(fill); cornerRadius = dp(14f).toFloat() }
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                .apply { topMargin = dp(20f) }
-            setOnClickListener { show(Page.MAIN) }
-        })
+        primary(column, getString(R.string.action_continue)) { show(Page.MAIN) }
     }
 
     /** A row that opens and closes what's under it, with the count or date on the right, like iOS disclosure rows. */
@@ -546,6 +677,12 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_preview), settings.keyPreview) { on -> settings.copy(keyPreview = on) }
         }
         footer(column, "${getString(R.string.settings_number_row_note)} ${getString(R.string.settings_accents_note)}")
+        header(column, getString(R.string.header_toolbar))
+        group(column) {
+            toggle(it, getString(R.string.settings_voice_key), settings.voiceKey) { on -> settings.copy(voiceKey = on) }
+            toggle(it, getString(R.string.settings_cursor_pad_key), settings.cursorPadKey) { on -> settings.copy(cursorPadKey = on) }
+        }
+        footer(column, getString(R.string.footer_toolbar))
         header(column, getString(R.string.header_flicks))
         group(column) {
             toggle(it, getString(R.string.settings_flick_down), settings.flickForAlternate) { on -> settings.copy(flickForAlternate = on) }
@@ -562,6 +699,15 @@ class SettingsActivity : Activity() {
     }
 
     private fun look(column: LinearLayout) {
+        header(column, getString(R.string.header_key_style))
+        group(column) {
+            pick(it, listOf(
+                getString(R.string.settings_key_style_folio) to KeyStyle.FOLIO,
+                getString(R.string.settings_key_style_material) to KeyStyle.MATERIAL,
+                getString(R.string.settings_key_style_samsung) to KeyStyle.SAMSUNG,
+            ), settings.keyStyle) { value -> settings.copy(keyStyle = value) }
+        }
+        footer(column, getString(R.string.footer_key_style))
         header(column, getString(R.string.settings_appearance).uppercase())
         group(column) {
             pick(it, listOf(
@@ -625,8 +771,102 @@ class SettingsActivity : Activity() {
             value(it, getString(R.string.row_learned), words.toString())
             action(it, getString(R.string.row_forget), enabled = words > 0) { confirmForget(words) }
         }
+        header(column, getString(R.string.header_move))
+        group(column) {
+            link(it, getString(R.string.row_export)) { startExport() }
+            link(it, getString(R.string.row_import)) { startImport() }
+        }
+        footer(column, getString(R.string.footer_move))
+        header(column, getString(R.string.header_diagnostics))
+        group(column) {
+            switchRow(it, getString(R.string.settings_diagnostic_log), DevLog.loggingOn(this)) { on -> DevLog.setLogging(this, on) }
+        }
+        footer(column, getString(R.string.footer_diagnostics))
         group(column) { action(it, getString(R.string.settings_reset), enabled = true) { confirmReset() } }
     }
+
+    // ---- Moving to a new phone -----------------------------------------------------------------------------------
+
+    // Android's own file picker, both ways: the person chooses where the file goes and which one comes back, so Keyd
+    // needs no storage permission and never sees any other file.
+    private fun startExport() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/json")
+            .putExtra(Intent.EXTRA_TITLE, Backup.fileName(java.time.LocalDate.now()))
+        runCatching { startActivityForResult(intent, REQUEST_EXPORT) }
+    }
+
+    private fun startImport() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/json")
+            // Some file managers call a .json file plain text or just bytes; all three are offered.
+            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "application/octet-stream"))
+        runCatching { startActivityForResult(intent, REQUEST_IMPORT) }
+    }
+
+    @Deprecated("Activity's own result callback; Keyd takes no AndroidX activity library for the newer one.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION") super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) return
+        when (requestCode) {
+            REQUEST_EXPORT -> exportTo(uri)
+            REQUEST_IMPORT -> importFrom(uri)
+        }
+    }
+
+    private fun exportTo(uri: android.net.Uri) {
+        val text = Backup.export(
+            Learned.decode(prefs.getString(LEARNED, null)), Shortcuts.decode(prefs.getString(SHORTCUTS, null)),
+        )
+        val saved = runCatching {
+            contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+        }.isSuccess
+        toast(getString(if (saved) R.string.export_done else R.string.export_failed))
+    }
+
+    internal fun importFrom(uri: android.net.Uri) {
+        val text = runCatching {
+            contentResolver.openInputStream(uri)!!.use { stream ->
+                // Far more than 1200 words and 200 shortcuts need; anything bigger isn't one of these files.
+                val out = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val read = stream.read(buffer)
+                    if (read < 0) break
+                    out.write(buffer, 0, read)
+                    check(out.size() <= MAX_BACKUP_BYTES)
+                }
+                out.toString(Charsets.UTF_8.name())
+            }
+        }.getOrNull() ?: return toast(getString(R.string.import_failed))
+        val result = Backup.merge(
+            text, Learned.decode(prefs.getString(LEARNED, null)), Shortcuts.decode(prefs.getString(SHORTCUTS, null)),
+        )
+        when (result) {
+            is Backup.Result.Rejected -> toast(getString(when (result.reason) {
+                Backup.Reason.NOT_A_BACKUP -> R.string.import_not_backup
+                Backup.Reason.NEWER -> R.string.import_newer
+            }))
+            is Backup.Result.Added -> {
+                // The keyboard reads both again when the next field opens, so there is nothing to tell it.
+                prefs.edit()
+                    .putString(LEARNED, result.learned.encode())
+                    .putString(SHORTCUTS, result.shortcuts.encode())
+                    .apply()
+                toast(getString(
+                    R.string.import_added,
+                    resources.getQuantityString(R.plurals.import_words, result.words, result.words),
+                    resources.getQuantityString(R.plurals.import_shortcuts, result.shortcutsAdded, result.shortcutsAdded),
+                ))
+                render(keepScroll = true)
+            }
+        }
+    }
+
+    private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
 
     // ---- Languages -----------------------------------------------------------------------------------------------
 
@@ -692,6 +932,29 @@ class SettingsActivity : Activity() {
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
         setLineSpacing(0f, 1.15f)
         setPadding(dp(16f), dp(6f), dp(16f), dp(4f))
+    })
+
+    /** The one filled button a page may have, for the step that moves it on. */
+    private fun primary(column: LinearLayout, text: String, run: () -> Unit) = column.addView(TextView(this).apply {
+        this.text = text
+        setTextColor(Color.WHITE)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        minHeight = dp(52f)
+        val fill = colors.link
+        background = GradientDrawable().apply { setColor(fill); cornerRadius = dp(14f).toFloat() }
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            .apply { topMargin = dp(20f) }
+        isClickable = true
+        isFocusable = true
+        accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = android.widget.Button::class.java.name
+            }
+        }
+        setOnClickListener { run() }
     })
 
     /** One rounded card of rows, with hairlines between them that stop short of the leading edge, as iOS draws them. */
@@ -797,23 +1060,41 @@ class SettingsActivity : Activity() {
         }
     }
 
-    /** A switch for something outside [Settings], like logging: same look, its own storage. */
-    private fun switchRow(card: LinearLayout, title: String, on: Boolean, changed: (Boolean) -> Unit) {
+    /**
+     * A switch for something outside [Settings], like logging: same look, its own storage. A [subtitle] sits under the
+     * title in grey, for what the switch covers; a row that can't be used right now is greyed like autocorrect's.
+     */
+    private fun switchRow(
+        card: LinearLayout, title: String, on: Boolean, subtitle: String? = null, enabled: Boolean = true,
+        changed: (Boolean) -> Unit,
+    ) {
         row(card, iconSpace = false).apply {
-            addView(label(title))
+            val name = label(title, if (enabled) colors.text else colors.secondary)
+            if (subtitle == null) addView(name) else addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(name.apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT) })
+                addView(TextView(context).apply {
+                    text = subtitle
+                    setTextColor(colors.secondary)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                })
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             val switch = Switch(context).apply {
                 isChecked = on
+                isEnabled = enabled
                 thumbTintList = ColorStateList.valueOf(Color.WHITE)
                 trackTintList = ColorStateList(
                     arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
                     intArrayOf(colors.on, colors.off),
                 )
-                contentDescription = title
+                contentDescription = listOfNotNull(title, subtitle).joinToString(", ")
                 setOnCheckedChangeListener { _, checked -> changed(checked) }
             }
             addView(switch)
-            setOnClickListener { switch.toggle() }
+            setOnClickListener { if (switch.isEnabled) switch.toggle() }
             background = selectable()
+            isEnabled = enabled
+            isClickable = enabled
         }
     }
 
@@ -899,6 +1180,12 @@ class SettingsActivity : Activity() {
         const val LEARNED = "learnedWords"
         const val SHORTCUTS = "shortcuts"
         const val PAGE = "page"
-        const val ISSUES_URL = "https://github.com/McCal-Codes/folio-keyd/issues"
+        const val ANSWER_APP = "answerApp"
+        const val ANSWER_DID = "answerDid"
+        const val ANSWER_SAW = "answerSaw"
+        const val INCLUDE = "include"
+        const val REQUEST_EXPORT = 20
+        const val REQUEST_IMPORT = 21
+        const val MAX_BACKUP_BYTES = 1 shl 20
     }
 }

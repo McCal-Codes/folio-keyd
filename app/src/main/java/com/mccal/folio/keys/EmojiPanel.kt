@@ -68,6 +68,16 @@ class EmojiPanel(context: Context) : View(context) {
             field = value
             invalidate()
         }
+
+    /** Keyd's own Vibration switch. Off means off here too, not only on the letters. */
+    var vibrate: Boolean = true
+
+    /** The key style the letters use, so switching to this panel doesn't change the keyboard's look. */
+    var keyStyle: KeyStyle = KeyStyle.FOLIO
+        set(value) {
+            field = value
+            invalidate()
+        }
     private var bottomInset = BottomRoom.GESTURE_BAND_DP * dp
     private var sideInset = 0f
 
@@ -167,7 +177,7 @@ class EmojiPanel(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance, highContrast)
+        theme = Theme.of(context, appearance, highContrast, keyStyle)
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
@@ -336,7 +346,7 @@ class EmojiPanel(context: Context) : View(context) {
             val slots = tabSlots()
             val index = slots.indexOfFirst { x >= it.first && x < it.second }
             if (index < 0) return
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             when (index) {
                 0 -> listener?.onLetters()
                 slots.lastIndex -> listener?.onBackspace()
@@ -352,7 +362,7 @@ class EmojiPanel(context: Context) : View(context) {
         val index = indexAt(x, y)
         val list = items()
         if (index in list.indices) {
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             listener?.onEmoji(list[index])
         }
     }

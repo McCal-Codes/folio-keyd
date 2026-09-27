@@ -59,4 +59,70 @@ class CursorWatchTest {
         assertEquals(CursorWatch.Where.UNKNOWN, CursorWatch.read(Float.NaN, 1000, 0))
         assertEquals(CursorWatch.Where.UNKNOWN, CursorWatch.read(Float.NaN, 1000, visible))
     }
+
+    // ---- Decision: the screen is taken over time, not from one reading ----------------------------------------------
+
+    private val hidden = CursorWatch.Where.HIDDEN
+    private val shown = CursorWatch.Where.VISIBLE
+
+    @Test
+    fun `one hidden reading only asks for a second look`() {
+        val decision = CursorWatch.Decision()
+        assertEquals(CursorWatch.Next.CHECK_LATER, decision.report(hidden, windowShown = true))
+        assertEquals(false, decision.taken)
+    }
+
+    @Test
+    fun `a hidden reading that stands takes the screen`() {
+        val decision = CursorWatch.Decision()
+        decision.report(hidden, windowShown = true)
+        assertEquals(true, decision.confirm(windowShown = true))
+        assertEquals(true, decision.taken)
+    }
+
+    /** A growing multi-line field: hidden for a moment, then the app moves it back into view. */
+    @Test
+    fun `a hidden reading the app corrects does not take the screen`() {
+        val decision = CursorWatch.Decision()
+        decision.report(hidden, windowShown = true)
+        decision.report(shown, windowShown = true)
+        assertEquals(false, decision.confirm(windowShown = true))
+        assertEquals(false, decision.taken)
+    }
+
+    /** The keyboard sliding away puts every cursor "below" it. That is not a reason to take anything. */
+    @Test
+    fun `readings while the keyboard is not on screen are ignored`() {
+        val decision = CursorWatch.Decision()
+        assertEquals(CursorWatch.Next.NOTHING, decision.report(hidden, windowShown = false))
+        assertEquals(false, decision.confirm(windowShown = false))
+    }
+
+    @Test
+    fun `a second look after the keyboard has gone does not take the screen`() {
+        val decision = CursorWatch.Decision()
+        decision.report(hidden, windowShown = true)
+        assertEquals(false, decision.confirm(windowShown = false))
+    }
+
+    /**
+     * Roby's WhatsApp report, 25 Sep 2026: the screen was taken, the keyboard was hidden with the toolbar's chevron,
+     * and every tap on the same field brought back the fullscreen keyboard until WhatsApp was closed.
+     */
+    @Test
+    fun `hiding the keyboard gives the screen back`() {
+        val decision = CursorWatch.Decision()
+        decision.report(hidden, windowShown = true)
+        decision.confirm(windowShown = true)
+        assertEquals(true, decision.reset())
+        assertEquals(false, decision.taken)
+        assertEquals(false, decision.reset())
+    }
+
+    @Test
+    fun `silence changes nothing`() {
+        val decision = CursorWatch.Decision()
+        assertEquals(CursorWatch.Next.NOTHING, decision.report(CursorWatch.Where.UNKNOWN, windowShown = true))
+        assertEquals(false, decision.confirm(windowShown = true))
+    }
 }

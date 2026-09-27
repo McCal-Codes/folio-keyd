@@ -61,6 +61,8 @@ class KeyboardViewTest {
             override fun onHide() { toolbar += "hide" }
             override fun onEmojiPanel() { toolbar += "emoji" }
             override fun onSuggestion(word: String) { toolbar += "suggestion:$word" }
+            override fun onVoice() { toolbar += "voice" }
+            override fun onCursorPad() { toolbar += "cursorPad" }
         }
         show(FieldRules())
     }
@@ -218,7 +220,55 @@ class KeyboardViewTest {
 
     @Test
     fun `with nothing to suggest the toolbar is what shows`() {
+        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+    }
+
+    /** With the cursor pad key switched off, Select all comes back rather than going missing. */
+    @Test
+    fun `without the cursor pad key the toolbar has select all`() {
+        view.settings = Settings(cursorPadKey = false)
+        view.layout(0, 0, view.width, view.height)
         assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
+    }
+
+    @Test
+    fun `the mic is on the toolbar when the phone has a voice keyboard`() {
+        view.voiceAvailable = true
+        assertEquals("Voice", stripLabels().last())
+    }
+
+    @Test
+    fun `no voice keyboard on the phone means no mic`() {
+        view.voiceAvailable = false
+        assertTrue("Voice" !in stripLabels())
+    }
+
+    @Test
+    fun `the mic can be switched off`() {
+        view.settings = Settings(voiceKey = false)
+        view.voiceAvailable = true
+        view.layout(0, 0, view.width, view.height)
+        assertTrue("Voice" !in stripLabels())
+    }
+
+    /** Voice is most wanted once typing has started, so the mic stays at the end of the suggestion strip. */
+    @Test
+    fun `the mic keeps the last slot while suggestions show`() {
+        view.voiceAvailable = true
+        view.suggestions = listOf("teh", "the", "ten")
+        assertEquals(listOf("teh", "the", "ten", "Voice"), stripLabels())
+        val mic = view.toolbarPlacements.last().box
+        send(MotionEvent.ACTION_DOWN, (mic.left + mic.right) / 2, (mic.top + mic.bottom) / 2)
+        send(MotionEvent.ACTION_UP, (mic.left + mic.right) / 2, (mic.top + mic.bottom) / 2)
+        assertEquals(listOf("voice"), toolbar)
+    }
+
+    @Test
+    fun `there is no mic in a password field`() {
+        view.voiceAvailable = true
+        show(FieldRules(password = true))
+        view.layout(0, 0, view.width, view.height)
+        assertTrue("Voice" !in stripLabels())
     }
 
     @Test
@@ -240,7 +290,7 @@ class KeyboardViewTest {
     fun `the toolbar comes back when the word is finished`() {
         view.suggestions = listOf("teh", "the")
         view.suggestions = emptyList()
-        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     /** The strip is the same height as the toolbar, so nothing below it moves as words start and finish. */
@@ -258,7 +308,7 @@ class KeyboardViewTest {
     fun `a password field shows the toolbar, never suggestions`() {
         show(FieldRules(password = true))
         view.suggestions = listOf("hunter2", "hunter")
-        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test
@@ -788,7 +838,7 @@ class KeyboardViewTest {
         for (id in keys.size until keys.size + view.toolbarPlacements.size) {
             provider.performAction(id, AccessibilityNodeInfo.ACTION_CLICK, null)
         }
-        assertEquals(listOf("hide", "emoji", "selectAll", "copy", "paste", "clipboard"), toolbar)
+        assertEquals(listOf("hide", "emoji", "cursorPad", "copy", "paste", "clipboard"), toolbar)
     }
 
     @Test

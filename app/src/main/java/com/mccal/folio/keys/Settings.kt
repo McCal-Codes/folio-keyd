@@ -23,6 +23,12 @@ enum class Size(val share: Float) { SMALL(0.86f), MEDIUM(1f), LARGE(1.14f) }
  */
 enum class Split { AUTO, ALWAYS, NEVER }
 
+/**
+ * How the keys are drawn. [FOLIO] is rounded with a little depth, [MATERIAL] flat like Gboard, [SAMSUNG] squarer and
+ * closer together. Only the shapes and colours change; where every key sits is the same in all three.
+ */
+enum class KeyStyle { FOLIO, MATERIAL, SAMSUNG }
+
 /** Light or dark. [SYSTEM] follows the phone, which is what almost everyone wants and nobody has to choose. */
 enum class Appearance { SYSTEM, DARK, LIGHT }
 
@@ -69,6 +75,14 @@ data class Settings(
     val sound: Boolean = true,
     /** The tap you feel. Follows the phone's own vibration setting as well. */
     val vibrate: Boolean = true,
+    /**
+     * The mic on the toolbar and at the end of the suggestion strip. It hands you to the phone's own voice keyboard,
+     * which is not Keyd and does use the Internet; with no voice keyboard on the phone the key is not drawn at all.
+     */
+    val voiceKey: Boolean = true,
+    /** The toolbar key that swaps the letters for arrows, word jumps and selection. */
+    val cursorPadKey: Boolean = true,
+    val keyStyle: KeyStyle = KeyStyle.FOLIO,
 ) {
 
     fun save(prefs: SharedPreferences) {
@@ -94,6 +108,9 @@ data class Settings(
             putBoolean(CLIPBOARD, clipboardHistory)
             putBoolean(SOUND, sound)
             putBoolean(VIBRATE, vibrate)
+            putBoolean(VOICE_KEY, voiceKey)
+            putBoolean(CURSOR_PAD_KEY, cursorPadKey)
+            putString(KEY_STYLE, keyStyle.name)
         }.apply()
     }
 
@@ -119,6 +136,9 @@ data class Settings(
         const val CLIPBOARD = "clipboardHistory"
         const val SOUND = "sound"
         const val VIBRATE = "vibrate"
+        const val VOICE_KEY = "voiceKey"
+        const val CURSOR_PAD_KEY = "cursorPadKey"
+        const val KEY_STYLE = "keyStyle"
 
         fun load(prefs: SharedPreferences): Settings {
             val fallback = Settings()
@@ -145,6 +165,9 @@ data class Settings(
                 clipboardHistory = read(CLIPBOARD, fallback.clipboardHistory),
                 sound = read(SOUND, fallback.sound),
                 vibrate = read(VIBRATE, fallback.vibrate),
+                voiceKey = read(VOICE_KEY, fallback.voiceKey),
+                cursorPadKey = read(CURSOR_PAD_KEY, fallback.cursorPadKey),
+                keyStyle = choice(prefs, KEY_STYLE, fallback.keyStyle),
             )
         }
 

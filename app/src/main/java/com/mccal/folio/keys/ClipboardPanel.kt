@@ -44,6 +44,9 @@ internal class ClipboardPanel(context: Context) : View(context) {
         fun onClearClips()
         fun onBackspace()
 
+        /** A pinned clip was held: make it a text shortcut. */
+        fun onShortcutFromClip(text: String) {}
+
         /** Back to the letters. */
         fun onLetters()
     }
@@ -74,6 +77,16 @@ internal class ClipboardPanel(context: Context) : View(context) {
         }
 
     var highContrast: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    /** Keyd's own Vibration switch. Off means off here too, not only on the letters. */
+    var vibrate: Boolean = true
+
+    /** The key style the letters use, so switching to this panel doesn't change the keyboard's look. */
+    var keyStyle: KeyStyle = KeyStyle.FOLIO
         set(value) {
             field = value
             invalidate()
@@ -164,7 +177,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance, highContrast)
+        theme = Theme.of(context, appearance, highContrast, keyStyle)
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
@@ -260,11 +273,17 @@ internal class ClipboardPanel(context: Context) : View(context) {
                 inList = event.y in listTop..listBottom
                 pressed = if (inList) rowAt(event.y) else -1
                 if (pressed >= 0) invalidate()
+                held = false
+                val clip = clips.getOrNull(pressed)
+                if (clip != null && clip.pinned && partAt(event.x) == Part.TEXT) {
+                    postDelayed(hold, ViewConfiguration.getLongPressTimeout().toLong())
+                }
             }
             MotionEvent.ACTION_MOVE -> {
                 velocity?.addMovement(event)
                 if (!dragging && inList && abs(event.y - downY) > touchSlop) {
                     dragging = true
+                    removeCallbacks(hold)
                     pressed = -1
                 }
                 if (dragging) {
@@ -274,14 +293,34 @@ internal class ClipboardPanel(context: Context) : View(context) {
             }
             MotionEvent.ACTION_UP -> {
                 velocity?.addMovement(event)
-                if (dragging) fling() else tapped(event.x, event.y)
+                removeCallbacks(hold)
+                if (dragging) fling() else if (!held) tapped(event.x, event.y)
                 release()
                 invalidate()
                 performClick()
             }
-            MotionEvent.ACTION_CANCEL -> release()
+            MotionEvent.ACTION_CANCEL -> {
+                removeCallbacks(hold)
+                release()
+            }
         }
         return true
+    }
+
+    /** Set once a hold has fired, so letting go afterwards doesn't also paste the clip. */
+    private var held = false
+
+    /**
+     * Holding a pinned clip makes it a text shortcut. Only pinned ones: a clip you meant to keep is the kind worth a
+     * shortcut, and Unpin and Forget already have their own buttons on the row, so there's no menu to repeat them.
+     */
+    private val hold = Runnable {
+        val clip = clips.getOrNull(pressed) ?: return@Runnable
+        held = true
+        pressed = -1
+        invalidate()
+        if (vibrate) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        listener?.onShortcutFromClip(clip.text)
     }
 
     private fun fling() {
@@ -305,7 +344,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
         if (y >= listBottom) {
             val index = tabSlots().indexOfFirst { x >= it.first && x < it.second }
             if (index < 0) return
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             when (index) {
                 0 -> listener?.onLetters()
                 1 -> listener?.onClearClips()
@@ -315,7 +354,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
         }
         val row = rowAt(y)
         val clip = clips.getOrNull(row) ?: return
-        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         when (partAt(x)) {
             Part.PIN -> listener?.onPinClip(clip.text, !clip.pinned)
             Part.FORGET -> listener?.onForgetClip(clip.text)
@@ -397,6 +436,12 @@ internal class ClipboardPanel(context: Context) : View(context) {
         }
     }
 
+    /** The pinned clip behind a text node, the one thing a hold can turn into a shortcut. */
+    private fun shortcutCandidate(id: Int): Clipboard.Clip? {
+        if (id >= clips.size * 3 || partOf(id) != Part.TEXT) return null
+        return clips[rowOf(id)].takeIf { it.pinned }
+    }
+
     private fun activate(id: Int): Boolean {
         if (id < clips.size * 3) {
             val clip = clips[rowOf(id)]
@@ -440,10 +485,22 @@ internal class ClipboardPanel(context: Context) : View(context) {
             node.contentDescription = nameOf(id)
             node.className = "android.widget.Button"
             node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+            if (shortcutCandidate(id) != null) {
+                node.addAction(
+                    AccessibilityNodeInfoCompat.AccessibilityActionCompat(
+                        R.id.action_make_shortcut, context.getString(R.string.clipboard_make_shortcut),
+                    ),
+                )
+            }
             node.setBoundsInParent(bounds)
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: Bundle?): Boolean {
+            if (action == R.id.action_make_shortcut) {
+                val clip = shortcutCandidate(id) ?: return false
+                listener?.onShortcutFromClip(clip.text)
+                return true
+            }
             if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
             if (!activate(id)) return false
             sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)

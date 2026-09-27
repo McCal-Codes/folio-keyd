@@ -11,7 +11,7 @@ import android.view.inputmethod.EditorInfo
  */
 enum class KeyKind {
     CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, CLIPBOARD, EMOJI,
-    SUGGESTION,
+    SUGGESTION, VOICE, CURSOR_PAD,
 }
 
 data class Key(

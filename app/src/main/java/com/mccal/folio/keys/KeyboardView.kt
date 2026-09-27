@@ -69,6 +69,12 @@ class KeyboardView(context: Context) : View(context) {
         /** A word from the strip, tapped. */
         fun onSuggestion(word: String)
         fun onHide()
+
+        /** Hand over to the phone's voice keyboard. */
+        fun onVoice() {}
+
+        /** Swap the letters for the arrows and selection keys. */
+        fun onCursorPad() {}
     }
 
     var listener: Listener? = null
@@ -92,7 +98,11 @@ class KeyboardView(context: Context) : View(context) {
     var settings: Settings = Settings()
         set(value) {
             field = value
-            theme = Theme.of(context, value.appearance, value.highContrast)
+            theme = Theme.of(context, value.appearance, value.highContrast, value.keyStyle)
+            // The toolbar's keys depend on two of these switches, so it is placed again now rather than waiting on a
+            // layout pass that only comes if the size changed.
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
             requestLayout()
             invalidate()
         }
@@ -105,7 +115,28 @@ class KeyboardView(context: Context) : View(context) {
         }
 
     var rules: FieldRules = FieldRules()
-        set(value) { field = value; invalidate() }
+        set(value) {
+            field = value
+            // A password field has no strip and no mic, so the toolbar is placed again for it.
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
+    /**
+     * Whether the phone has a voice keyboard to hand over to. Without one the mic would be a key that does nothing,
+     * so it isn't drawn at all. The service asks Android and sets this; the view never guesses.
+     */
+    var voiceAvailable: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
+    private val showVoice get() = voiceAvailable && settings.voiceKey && !rules.password
 
     var rows: List<Row> = emptyList()
         set(value) {
@@ -238,7 +269,9 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onConfigurationChanged(newConfig: Configuration?) {
         super.onConfigurationChanged(newConfig)
-        theme = Theme.of(context)
+        // Only the phone's night mode can have changed; the person's own choices still stand. This used to be
+        // Theme.of(context), which dropped a forced light or dark, and high contrast, on every rotation and unfold.
+        theme = Theme.of(context, settings.appearance, settings.highContrast, settings.keyStyle)
         invalidate()
     }
 
@@ -329,14 +362,17 @@ class KeyboardView(context: Context) : View(context) {
         val right = width - left
         val top = panelPad
         val bottom = top + toolbarHeight
-        val items = listOf(
-            Key("Hide", KeyKind.HIDE),
-            Key("Emoji", KeyKind.EMOJI),
-            Key("Select all", KeyKind.SELECT_ALL),
-            Key("Copy", KeyKind.COPY),
-            Key("Paste", KeyKind.PASTE),
-            Key("Clipboard", KeyKind.CLIPBOARD),
-        )
+        // Select all lives in the cursor pad when the pad has a key here, the way Gboard keeps it with the arrows;
+        // with the pad key switched off it comes back, so no action is ever out of reach.
+        val items = buildList {
+            add(Key("Hide", KeyKind.HIDE))
+            add(Key("Emoji", KeyKind.EMOJI))
+            add(if (settings.cursorPadKey) Key("Cursor pad", KeyKind.CURSOR_PAD) else Key("Select all", KeyKind.SELECT_ALL))
+            add(Key("Copy", KeyKind.COPY))
+            add(Key("Paste", KeyKind.PASTE))
+            add(Key("Clipboard", KeyKind.CLIPBOARD))
+            if (showVoice) add(Key("Voice", KeyKind.VOICE))
+        }
         // Even across the whole width: a row of icons bunched in one corner is the difference between a toolbar and
         // a few buttons someone left there.
         val slot = min((right - left) / items.size, TOOL_SLOT_DP * dp)
@@ -363,13 +399,19 @@ class KeyboardView(context: Context) : View(context) {
         val right = width - left
         val top = panelPad
         val bottom = top + toolbarHeight
-        val slot = (right - left) / suggestions.size
-        return suggestions.mapIndexed { index, word ->
+        // The mic keeps the last slot while a word is being typed, where Gboard, Samsung and SwiftKey all keep it:
+        // voice is most wanted exactly when typing has started to feel slow.
+        val mic = if (showVoice) min((right - left) / (suggestions.size + 1), TOOL_SLOT_DP * dp) else 0f
+        val words = right - mic
+        val slot = (words - left) / suggestions.size
+        val placed = suggestions.mapIndexedTo(ArrayList(suggestions.size + 1)) { index, word ->
             Placement(
                 Key(word, KeyKind.SUGGESTION, output = word),
                 Box(left + index * slot, top, left + (index + 1) * slot, bottom),
             )
         }
+        if (mic > 0f) placed += Placement(Key("Voice", KeyKind.VOICE), Box(words, top, right, bottom))
+        return placed
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -380,7 +422,7 @@ class KeyboardView(context: Context) : View(context) {
 
         drawToolbar(canvas)
 
-        val radius = KEY_RADIUS_DP * dp
+        val radius = theme.keyRadiusDp * dp
         for (placement in placedKeys) {
             val box = placement.box
             val key = placement.key
@@ -402,7 +444,7 @@ class KeyboardView(context: Context) : View(context) {
     /** The row of alternates, drawn last so it sits over everything. */
     private fun drawPopup(canvas: Canvas) {
         val open = popup ?: return
-        val radius = KEY_RADIUS_DP * dp
+        val radius = theme.keyRadiusDp * dp
         val outer = open.boxes.first()
         val last = open.boxes.last()
         scratch.set(outer.left - 3 * dp, outer.top - 3 * dp, last.right + 3 * dp, last.bottom + 3 * dp)
@@ -543,6 +585,8 @@ class KeyboardView(context: Context) : View(context) {
                 KeyKind.COPY -> Icons.copy(canvas, cx, cy, size, stroke)
                 KeyKind.PASTE -> Icons.paste(canvas, cx, cy, size, stroke, fill)
                 KeyKind.CLIPBOARD -> Icons.clipboard(canvas, cx, cy, size, stroke, fill)
+                KeyKind.VOICE -> Icons.mic(canvas, cx, cy, size, stroke)
+                KeyKind.CURSOR_PAD -> Icons.move(canvas, cx, cy, size, stroke)
                 else -> Unit
             }
         }
@@ -562,7 +606,7 @@ class KeyboardView(context: Context) : View(context) {
             if (bottom - h < 0) continue      // the top row has nowhere to put it
             scratch.set(cx - w / 2, bottom - h, cx + w / 2, bottom)
             fill.color = theme.preview
-            canvas.drawRoundRect(scratch, KEY_RADIUS_DP * dp, KEY_RADIUS_DP * dp, fill)
+            canvas.drawRoundRect(scratch, theme.keyRadiusDp * dp, theme.keyRadiusDp * dp, fill)
             text.textSize = h * 0.54f
             text.color = theme.label
             canvas.drawText(key.label, cx, (scratch.top + scratch.bottom) / 2 - (text.descent() + text.ascent()) / 2, text)
@@ -720,7 +764,7 @@ class KeyboardView(context: Context) : View(context) {
         }
         if (items.isEmpty()) return
         val task = Runnable {
-            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            if (settings.vibrate) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             if (items.size == 1) {
                 // Nothing to choose between, so holding simply gives it.
                 press.handled = true
@@ -829,7 +873,7 @@ class KeyboardView(context: Context) : View(context) {
                         press.swiping = true
                         press.handled = true
                         listener?.onText(flicked)
-                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        if (settings.vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         invalidate()
                         return
                     }
@@ -901,6 +945,8 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.PASTE -> l.onPaste()
             KeyKind.EMOJI -> l.onEmojiPanel()
             KeyKind.SUGGESTION -> l.onSuggestion(key.output)
+            KeyKind.VOICE -> l.onVoice()
+            KeyKind.CURSOR_PAD -> l.onCursorPad()
         }
     }
 
@@ -968,7 +1014,6 @@ class KeyboardView(context: Context) : View(context) {
         const val HANDLE_H_DP = 4f
         const val PANEL_PAD_DP = 6f      // the gap around the panel, so it floats rather than fills
         const val PANEL_RADIUS_DP = 22f
-        const val KEY_RADIUS_DP = 14f
         const val TOOLBAR_DP = 42f
         const val TOOL_SLOT_DP = 56f
         const val CAP_AT_DP = 480f      // wider than a large phone: stop stretching, start centring

@@ -18,6 +18,8 @@ data class Theme(
     val pressTint: Int,
     /** The bubble that pops above the key under a finger. */
     val preview: Int,
+    /** How round a key's corners are: the most visible difference between the three key styles. */
+    val keyRadiusDp: Float = 14f,
 ) {
     companion object {
         private val DARK = Theme(
@@ -54,8 +56,68 @@ data class Theme(
         fun bothForTests(): List<Pair<String, Theme>> = listOf(
             "dark" to DARK,
             "light" to LIGHT,
+            "material dark" to MATERIAL_DARK,
+            "material light" to MATERIAL_LIGHT,
+            "samsung dark" to SAMSUNG_DARK,
+            "samsung light" to SAMSUNG_LIGHT,
             "high contrast dark" to HIGH_CONTRAST_DARK,
             "high contrast light" to HIGH_CONTRAST_LIGHT,
+        )
+
+        /**
+         * Material: the Material 3 baseline roles Gboard's colours come from (surface, surface-variant, primary and
+         * on-surface), with rounder keys. The same values the mockup lab checked.
+         */
+        private val MATERIAL_DARK = DARK.copy(
+            board = 0xFF1C1B1F.toInt(),
+            key = 0xFF3B383E.toInt(),
+            altKey = 0xFF49454F.toInt(),
+            label = 0xFFE6E1E5.toInt(),
+            hint = 0xFFCAC4D0.toInt(),
+            accent = 0xFFD0BCFF.toInt(),
+            onAccent = 0xFF381E72.toInt(),
+            preview = 0xFF49454F.toInt(),
+            keyRadiusDp = 18f,
+        )
+
+        private val MATERIAL_LIGHT = LIGHT.copy(
+            board = 0xFFD8D0E0.toInt(),
+            key = 0xFFFFFBFE.toInt(),
+            altKey = 0xFFB9AFC6.toInt(),
+            label = 0xFF1C1B1F.toInt(),
+            hint = 0xFF49454F.toInt(),
+            accent = 0xFF6750A4.toInt(),
+            onAccent = 0xFFFFFFFF.toInt(),
+            preview = 0xFFFFFBFE.toInt(),
+            keyRadiusDp = 18f,
+        )
+
+        // The light boards are a shade darker than the lab first drew them, and Material's dark key a shade lighter:
+        // at the first values a key was under 1.4:1 against its board and ThemeContrastTest said so.
+
+        /** Samsung: a darker board and squarer keys, with the blue the lab settled on at 5.36:1 under white. */
+        private val SAMSUNG_DARK = DARK.copy(
+            board = 0xFF131313.toInt(),
+            key = 0xFF3A3A3C.toInt(),
+            altKey = 0xFF242426.toInt(),
+            label = 0xFFF2F2F2.toInt(),
+            hint = 0xFFA8A8AD.toInt(),
+            accent = 0xFF1A66D6.toInt(),
+            onAccent = 0xFFFFFFFF.toInt(),
+            preview = 0xFF3A3A3C.toInt(),
+            keyRadiusDp = 8f,
+        )
+
+        private val SAMSUNG_LIGHT = LIGHT.copy(
+            board = 0xFFD4D7DC.toInt(),
+            key = 0xFFFFFFFF.toInt(),
+            altKey = 0xFFB4B9C1.toInt(),
+            label = 0xFF141414.toInt(),
+            hint = 0xFF5A5F66.toInt(),
+            accent = 0xFF1A66D6.toInt(),
+            onAccent = 0xFFFFFFFF.toInt(),
+            preview = 0xFFFFFFFF.toInt(),
+            keyRadiusDp = 8f,
         )
 
         /**
@@ -89,7 +151,13 @@ data class Theme(
             preview = 0xFF000000.toInt(),
         )
 
-        fun of(context: Context, appearance: Appearance = Appearance.SYSTEM, highContrast: Boolean = false): Theme {
+        /** High contrast wins over the style: it exists for eyes the styles don't suit, whichever one was picked. */
+        fun of(
+            context: Context,
+            appearance: Appearance = Appearance.SYSTEM,
+            highContrast: Boolean = false,
+            style: KeyStyle = KeyStyle.FOLIO,
+        ): Theme {
             val dark = when (appearance) {
                 Appearance.DARK -> true
                 Appearance.LIGHT -> false
@@ -97,7 +165,11 @@ data class Theme(
                     Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             }
             if (highContrast) return if (dark) HIGH_CONTRAST_DARK else HIGH_CONTRAST_LIGHT
-            return if (dark) DARK else LIGHT
+            return when (style) {
+                KeyStyle.FOLIO -> if (dark) DARK else LIGHT
+                KeyStyle.MATERIAL -> if (dark) MATERIAL_DARK else MATERIAL_LIGHT
+                KeyStyle.SAMSUNG -> if (dark) SAMSUNG_DARK else SAMSUNG_LIGHT
+            }
         }
 
     }

@@ -2,6 +2,7 @@ package com.mccal.folio.keys
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
@@ -27,6 +28,7 @@ class ShortcutsActivity : Activity() {
     private lateinit var trigger: EditText
     private lateinit var phrase: EditText
     private lateinit var empty: TextView
+    private lateinit var fromClip: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +60,13 @@ class ShortcutsActivity : Activity() {
             setTextColor(Color.WHITE)
             setHintTextColor(Color.parseColor("#6E6E73"))
         }
+        fromClip = TextView(this).apply {
+            text = getString(R.string.shortcuts_from_clip)
+            setTextColor(Color.parseColor("#A0A0A6"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            visibility = TextView.GONE
+        }
+        column.addView(fromClip)
         column.addView(trigger)
         column.addView(phrase)
         column.addView(
@@ -91,10 +100,31 @@ class ShortcutsActivity : Activity() {
             },
         )
         redraw()
+        prefill(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        prefill(intent)
+    }
+
+    /**
+     * Opened from a pinned clip, the phrase is already chosen: it goes in the second box, and the cursor waits in the
+     * first for the few letters that will stand for it. Nothing is added until Add is tapped.
+     */
+    private fun prefill(intent: Intent?) {
+        val expansion = intent?.getStringExtra(EXTRA_EXPANSION)?.let(::oneLine)?.takeIf { it.isNotBlank() } ?: return
+        phrase.setText(expansion)
+        trigger.setText("")
+        trigger.requestFocus()
+        fromClip.visibility = TextView.VISIBLE
+        // Once used, the extra is spent: turning the phone shouldn't put a clip back that was already dealt with.
+        intent.removeExtra(EXTRA_EXPANSION)
     }
 
     private fun add() {
-        if (!shortcuts.add(trigger.text.toString(), phrase.text.toString())) {
+        if (!shortcuts.add(trigger.text.toString(), oneLine(phrase.text.toString()))) {
             // Said out loud rather than swallowed: an Add button that sometimes does nothing is worse than one
             // that says why.
             empty.text = getString(R.string.shortcuts_rejected)
@@ -103,6 +133,7 @@ class ShortcutsActivity : Activity() {
         }
         trigger.setText("")
         phrase.setText("")
+        fromClip.visibility = TextView.GONE
         save()
         redraw()
     }
@@ -143,8 +174,20 @@ class ShortcutsActivity : Activity() {
         }
     }
 
-    private companion object {
+    companion object {
+        /**
+         * The phrase to start a new shortcut with, as a String. The clipboard panel sends a pinned clip here, so its
+         * "Make a text shortcut" opens this screen with the long half already filled in.
+         */
+        const val EXTRA_EXPANSION = "com.mccal.folio.keys.EXPANSION"
+
         /** The same place the service reads them from. */
-        const val SHORTCUTS = "shortcuts"
+        private const val SHORTCUTS = "shortcuts"
+
+        /**
+         * Shortcuts are stored a line each with a tab between the halves, so a phrase can hold neither. A clip often
+         * has line breaks (an address, say); they become spaces rather than breaking every shortcut after it.
+         */
+        internal fun oneLine(text: String): String = text.replace(Regex("[\\t\\r\\n]+"), " ").trim()
     }
 }

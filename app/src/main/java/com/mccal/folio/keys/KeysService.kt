@@ -30,16 +30,28 @@ class KeysService : InputMethodService(), Ime {
     private var keyboard: KeyboardView? = null
     private var emoji: EmojiPanel? = null
     private var clipboard: ClipboardPanel? = null
+    private var pad: CursorPad? = null
     private var root: View? = null
 
     /**
-     * Set once the editor has told us the cursor is behind the keys, and cleared when a new field is opened.
+     * Whether the editor has told us the cursor is behind the keys, confirmed over [CursorWatch.SETTLE_MS].
      *
-     * It latches on purpose. Going fullscreen moves everything, which changes where the cursor is, which would
-     * change the answer again - a keyboard flickering in and out of fullscreen while someone types is far worse
-     * than either state. Once taking the screen is the right answer for a field, it stays the answer.
+     * It latches while the keyboard stays up. Going fullscreen moves everything, which changes where the cursor is,
+     * which would change the answer again - a keyboard flickering in and out of fullscreen while someone types is far
+     * worse than either state. But it is forgotten whenever the keyboard goes away or a field opens: a latch that
+     * outlived the keyboard kept WhatsApp fullscreen on every tap until the app was closed.
      */
-    private var cursorHidden = false
+    private val cursor = CursorWatch.Decision()
+
+    /** Between onWindowShown and onWindowHidden. Cursor reports outside that are the keyboard coming or going. */
+    private var windowShown = false
+
+    private val settle = Runnable {
+        if (cursor.confirm(windowShown)) {
+            DevLog.event(this, "fullscreen", "taken" to 1)
+            updateFullscreenMode()
+        }
+    }
 
     private val prefs by lazy { getSharedPreferences("keys", Context.MODE_PRIVATE) }
 
@@ -156,6 +168,7 @@ class KeysService : InputMethodService(), Ime {
     }
 
     override fun onDestroy() {
+        main.removeCallbacks(settle)
         super.onDestroy()
         thinking.quitSafely()
     }
@@ -277,14 +290,44 @@ class KeysService : InputMethodService(), Ime {
 
                 override fun onClearClips() = editClips { Clipboard.cleared(it) }
 
+                /** Held a pinned clip: open a new text shortcut with it filled in. Nothing is saved until Add. */
+                override fun onShortcutFromClip(text: String) {
+                    runCatching {
+                        startActivity(
+                            android.content.Intent(this@KeysService, ShortcutsActivity::class.java)
+                                .putExtra(ShortcutsActivity.EXTRA_EXPANSION, text)
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                    requestHideSelf(0)
+                }
+
                 override fun onBackspace() = actions.onBackspace()
 
                 override fun onLetters() = showClipboard(false)
             }
         }
+        val arrows = CursorPad(this).also {
+            it.visibility = View.GONE
+            it.listener = object : CursorPad.Listener {
+                override fun onMove(move: CursorPad.Move, selecting: Boolean) {
+                    val (code, meta) = CursorPad.keyEvents(move, selecting)
+                    actions.onMove(code, meta)
+                }
+
+                override fun onSelectAll() = actions.onSelectAll()
+
+                override fun onCut() = actions.onCut()
+
+                override fun onBackspace() = actions.onBackspace()
+
+                override fun onLetters() = showCursorPad(false)
+            }
+        }
         keyboard = keys
         emoji = grid
         clipboard = clips
+        pad = arrows
         actions.refresh()
         return FrameLayout(this).also { root = it }.apply {
             layoutParams = ViewGroup.LayoutParams(
@@ -293,6 +336,7 @@ class KeysService : InputMethodService(), Ime {
             addView(keys)
             addView(grid)
             addView(clips)
+            addView(arrows)
         }
     }
 
@@ -304,7 +348,10 @@ class KeysService : InputMethodService(), Ime {
     }
 
     override fun showEmoji(showing: Boolean) {
-        if (showing) showClipboard(false)
+        if (showing) {
+            showClipboard(false)
+            showCursorPad(false)
+        }
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         emoji?.visibility = if (showing) View.VISIBLE else View.GONE
         if (showing) emoji?.opened()
@@ -331,12 +378,30 @@ class KeysService : InputMethodService(), Ime {
     override fun showClipboard(showing: Boolean) {
         if (showing) {
             showEmoji(false)
+            showCursorPad(false)
             clipboard?.clips = Clipboard.load(prefs, System.currentTimeMillis())
             clipboard?.appearance = actions.settings.appearance
             clipboard?.highContrast = actions.settings.highContrast
+            clipboard?.keyStyle = actions.settings.keyStyle
         }
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         clipboard?.visibility = if (showing) View.VISIBLE else View.GONE
+    }
+
+    /** Swaps the letters for the arrows and selection keys, or back. It opens with selecting off every time. */
+    override fun showCursorPad(showing: Boolean) {
+        val shown = pad ?: return
+        if (showing) {
+            emoji?.visibility = View.GONE
+            clipboard?.visibility = View.GONE
+            shown.appearance = actions.settings.appearance
+            shown.highContrast = actions.settings.highContrast
+            shown.keyStyle = actions.settings.keyStyle
+            shown.vibrate = actions.settings.vibrate
+            shown.opened()
+        }
+        keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
+        shown.visibility = if (showing) View.VISIBLE else View.GONE
     }
 
     /** One place that changes the stored list and puts the panel back in step with it. */
@@ -364,9 +429,9 @@ class KeysService : InputMethodService(), Ime {
         if (info != null && info.imeOptions and EditorInfo.IME_FLAG_NO_FULLSCREEN != 0) return false
         // The editor has told us the line being typed on is behind the keys, and no amount of resizing is going to
         // fix that, so the screen is taken and the text shown in a field of its own.
-        if (cursorHidden) return true
+        if (cursor.taken) return true
         val density = resources.displayMetrics.density
-        val shown = listOfNotNull(keyboard, emoji).firstOrNull { it.visibility == View.VISIBLE }
+        val shown = listOfNotNull(keyboard, emoji, clipboard, pad).firstOrNull { it.visibility == View.VISIBLE }
         val keyboardDp = (shown?.height ?: 0) / density
         return roomAbove(resources.configuration.screenHeightDp.toFloat(), keyboardDp) < ROOM_FOR_THE_APP_DP
     }
@@ -385,6 +450,8 @@ class KeysService : InputMethodService(), Ime {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        // The same field tapped again after the keyboard was hidden arrives here without onFinishInput in between.
+        forgetCursor()
         DevLog.event(this, "field", "class" to ((info?.inputType ?: 0) and android.text.InputType.TYPE_MASK_CLASS),
             "restarting" to if (restarting) 1 else 0)
         // Re-read each time a field opens, so a change on the settings screen takes effect without a restart.
@@ -402,8 +469,12 @@ class KeysService : InputMethodService(), Ime {
         }
         keyboard?.language = language
         keyboard?.settings = chosen
+        keyboard?.voiceAvailable = voiceKeyboard() != null
         emoji?.appearance = chosen.appearance
         emoji?.highContrast = chosen.highContrast
+        emoji?.keyStyle = chosen.keyStyle
+        emoji?.vibrate = chosen.vibrate
+        clipboard?.vibrate = chosen.vibrate
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
         // A keyboard may read the clipboard while it is the one on screen, so this is the moment to look. The field
@@ -413,6 +484,7 @@ class KeysService : InputMethodService(), Ime {
         // they copied, that they left open.
         showEmoji(false)
         showClipboard(false)
+        showCursorPad(false)
         // And with nothing held over from the last one. A touch that never got its release - the window taken
         // away mid-press, a call arriving - would otherwise leave a finger down forever.
         keyboard?.forgetTouches()
@@ -443,8 +515,28 @@ class KeysService : InputMethodService(), Ime {
     /** A new field is a fresh question: whatever was true of the last one says nothing about this one. */
     override fun onFinishInput() {
         super.onFinishInput()
-        if (cursorHidden) {
-            cursorHidden = false
+        forgetCursor()
+    }
+
+    override fun onWindowShown() {
+        super.onWindowShown()
+        windowShown = true
+    }
+
+    override fun onWindowHidden() {
+        super.onWindowHidden()
+        windowShown = false
+        forgetCursor()
+        // Hiding keeps the view attached, so onDetachedFromWindow never runs: a backspace held by one finger while
+        // another hides the keyboard would otherwise keep deleting out of sight, and a long-press popup would wait.
+        keyboard?.forgetTouches()
+    }
+
+    /** Every time the keyboard comes or goes, whether the screen should be taken is asked again from nothing. */
+    private fun forgetCursor() {
+        main.removeCallbacks(settle)
+        if (cursor.reset()) {
+            DevLog.event(this, "fullscreen", "taken" to 0)
             updateFullscreenMode()
         }
     }
@@ -456,17 +548,17 @@ class KeysService : InputMethodService(), Ime {
      */
     override fun onUpdateCursorAnchorInfo(info: CursorAnchorInfo) {
         super.onUpdateCursorAnchorInfo(info)
-        if (cursorHidden || isFullscreenMode) return
+        if (cursor.taken || isFullscreenMode) return
         val view = root ?: return
-        if (view.width == 0) return
+        if (view.width == 0 || !view.isLaidOut || !view.isShown) return
         val marker = floatArrayOf(info.insertionMarkerHorizontal, info.insertionMarkerBottom)
         info.matrix.mapPoints(marker)
         val where = view.locationOnScreen().let { top ->
             CursorWatch.read(marker[1], top, info.insertionMarkerFlags)
         }
-        if (where == CursorWatch.Where.HIDDEN) {
-            cursorHidden = true
-            updateFullscreenMode()
+        when (cursor.report(where, windowShown)) {
+            CursorWatch.Next.CHECK_LATER -> main.postDelayed(settle, CursorWatch.SETTLE_MS)
+            CursorWatch.Next.NOTHING -> if (!cursor.pending) main.removeCallbacks(settle)
         }
     }
 
@@ -487,6 +579,9 @@ class KeysService : InputMethodService(), Ime {
          * way someone still sees what they are typing.
          */
         const val ROOM_FOR_THE_APP_DP = 160f
+
+        /** The subtype mode a voice input method declares. */
+        const val VOICE_MODE = "voice"
         const val RECENTS = "emojiRecents"
         const val LEARNED = "learnedWords"
         const val SHORTCUTS = "shortcuts"
@@ -502,6 +597,32 @@ class KeysService : InputMethodService(), Ime {
 
         /** What is left of the window once the keyboard has taken its share. */
         fun roomAbove(screenHeightDp: Float, keyboardHeightDp: Float) = screenHeightDp - keyboardHeightDp
+    }
+
+    /**
+     * The phone's voice keyboard, if it has one switched on: an input method with a subtype in "voice" mode, which is
+     * how Google's voice typing and Samsung's both describe themselves. Asked each time a field opens rather than
+     * remembered, because one can be turned off in Android's settings while Keyd is running.
+     */
+    private fun voiceKeyboard(): Pair<String, InputMethodSubtype>? {
+        val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        return runCatching {
+            manager.enabledInputMethodList.asSequence()
+                .filter { it.packageName != packageName }
+                .firstNotNullOfOrNull { method ->
+                    manager.getEnabledInputMethodSubtypeList(method, true)
+                        .firstOrNull { it.mode == VOICE_MODE }
+                        ?.let { method.id to it }
+                }
+        }.getOrNull()
+    }
+
+    override fun startVoice() {
+        val (id, subtype) = voiceKeyboard() ?: return
+        DevLog.event(this, "voice", "handed" to 1)
+        // Switching this way (rather than asking the person to pick from a list) is what lets the voice keyboard
+        // hand back to Keyd with its own "back to keyboard" button when it's done.
+        runCatching { switchInputMethod(id, subtype) }
     }
 
     override fun switchKeyboard() {

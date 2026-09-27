@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.Switch
 import android.widget.TextView
 import org.junit.Assert.assertEquals
@@ -28,9 +29,11 @@ import org.robolectric.shadows.ShadowDialog
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class SettingsScreenTest {
 
-    private fun open(): SettingsActivity {
-        androidx.test.core.app.ApplicationProvider.getApplicationContext<Context>()
-            .getSharedPreferences("keys", Context.MODE_PRIVATE).edit().clear().commit()
+    private fun open(crashed: Boolean = false): SettingsActivity {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("keys", Context.MODE_PRIVATE).edit().clear()
+            .putBoolean(DevLog.CRASHED_KEY, crashed).commit()
+        DevLog.clear(context)
         return Robolectric.buildActivity(SettingsActivity::class.java).setup().get()
     }
 
@@ -88,6 +91,7 @@ class SettingsScreenTest {
             R.string.settings_delete_word, R.string.settings_swipe_hide, R.string.settings_sound,
             R.string.settings_vibrate, R.string.settings_high_contrast, R.string.settings_clipboard,
             R.string.settings_size_small, R.string.settings_appearance_dark, R.string.settings_split_never,
+            R.string.settings_voice_key, R.string.settings_cursor_pad_key, R.string.settings_key_style_samsung,
         ).map { a.getString(it) }
         assertEquals(emptyList<String>(), every.filterNot { it in found })
     }
@@ -169,5 +173,122 @@ class SettingsScreenTest {
         a.tap("Privacy")
         val forget = a.text(a.getString(R.string.row_forget))!!
         assertFalse((forget.parent as View).isEnabled)
+    }
+
+    // ---- Keyd 0.2.0 --------------------------------------------------------------------------------------------
+
+    @Test
+    fun `the toolbar keys and key style are there and save`() {
+        val a = open()
+        a.tap("Keys and gestures")
+        assertNotNull(a.text("TOOLBAR"))
+        assertTrue(a.switchIn("Voice key").isChecked)
+        a.tap("Voice key")
+        a.tap("Cursor pad key")
+        assertFalse(a.stored().voiceKey)
+        assertFalse(a.stored().cursorPadKey)
+        a.tap("‹ Keyd")
+        a.tap("Look and size")
+        assertNotNull(a.text("KEY STYLE"))
+        a.tap("Samsung")
+        assertEquals(KeyStyle.SAMSUNG, a.stored().keyStyle)
+    }
+
+    @Test
+    fun `privacy has moving phones and diagnostics, with reset still last`() {
+        val a = open()
+        a.tap("Privacy")
+        for (label in listOf("MOVE TO A NEW PHONE", "Export words and shortcuts…", "Import from a file…",
+            "DIAGNOSTICS", "Keep a diagnostic log")) {
+            assertNotNull("missing $label", a.text(label))
+        }
+        // The page's own text, not the window's title bar.
+        val page = a.all().filterIsInstance<android.widget.ScrollView>().first()
+        val texts = a.all().filter { v -> generateSequence(v.parent) { it.parent }.any { it === page } }
+            .filterIsInstance<TextView>().map { it.text.toString() }.filter { it.isNotBlank() }
+        assertEquals(a.getString(R.string.settings_reset), texts.last())
+        // Off until someone turns it on, and turning it on is the same switch the keyboard checks.
+        assertFalse(a.switchIn("Keep a diagnostic log").isChecked)
+        a.tap("Keep a diagnostic log")
+        assertTrue(DevLog.loggingOn(a))
+    }
+
+    @Test
+    fun `export and import go through Android's file picker`() {
+        val a = open()
+        a.tap("Privacy")
+        a.tap("Export words and shortcuts…")
+        val export = org.robolectric.Shadows.shadowOf(a).nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_CREATE_DOCUMENT, export.action)
+        assertEquals("application/json", export.type)
+        assertTrue(export.getStringExtra(android.content.Intent.EXTRA_TITLE)!!.matches(Regex("keyd-backup-\\d{4}-\\d{2}-\\d{2}\\.json")))
+        a.tap("Import from a file…")
+        assertEquals(android.content.Intent.ACTION_OPEN_DOCUMENT, org.robolectric.Shadows.shadowOf(a).nextStartedActivity.action)
+    }
+
+    @Test
+    fun `a report is written, previewed, and shared only from the preview`() {
+        val a = open()
+        a.tap("Report a problem")
+        assertNotNull(a.text("WHAT HAPPENED"))
+        assertNotNull(a.text("INCLUDE"))
+        val fields = a.all().filterIsInstance<EditText>()
+        assertEquals(3, fields.size)
+        // Each field is named by its question, for TalkBack.
+        val labels = a.all().filterIsInstance<TextView>().filter { it.labelFor != View.NO_ID }.map { it.text.toString() }
+        assertEquals(listOf("Which app were you typing in?", "What did you do?", "What happened?"), labels)
+        fields[0].setText("Messages")
+        fields[1].setText("Pinned a clip")
+        fields[2].setText("It closed")
+        // With nothing logged, the log can't be included.
+        assertFalse(a.all().filterIsInstance<Switch>().last().isEnabled)
+        a.tap("Preview report")
+        val report = a.all().filterIsInstance<TextView>().first { it.text.startsWith("Keyd report") }.text.toString()
+        assertTrue(report.contains("App: Messages\nDid: Pinned a clip\nSaw: It closed"))
+        assertTrue(report.contains("\nSettings\n"))
+        assertFalse(report.contains("\nLog\n"))
+        // Back to the form: what was written is still there.
+        a.tap("‹ Report a problem")
+        assertEquals("Messages", a.all().filterIsInstance<EditText>()[0].text.toString())
+        a.tap("Preview report")
+        a.tap("Share…")
+        val chooser = org.robolectric.Shadows.shadowOf(a).nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_CHOOSER, chooser.action)
+        @Suppress("DEPRECATION")
+        val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        assertEquals("Keyd report", send.getStringExtra(android.content.Intent.EXTRA_SUBJECT))
+        assertEquals(report, send.getStringExtra(android.content.Intent.EXTRA_TEXT))
+    }
+
+    @Test
+    fun `the report form keeps its answers when the phone turns`() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("keys", Context.MODE_PRIVATE).edit().clear().commit()
+        val controller = Robolectric.buildActivity(SettingsActivity::class.java).setup()
+        controller.get().tap("Report a problem")
+        controller.get().all().filterIsInstance<EditText>()[1].setText("Swiped the space bar")
+        controller.recreate()
+        assertEquals("Swiped the space bar", controller.get().all().filterIsInstance<EditText>()[1].text.toString())
+    }
+
+    @Test
+    fun `after a crash the first page offers a report, and not now puts it away`() {
+        val a = open(crashed = true)
+        assertNotNull(a.text("Keyd stopped unexpectedly"))
+        assertNotNull(a.text(a.getString(R.string.footer_crash)))
+        a.tap("Not now")
+        assertNull(a.text("Keyd stopped unexpectedly"))
+        assertFalse(DevLog.crashedSinceLooked(a))
+    }
+
+    @Test
+    fun `no crash, no card, and sending a report clears the mark`() {
+        assertNull(open().text("Keyd stopped unexpectedly"))
+        val a = open(crashed = true)
+        a.tap("Send a report")
+        assertNotNull(a.text("WHAT HAPPENED"))
+        a.tap("Preview report")
+        a.tap("Share…")
+        assertFalse(DevLog.crashedSinceLooked(a))
     }
 }

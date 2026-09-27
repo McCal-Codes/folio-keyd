@@ -1,20 +1,25 @@
 package com.mccal.folio.keys
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Build
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * What Keyd Dev writes down about itself, so a bug can be found without asking someone to describe it.
+ * What Keyd writes down about itself, so a bug can be found without asking someone to describe it.
  *
  * **Never what is typed.** A keyboard sees everything, so the log's shape makes leaking it impossible rather than
  * unlikely: an event is a fixed name and numbers, and an error keeps the exception's class and where it happened but
  * not its message, because a message can quote its input ("For input string: …"). Nothing here takes a String from a
  * text field, and a reviewer only has to check that event names are literals.
  *
- * Only the dev builds write anything. The Keyd people get from the Market has the same calls, and they do nothing.
- * It all stays in two small files on the phone; Share hands them to Android's share sheet, and only a person can send.
+ * Every build keeps errors and crashes, since a crash in the Keyd people actually use is the one worth fixing. The
+ * detailed log is off unless someone turns it on, and outside Keyd Dev it turns itself off again after a day, so a
+ * switch flipped for one bug report is not left recording for months.
+ * It all stays in two small files on the phone. A report is built from them only when someone asks, shown to them
+ * line by line, and handed to Android's share sheet: only a person can send it.
  */
 internal object DevLog {
     const val MAX_LINES = 500
@@ -24,6 +29,11 @@ internal object DevLog {
     const val SLOW_MS = 150L
 
     const val LOGGING_KEY = "devLogging"
+    const val LOGGING_SINCE_KEY = "devLoggingSince"
+    const val CRASHED_KEY = "crashedSinceLooked"
+
+    /** How long the detailed log stays on outside Keyd Dev before it turns itself off. */
+    const val LOGGING_FOR_MS = 24L * 60 * 60 * 1000
 
     /** Keyd Dev (release-signed, from the source) and Keyd Debug (a local build). The Market's Keyd is neither. */
     fun isDevBuild(packageName: String) = packageName.endsWith(".dev") || packageName.endsWith(".debug")
@@ -51,12 +61,38 @@ internal object DevLog {
 
     internal fun entries(text: String): List<String> = text.split(SEPARATOR).filter { it.isNotBlank() }
 
-    fun loggingOn(context: Context): Boolean =
-        isDevBuild(context.packageName) &&
-            context.getSharedPreferences("keys", Context.MODE_PRIVATE).getBoolean(LOGGING_KEY, false)
+    /**
+     * Whether the detailed log is recording. Outside Keyd Dev it stops [LOGGING_FOR_MS] after it was switched on, and
+     * this is where that happens: the first check after the day is up turns the switch off for good.
+     */
+    fun loggingOn(context: Context, now: Long = System.currentTimeMillis()): Boolean {
+        val prefs = prefs(context)
+        if (!prefs.getBoolean(LOGGING_KEY, false)) return false
+        val on = stillLogging(isDevBuild(context.packageName), prefs.getLong(LOGGING_SINCE_KEY, 0L), now)
+        if (!on) prefs.edit().putBoolean(LOGGING_KEY, false).remove(LOGGING_SINCE_KEY).apply()
+        return on
+    }
 
-    fun setLogging(context: Context, on: Boolean) {
-        context.getSharedPreferences("keys", Context.MODE_PRIVATE).edit().putBoolean(LOGGING_KEY, on).apply()
+    /**
+     * Keyd Dev logs for as long as its switch is on; every other build for a day at most. A switch with no start
+     * time was never turned on by this version, so it counts as expired rather than as on forever.
+     */
+    internal fun stillLogging(dev: Boolean, since: Long, now: Long): Boolean =
+        dev || (since in 1..now && now - since < LOGGING_FOR_MS)
+
+    fun setLogging(context: Context, on: Boolean, now: Long = System.currentTimeMillis()) {
+        prefs(context).edit().apply {
+            putBoolean(LOGGING_KEY, on)
+            if (on) putLong(LOGGING_SINCE_KEY, now) else remove(LOGGING_SINCE_KEY)
+        }.apply()
+    }
+
+    /** Set when a crash is written down, so Settings can offer a report the next time it opens. */
+    fun crashedSinceLooked(context: Context): Boolean = prefs(context).getBoolean(CRASHED_KEY, false)
+
+    /** Cleared when someone dismisses the card or sends a report: either way they have seen it. */
+    fun markLooked(context: Context) {
+        prefs(context).edit().remove(CRASHED_KEY).apply()
     }
 
     /** Something the keyboard did. [name] must be a literal; the values are numbers, so text can't get in. */
@@ -67,12 +103,10 @@ internal object DevLog {
 
     /** A problem that isn't an exception, like a slow suggestion. Kept with the errors, whether or not logging is on. */
     fun problem(context: Context, name: String, vararg numbers: Pair<String, Number>) {
-        if (!isDevBuild(context.packageName)) return
         add(context, ERROR_FILE, line(LocalDateTime.now(), name, numbers.toList()), MAX_ERRORS)
     }
 
     fun error(context: Context, where: String, error: Throwable) {
-        if (!isDevBuild(context.packageName)) return
         add(context, ERROR_FILE, describe(LocalDateTime.now(), where, error), MAX_ERRORS)
     }
 
@@ -81,28 +115,124 @@ internal object DevLog {
      * once per process; later calls do nothing.
      */
     fun catchCrashes(context: Context) {
-        if (!isDevBuild(context.packageName) || installed) return
+        if (installed) return
         installed = true
-        val app = context.applicationContext
+        val app = context.applicationContext ?: context
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
-            runCatching { error(app, "crash on ${thread.name}", error) }
+            runCatching { crashed(app, thread.name, error) }
             previous?.uncaughtException(thread, error)
         }
+    }
+
+    /**
+     * What the crash handler does, apart so it can be tested without crashing anything. The mark is committed, not
+     * applied: the process is about to end, and an apply would still be waiting in memory when it does.
+     */
+    @SuppressLint("ApplySharedPref") // on purpose, as above
+    internal fun crashed(context: Context, thread: String, error: Throwable) {
+        error(context, "crash on $thread", error)
+        prefs(context).edit().putBoolean(CRASHED_KEY, true).commit()
     }
 
     fun errors(context: Context): List<String> = entries(read(context, ERROR_FILE)).reversed()
 
     fun lines(context: Context): List<String> = entries(read(context, LOG_FILE))
 
-    /** One text file for the share sheet: what build this is, then the errors, then the log. */
-    fun report(context: Context, build: String): String = buildString {
-        append("Keyd developer report\n").append(build).append("\n\nRecent errors\n")
-        errors(context).ifEmpty { listOf("None") }.forEach { append(it).append('\n') }
-        append("\nLog\n")
-        lines(context).ifEmpty { listOf("Nothing logged. Turn on Detailed logging to record events.") }
-            .forEach { append(it).append('\n') }
+    /** The three questions the report form asks. Typed by the person reporting, about the problem, not by the keyboard. */
+    data class Answers(val app: String = "", val did: String = "", val saw: String = "") {
+        val isEmpty: Boolean get() = app.isBlank() && did.isBlank() && saw.isBlank()
     }
+
+    /** Which optional sections go into a report. The same four switches the report form shows. */
+    data class Include(
+        val device: Boolean = true,
+        val settings: Boolean = true,
+        val errors: Boolean = true,
+        val log: Boolean = false,
+    )
+
+    /** The phone a report came from. Read from [Build] on a phone; given directly in tests. */
+    data class Device(val android: String, val model: String, val windowDp: String)
+
+    fun device(context: Context): Device {
+        val config = context.resources.configuration
+        return Device(
+            android = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            model = "${Build.MANUFACTURER} ${Build.MODEL}",
+            windowDp = "${config.screenWidthDp} x ${config.screenHeightDp} dp",
+        )
+    }
+
+    /**
+     * A report as plain text, gathered from this phone. [build] is the line Settings shows: package, version (code),
+     * commit. There is deliberately no way to hand this anything from a text field: the only words in it are the
+     * person's own answers to the form.
+     */
+    fun report(context: Context, build: String, answers: Answers, include: Include): String = compose(
+        build = build,
+        device = device(context),
+        answers = answers,
+        include = include,
+        settings = Settings.load(prefs(context)),
+        errors = errors(context),
+        log = lines(context),
+    )
+
+    /** Keyd Dev's Share row: everything, with no questions asked. */
+    fun report(context: Context, build: String): String =
+        report(context, build, Answers(), Include(device = true, settings = true, errors = true, log = true))
+
+    /** The report itself, from values rather than a phone, so every section can be checked in a test. */
+    internal fun compose(
+        build: String,
+        device: Device,
+        answers: Answers,
+        include: Include,
+        settings: Settings,
+        errors: List<String>,
+        log: List<String>,
+    ): String = buildString {
+        append("Keyd report\n")
+        if (include.device) {
+            append(build).append('\n')
+            append("Android ").append(device.android).append('\n')
+            append(device.model).append('\n')
+            append("Window ").append(device.windowDp).append('\n')
+        }
+        if (!answers.isEmpty) {
+            append("\nWhat happened\n")
+            append("App: ").append(answers.app.trim().ifEmpty { "-" }).append('\n')
+            append("Did: ").append(answers.did.trim().ifEmpty { "-" }).append('\n')
+            append("Saw: ").append(answers.saw.trim().ifEmpty { "-" }).append('\n')
+        }
+        if (include.settings) {
+            append("\nSettings\n")
+            switches(settings).forEach { append(it).append('\n') }
+        }
+        if (include.errors) {
+            append("\nRecent errors\n")
+            errors.ifEmpty { listOf("None") }.forEach { append(it).append('\n') }
+        }
+        if (include.log) {
+            append("\nLog\n")
+            log.ifEmpty { listOf("Nothing logged. Turn on the diagnostic log to record events.") }
+                .forEach { append(it).append('\n') }
+        }
+    }
+
+    /**
+     * Every setting as `name=value`, read from the data class's own description so a setting added later is
+     * included without anyone remembering to. Only a switch or a named choice gets through: a value that is not
+     * true, false or an enum's name is left out, so if Settings ever holds words they still cannot reach a report.
+     */
+    internal fun switches(settings: Settings): List<String> =
+        settings.toString().substringAfter('(').substringBeforeLast(')').split(", ")
+            .mapNotNull { pair ->
+                val key = pair.substringBefore('=', "")
+                val value = pair.substringAfter('=', "")
+                pair.takeIf { key.isNotEmpty() && SWITCH.matches(value) }
+            }
 
     @Synchronized
     fun clear(context: Context) {
@@ -123,7 +253,10 @@ internal object DevLog {
     private fun read(context: Context, name: String): String =
         runCatching { File(context.filesDir, name).takeIf { it.isFile }?.readText() }.getOrNull().orEmpty()
 
+    private fun prefs(context: Context) = context.getSharedPreferences("keys", Context.MODE_PRIVATE)
+
     @Volatile private var installed = false
+    private val SWITCH = Regex("true|false|[A-Z][A-Z0-9_]*")
     private const val LOG_FILE = "dev-log.txt"
     private const val ERROR_FILE = "dev-errors.txt"
     private const val SEPARATOR = "\n\n"

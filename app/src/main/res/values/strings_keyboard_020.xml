@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The TalkBack action on a pinned clip; holding it does the same. -->
+    <string name="clipboard_make_shortcut">Make a text shortcut</string>
+</resources>

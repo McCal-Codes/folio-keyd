@@ -64,7 +64,7 @@
     <string name="settings_cursor_swipe">Swipe the space bar to move the cursor</string>
     <string name="settings_delete_word">Swipe left on backspace for a whole word</string>
     <string name="settings_swipe_hide">Swipe down on the space bar to hide</string>
-    <string name="settings_reset">Put everything back to normal</string>
+    <string name="settings_reset">Put every setting back to normal</string>
     <string name="shortcuts_title">Text shortcuts</string>
     <string name="shortcuts_note">A short word that stands for a longer one: type it, and the phrase is offered first in the strip. It is only ever offered — nothing is replaced until you tap it.</string>
     <string name="shortcuts_trigger_hint">Short word, e.g. omw</string>
@@ -138,7 +138,7 @@
     <string name="row_version">Version</string>
     <string name="row_whats_new">What\'s new</string>
     <string name="row_report">Report a problem</string>
-    <string name="footer_about">Report a problem opens GitHub in your browser. Keyd itself still has no internet access.</string>
+    <string name="footer_about">A report shows you every line before anything is sent, and only you can send it.</string>
 
     <!-- Keyd Dev only -->
     <string name="page_developer">Developer</string>
