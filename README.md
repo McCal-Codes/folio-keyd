@@ -125,12 +125,14 @@ The US English dictionary in `app/src/main/assets/words-en-US.txt` is two source
 - the **words** are [SCOWL](http://wordlist.aspell.net/) 2020.12.07, cut to its "size 40" band — about 57,000 of
   them. SCOWL is permissively licensed (BSD-style).
 - the **commonness score** on each word is the OpenSubtitles frequency list from
-  [FrequencyWords](https://github.com/hermitdave/FrequencyWords), log-scaled, MIT licensed. SCOWL's own bands are
-  tiers rather than frequencies — its top tier holds 4,434 words, so within it "the" ties with "tea", and a
+  [FrequencyWords](https://github.com/hermitdave/FrequencyWords), log-scaled. FrequencyWords' code is MIT but its
+  content is CC BY-SA 4.0, so the modified lists ship under CC BY-SA 4.0 too. SCOWL's own bands are tiers rather
+  than frequencies — its top tier holds 4,434 words, so within it "the" ties with "tea", and a
   keyboard that cannot tell those apart offers the wrong one.
 
-Both notices ship verbatim beside the lists as `words-COPYING.txt` and must stay there, which is the whole of what
-either licence asks.
+Both notices ship beside the lists as `words-COPYING.txt` and must stay there, along with the note that the lists
+were modified and are shared under CC BY-SA 4.0 (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Keyd's code
+stays MIT.
 
 ### Everything else
 

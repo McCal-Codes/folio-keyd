@@ -16,8 +16,8 @@ import java.io.InputStream
  *
  * The words are SCOWL, cut to US English at its "size 40" band. The scores are the OpenSubtitles frequency list,
  * log-scaled, because SCOWL's own bands are tiers rather than frequencies - its top tier holds four thousand words,
- * so inside it "the" ties with "tea", and a keyboard that cannot tell those apart suggests the wrong one. Both
- * licences are permissive and both notices ship beside the list in the assets.
+ * so inside it "the" ties with "tea", and a keyboard that cannot tell those apart suggests the wrong one. SCOWL is
+ * permissive; the frequency data is CC BY-SA 4.0, so the lists are too. Both notices ship beside them in the assets.
  */
 class Dictionary private constructor(
     private val bytes: ByteArray,

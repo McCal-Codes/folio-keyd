@@ -17,7 +17,8 @@ nicety. A word missing from the dictionary is a word autocorrect will quietly re
 gaps are exactly the words nobody wants replaced - "arse", "bollocks", "wanker" were all missing, and all three
 would have been turned into something the person did not type.
 
-Both licences are permissive and both notices ship beside the list as `words-COPYING.txt`.
+SCOWL is permissive; FrequencyWords' data is CC BY-SA 4.0 (its code is MIT, its content is not), so the lists this
+builds are shared under CC BY-SA 4.0. Both notices ship beside the list as `words-COPYING.txt`.
 
 **Other languages have only the second source.** SCOWL is English, and the open word lists for most other
 languages are GPL, which this app cannot use. So `--spoken-only` builds a list from the frequency data alone.

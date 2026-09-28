@@ -249,9 +249,26 @@ and Australian word list.  It is under the following copyright:
 
 ================================================================================
 
-The commonness score attached to each word is derived from the OpenSubtitles
-frequency list published at https://github.com/hermitdave/FrequencyWords,
-which is distributed under the MIT License:
+The commonness score attached to each word, and for every language except
+English the word list itself, is derived from the OpenSubtitles frequency
+lists published by Hermit Dave at https://github.com/hermitdave/FrequencyWords
+(which in turn are built from the OpenSubtitles corpus, http://opus.nlpl.eu/).
+
+FrequencyWords is dual licensed. Its README says: "MIT License for code.
+CC-by-sa-4.0 for content." The frequency lists are content, so the data Keyd
+uses from them is licensed under the Creative Commons Attribution-ShareAlike
+4.0 International license (CC BY-SA 4.0):
+
+  https://creativecommons.org/licenses/by-sa/4.0/
+
+The lists were modified: filtered (cut by frequency and length, with stray
+apostrophe stems and junk entries removed), merged with SCOWL for English, and
+re-ranked onto a 0-99 commonness scale. The modified word lists in this
+folder (words-*.txt) are shared under the same license, CC BY-SA 4.0. This
+applies to the word list data only. Keyd's code stays under the MIT License.
+
+For completeness, the MIT License that covers FrequencyWords' code (not its
+data) reads:
 
 MIT License
 

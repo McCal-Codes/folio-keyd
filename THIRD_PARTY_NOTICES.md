@@ -3,6 +3,21 @@
 Keyd is MIT licensed (see [LICENSE](LICENSE)). It ships some data made by others, listed here with the notices
 their licenses ask for. The word lists' notices are in `app/src/main/assets/words-COPYING.txt`.
 
+## FrequencyWords: word lists and commonness scores
+
+Word frequencies from [FrequencyWords](https://github.com/hermitdave/FrequencyWords) by Hermit Dave, built from the
+OpenSubtitles corpus. Its README licenses the project as "MIT License for code. CC-by-sa-4.0 for content", and the
+frequency lists are content, so the data is licensed under
+[Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/).
+
+Used in `app/src/main/assets/words-*.txt`: the commonness score on every word, and for German, Spanish, French,
+Italian and Portuguese the word list itself. Built by `tools/build-dictionary.py`.
+
+The lists were modified: filtered (cut by frequency and length, with stray apostrophe stems and junk entries
+removed), merged with SCOWL for English, and re-ranked onto a 0-99 commonness scale. The modified lists in
+`app/src/main/assets/` are shared under the same license, CC BY-SA 4.0. That covers the word list data only: Keyd's
+code stays under the MIT License.
+
 ## Unicode CLDR: emoji names and search keywords
 
 Emoji names and search keywords from Unicode CLDR 48.2. Copyright © 1991-2026 Unicode, Inc. Licensed under the
