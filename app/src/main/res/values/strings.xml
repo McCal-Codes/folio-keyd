@@ -26,7 +26,8 @@
     <string name="emoji_search_hint">Type a word, like heart or cat</string>
     <string name="emoji_search_none">Nothing for “%1$s”</string>
     <string name="setup_learning">Keyd remembers words you type that it does not already know — names, places, the way you spell things — so it stops suggesting something else instead. It is kept on this phone, never from a password field, and never from an app that asks it not to.</string>
-    <string name="setup_forget">Forget the %1$d words it has learned</string>
+    <string name="setup_forget">Forget the %1$d words it has learned, and the fixes it has counted</string>
+    <string name="setup_forget_counts">Forget the fixes it has counted</string>
     <string name="setup_forget_none">It has not learned any words yet</string>
     <string name="setup_forgot">Forgotten.</string>
     <string name="settings_title">Keyd settings</string>
@@ -134,7 +135,7 @@
         <item quantity="other">Forget the %1$d words Keyd has learned?</item>
     </plurals>
     <string name="back_to">‹ %1$s</string>
-    <string name="confirm_forget_detail">It will start suggesting other words for them again. This cannot be undone.</string>
+    <string name="confirm_forget_detail">It will start suggesting other words for them again, and the fixes it has counted start again from nothing. Rules and text shortcuts stay as they are. This cannot be undone.</string>
     <string name="confirm_reset">Put every setting back to normal?</string>
     <string name="confirm_reset_detail">Apps with their own settings go back to the usual ones. Learned words, fix counts, shortcuts and clipboard history stay as they are.</string>
     <string name="action_cancel">Cancel</string>

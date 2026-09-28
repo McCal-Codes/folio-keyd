@@ -208,6 +208,36 @@ data class Settings(
             ToolKey.EMOJI, ToolKey.UNDO, ToolKey.CURSOR_PAD, ToolKey.COPY, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE,
         )
 
+        /** What 0.2 showed after Hide, before the toolbar could be arranged and before Undo was on it. */
+        val TOOLBAR_BEFORE_UNDO = listOf(
+            ToolKey.EMOJI, ToolKey.CURSOR_PAD, ToolKey.COPY, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE,
+        )
+
+        /**
+         * Writes down the toolbar of someone who never arranged one, once, the first time Keyd runs without one.
+         *
+         * A fresh install gets the usual list, Undo and all. Someone coming from 0.2 keeps the six buttons they had:
+         * starting them from the new list added Undo, and on a 360 dp screen, where only seven fit beside Hide, that
+         * pushed the mic off the end. Anyone who changed a setting in 0.2 has its old switches stored, which says so
+         * by itself; [updated] covers someone who never did. Decided once and kept, so what counts as an update
+         * cannot change the toolbar under someone later.
+         */
+        fun settleToolbar(prefs: SharedPreferences, updated: Boolean) {
+            if (prefs.contains(TOOLBAR)) return
+            val list = toolbar(prefs, if (updated) TOOLBAR_BEFORE_UNDO else DEFAULT_TOOLBAR)
+            prefs.edit()
+                .putString(TOOLBAR, list.joinToString(",") { it.name })
+                .remove(VOICE_KEY)
+                .remove(CURSOR_PAD_KEY)
+                .apply()
+        }
+
+        /** Whether this install has been updated since it was first installed. False if Android will not say. */
+        fun updated(context: android.content.Context): Boolean = runCatching {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            info.lastUpdateTime > info.firstInstallTime
+        }.getOrDefault(false)
+
         /** The stored list: names in order, anything unknown or repeated left out, and no more than [MAX_TOOLS]. */
         fun parseToolbar(stored: String): List<ToolKey> =
             stored.split(',').mapNotNull { name -> ToolKey.entries.firstOrNull { it.name == name.trim() } }
@@ -221,7 +251,9 @@ data class Settings(
         private fun toolbar(prefs: SharedPreferences, fallback: List<ToolKey>): List<ToolKey> {
             prefs.getString(TOOLBAR, null)?.let { return parseToolbar(it) }
             fun old(key: String) = runCatching { prefs.getBoolean(key, true) }.getOrDefault(true)
-            return fallback
+            // The old switches stored say this is 0.2's toolbar, which had no Undo.
+            val base = if (prefs.contains(VOICE_KEY) || prefs.contains(CURSOR_PAD_KEY)) TOOLBAR_BEFORE_UNDO else fallback
+            return base
                 .map { if (it == ToolKey.CURSOR_PAD && !old(CURSOR_PAD_KEY)) ToolKey.SELECT_ALL else it }
                 .filter { it != ToolKey.VOICE || old(VOICE_KEY) }
         }

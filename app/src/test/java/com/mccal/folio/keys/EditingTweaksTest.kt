@@ -287,7 +287,7 @@ class EditingTweaksTest {
     fun `an old install keeps its choices when the toolbar becomes a list`() {
         val noPad = prefs().also { it.edit().putBoolean(Settings.CURSOR_PAD_KEY, false).commit() }
         assertEquals(
-            listOf(ToolKey.EMOJI, ToolKey.UNDO, ToolKey.SELECT_ALL, ToolKey.COPY, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE),
+            listOf(ToolKey.EMOJI, ToolKey.SELECT_ALL, ToolKey.COPY, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE),
             Settings.load(noPad).toolbar,
         )
         val noVoice = prefs().also { it.edit().putBoolean(Settings.VOICE_KEY, false).commit() }
@@ -301,7 +301,7 @@ class EditingTweaksTest {
         Settings.load(p).save(p)
         assertFalse(p.contains(Settings.CURSOR_PAD_KEY))
         assertFalse(p.contains(Settings.VOICE_KEY))
-        assertEquals("EMOJI,UNDO,SELECT_ALL,COPY,PASTE,CLIPBOARD,VOICE", p.getString(Settings.TOOLBAR, null))
+        assertEquals("EMOJI,SELECT_ALL,COPY,PASTE,CLIPBOARD,VOICE", p.getString(Settings.TOOLBAR, null))
         assertTrue(ToolKey.SELECT_ALL in Settings.load(p).toolbar)
         val custom = Settings(toolbar = listOf(ToolKey.REDO), editSwipes = false, shiftSelect = false, selectionTools = false)
         custom.save(p)
@@ -425,6 +425,11 @@ class EditingTweaksTest {
     private class Field(view: View) : BaseInputConnection(view, true) {
         val keys = mutableListOf<Pair<Int, Int>>()
         val menu = mutableListOf<Int>()
+        var reads = 0
+        override fun getSelectedText(flags: Int): CharSequence? {
+            reads++
+            return super.getSelectedText(flags)
+        }
         override fun sendKeyEvent(event: KeyEvent): Boolean {
             if (event.action == KeyEvent.ACTION_DOWN) keys += event.keyCode to event.metaState
             return super.sendKeyEvent(event)
@@ -552,6 +557,68 @@ class EditingTweaksTest {
         val start = android.text.Selection.getSelectionStart(editable)
         val end = android.text.Selection.getSelectionEnd(editable)
         assertEquals(bold, editable.subSequence(start, end).toString())
+    }
+
+    @Test
+    fun `a new field clears the last field's selection tools, even with nothing selected in either`() {
+        val (actions, ime, field) = actions(text = "some words")
+        select(field, 0, 4)
+        actions.selectionChanged(0, 4)
+        assertNotNull(ime.selections.last())
+        ime.selections.clear()
+        actions.startInput(EditorInfo().also { it.inputType = InputType.TYPE_CLASS_TEXT })
+        assertEquals(listOf<Selected?>(null), ime.selections)
+    }
+
+    @Test
+    fun `where a selection is can be noted without reading it`() {
+        val (actions, ime, field) = actions(text = "some words")
+        select(field, 0, 4)
+        field.reads = 0
+        assertTrue(actions.selectionMoved(0, 4))
+        assertFalse(actions.selectionMoved(0, 4))
+        assertEquals(0, field.reads)
+        val before = ime.selections.size
+        actions.countSelection()
+        assertEquals(1, field.reads)
+        assertEquals(before + 1, ime.selections.size)
+    }
+
+    @Test
+    fun `a selection too long to style is turned down without being read`() {
+        val text = "a".repeat(2500)
+        val (actions, _, field) = actions(text = text)
+        select(field, 0, text.length)
+        actions.selectionMoved(0, text.length)
+        field.reads = 0
+        actions.onStyle(TextStyle.BOLD)
+        assertEquals(0, field.reads)
+        assertEquals(text, field.editable.toString())
+    }
+
+    @Test
+    fun `someone coming from 0_2 keeps the mic on a 360 dp screen`() {
+        val upgraded = prefs()
+        Settings.settleToolbar(upgraded, updated = true)
+        assertEquals(Settings.TOOLBAR_BEFORE_UNDO, Settings.load(upgraded).toolbar)
+        view.voiceAvailable = true
+        view.settings = Settings.load(upgraded)
+        show(FieldRules(), widthDp = 360)
+        assertEquals("Voice", labels().last())
+        // Settled once: a later look, update or not, leaves it alone.
+        Settings.settleToolbar(upgraded, updated = false)
+        assertEquals(Settings.TOOLBAR_BEFORE_UNDO, Settings.load(upgraded).toolbar)
+    }
+
+    @Test
+    fun `a fresh install gets Undo, and a 0_2 install that changed a setting keeps its six`() {
+        val fresh = prefs()
+        Settings.settleToolbar(fresh, updated = false)
+        assertEquals(Settings.DEFAULT_TOOLBAR, Settings.load(fresh).toolbar)
+        val changed = prefs().also { it.edit().putBoolean(Settings.VOICE_KEY, true).commit() }
+        Settings.settleToolbar(changed, updated = false)
+        assertEquals(Settings.TOOLBAR_BEFORE_UNDO, Settings.load(changed).toolbar)
+        assertFalse(changed.contains(Settings.VOICE_KEY))
     }
 
     // ---- the styles themselves -------------------------------------------------------------------------------

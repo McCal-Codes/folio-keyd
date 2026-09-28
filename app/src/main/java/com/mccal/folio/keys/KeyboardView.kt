@@ -297,7 +297,11 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private val keyNodes = KeyNodes()
-    private val feedback = Feedback(context)
+    /**
+     * The key click, and whether Bluetooth audio is on. The service starts and stops it with the keyboard's window,
+     * and hands the same one to the emoji search's letters, so only one callback is ever registered.
+     */
+    internal var feedback = Feedback(context)
 
     init {
         isHapticFeedbackEnabled = true
@@ -318,11 +322,6 @@ class KeyboardView(context: Context) : View(context) {
     private fun stopRepeat() {
         repeat.removeCallbacks(repeatBackspace)
         repeatingFor = null
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        feedback.start()
     }
 
     override fun onDetachedFromWindow() {
@@ -601,8 +600,9 @@ class KeyboardView(context: Context) : View(context) {
      * where they always are. The count takes whatever is left, and is sized down to fit rather than cut short.
      */
     private fun placeSelection(selected: Selected): List<Placement> {
-        val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
-        val right = width - left
+        // The keys' own edges, as the toolbar uses: one-handed, the whole width would put Paste over the rail.
+        val left = keysLeft
+        val right = keysRight
         val top = panelPad
         val bottom = top + toolbarHeight
         val slot = min((right - left) / SELECTION_SLOTS, TOOL_SLOT_DP * dp)
@@ -1015,8 +1015,9 @@ class KeyboardView(context: Context) : View(context) {
         if (placedKeys.isEmpty()) return
         val keysTop = placedKeys.minOf { it.box.top }
         val keysBottom = placedKeys.maxOf { it.box.bottom }
-        val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
-        val right = width - left
+        // Over the keys and no further: one-handed, the rail beside them stays where it is and can still be used.
+        val left = keysLeft
+        val right = keysRight
         val pad = MENU_PAD_DP * dp
         val gap = OFFER_GAP_DP * dp
         val row = MENU_ROW_DP * dp

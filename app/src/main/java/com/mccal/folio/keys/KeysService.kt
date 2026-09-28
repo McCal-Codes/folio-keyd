@@ -46,6 +46,12 @@ class KeysService : InputMethodService(), Ime {
     /** Between onWindowShown and onWindowHidden. Cursor reports outside that are the keyboard coming or going. */
     private var windowShown = false
 
+    /** The app the last field was in, so the strip's question does not follow someone into the next one. */
+    private var offeredIn: String? = null
+
+    /** Counts a selection once it has stopped moving. See [onUpdateSelection]. */
+    private val countSelection = Runnable { if (isInputViewShown) actions.countSelection() }
+
     private val settle = Runnable {
         if (cursor.confirm(windowShown)) {
             DevLog.event(this, "fullscreen", "taken" to 1)
@@ -65,15 +71,36 @@ class KeysService : InputMethodService(), Ime {
     private val thinking = HandlerThread("suggestions").apply { start() }
     private val background by lazy { Handler(thinking.looper) }
     private val main = Handler(Looper.getMainLooper())
+
+    /** The suggestion thread's looper, so a test can wait for it. */
+    internal val suggestionLooper: Looper get() = thinking.looper
     private var dictionary: Dictionary? = null
     private var loadedFor: Language? = null
     private var learned: Learned? = null
     private var shortcuts: Shortcuts? = null
     private var insights: Insights? = null
+
+    /**
+     * Counted but not yet saved. A fix is counted on every corrected word, and writing the whole preferences file for
+     * each one was most of what the suggestion thread did while someone typed; the counts are saved a moment later
+     * instead, and whenever the field or the keyboard goes.
+     */
+    private var insightsDirty = false
+    private val saveInsights = Runnable { flushInsights() }
+
+    /**
+     * What this service last wrote, or read, for each of the stores. Only touched on the suggestion thread.
+     *
+     * Settings writes the same stores - answering from What it fixes, forgetting, an import - while the keyboard can
+     * be up. A keyboard that then saved its own copy would put back what Settings just changed, so before anything is
+     * changed here, [sync] reads again whatever no longer matches.
+     */
+    private val written = HashMap<String, String?>()
     private var proximity: Suggestions.Proximity? = null
 
     /** Which language's emoji names the search has. Only touched on the suggestion thread, like [loadedFor]. */
     private var emojiNamesFor: Language? = null
+    private var emojiNames: EmojiSearch? = null
     private var proximityFor: List<Placement>? = null
 
     /**
@@ -90,14 +117,76 @@ class KeysService : InputMethodService(), Ime {
     override fun onCreate() {
         super.onCreate()
         DevLog.catchCrashes(this)
+        Settings.settleToolbar(prefs, Settings.updated(this))
         spanTheCutout()
         // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
         background.post {
             loadDictionary(actions.language)
-            learned = Learned.decode(prefs.getString(LEARNED, null))
-            shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
-            insights = Insights.decode(prefs.getString(INSIGHTS, null))
+            sync()
         }
+    }
+
+    /**
+     * Reads again any store that someone else has written since this service last did: Settings, the setup screen,
+     * an import. Cheap when nothing changed, which is nearly always: a comparison per store and nothing else.
+     *
+     * Counts not yet saved are dropped if Settings wrote the counts in between. Settings is where someone forgets
+     * them or answers for them, and what they did there wins over a second or two of counting.
+     */
+    private fun sync() {
+        val words = prefs.getString(LEARNED, null)
+        if (learned == null || words != written[LEARNED]) {
+            learned = Learned.decode(words)
+            written[LEARNED] = words
+        }
+        val rules = prefs.getString(SHORTCUTS, null)
+        if (shortcuts == null || rules != written[SHORTCUTS]) {
+            shortcuts = Shortcuts.decode(rules)
+            written[SHORTCUTS] = rules
+        }
+        val counts = prefs.getString(INSIGHTS, null)
+        if (insights == null || counts != written[INSIGHTS]) {
+            insights = Insights.decode(counts)
+            insightsDirty = false
+            written[INSIGHTS] = counts
+        }
+    }
+
+    /** Saves on the suggestion thread, noting what was saved so [sync] can tell it from a write made elsewhere. */
+    private fun save(vararg stores: Pair<String, String>) {
+        val edit = prefs.edit()
+        for ((key, value) in stores) {
+            edit.putString(key, value)
+            written[key] = value
+        }
+        edit.apply()
+    }
+
+    /** Counted: saved within [SAVE_COUNTS_MS], or sooner if the field closes first. */
+    private fun countsChanged() {
+        if (insightsDirty) return
+        insightsDirty = true
+        background.postDelayed(saveInsights, SAVE_COUNTS_MS)
+    }
+
+    /** Only on the suggestion thread. */
+    private fun flushInsights() {
+        background.removeCallbacks(saveInsights)
+        if (!insightsDirty) return
+        // Written elsewhere since: that wins, and there is nothing of ours left to save.
+        val store = insights
+        if (store == null || prefs.getString(INSIGHTS, null) != written[INSIGHTS]) {
+            sync()
+            return
+        }
+        insightsDirty = false
+        save(INSIGHTS to store.encode())
+    }
+
+    /** The field or the keyboard went: whatever has been counted is saved now rather than in a moment. */
+    private fun saveCountsNow() {
+        background.removeCallbacks(saveInsights)
+        background.post(saveInsights)
     }
 
     /**
@@ -169,12 +258,18 @@ class KeysService : InputMethodService(), Ime {
      * will not notice a file this small being read in the moment it takes the search row to appear.
      */
     private fun loadEmojiNames(language: Language) {
-        if (emojiNamesFor == language) return
+        // Kept, and handed to whichever panel is showing now: rotating, unfolding or a change of dark mode builds the
+        // views again, and a new panel that was never given the names found nothing at all.
+        emojiNames?.takeIf { emojiNamesFor == language }?.let { names ->
+            main.post { emojiSearch?.search = names }
+            return
+        }
         val started = android.os.SystemClock.elapsedRealtime()
         val names = runCatching { EmojiSearch.load(this, language) }
             .onFailure { DevLog.error(this, "EmojiSearch.load", it) }.getOrNull() ?: return
         DevLog.event(this, "emojiNames", "ms" to android.os.SystemClock.elapsedRealtime() - started,
             "emoji" to names.size)
+        emojiNames = names
         emojiNamesFor = language
         main.post { emojiSearch?.search = names }
     }
@@ -191,6 +286,8 @@ class KeysService : InputMethodService(), Ime {
 
     override fun onDestroy() {
         main.removeCallbacks(settle)
+        main.removeCallbacks(countSelection)
+        saveCountsNow()
         super.onDestroy()
         thinking.quitSafely()
     }
@@ -255,6 +352,7 @@ class KeysService : InputMethodService(), Ime {
     override fun learn(word: String) {
         background.post {
             val words = dictionary ?: return@post
+            sync()
             val store = learned ?: Learned().also { learned = it }
             val lower = word.lowercase()
             val known = words.contains(lower)
@@ -263,39 +361,51 @@ class KeysService : InputMethodService(), Ime {
             val keys = proximity
             if (keys != null && !prefs.getBoolean(PRUNED_SLIPS, false)) {
                 val gone = store.prune { words.nearCommonWord(it, keys) }
-                prefs.edit().putBoolean(PRUNED_SLIPS, true).putString(LEARNED, store.encode()).apply()
+                prefs.edit().putBoolean(PRUNED_SLIPS, true).apply()
+                save(LEARNED to store.encode())
                 DevLog.event(this, "pruned", "words" to gone)
             }
             if (!Learned.worthLearning(lower, known, nearMiss = false)) return@post
             // The expensive question last, and only for words that got this far.
             if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) return@post
             store.learn(lower)
-            prefs.edit().putString(LEARNED, store.encode()).apply()
+            save(LEARNED to store.encode())
         }
     }
 
     /**
-     * A correction stood, or was put back. Counted on the suggestion thread and saved there, the way a learned word
-     * is; if that was the third time, the strip is handed the question on the way back.
+     * A correction stood, or was put back. Counted on the suggestion thread and saved from there a moment later; if
+     * that was the third time, the strip is handed the question on the way back.
      */
     override fun fixStood(typed: String, replacement: String) {
         val offering = actions.settings.offerRules
         background.post {
+            sync()
             val store = insights ?: Insights().also { insights = it }
             val offer = store.fixStood(typed, replacement, offering)
-            prefs.edit().putString(INSIGHTS, store.encode()).apply()
-            offer?.let { main.post { keyboard?.offer = it } }
+            countsChanged()
+            offer?.let { main.post { place(it) } }
         }
     }
 
     override fun putBack(typed: String) {
         val offering = actions.settings.offerRules
         background.post {
+            sync()
             val store = insights ?: Insights().also { insights = it }
             val offer = store.undone(typed, offering)
-            prefs.edit().putString(INSIGHTS, store.encode()).apply()
-            offer?.let { main.post { keyboard?.offer = it } }
+            countsChanged()
+            offer?.let { main.post { place(it) } }
         }
+    }
+
+    /**
+     * The strip's question, unless the field it was earned in has gone and a password field or one that asked not to
+     * be learned from has taken its place. Asking "Keep 'Folio'?" over a password is saying what was typed before it.
+     */
+    private fun place(offer: Insights.Offer) {
+        if (actions.rules.ephemeral) return
+        keyboard?.offer = offer
     }
 
     /**
@@ -305,23 +415,27 @@ class KeysService : InputMethodService(), Ime {
     override fun answered(offer: Insights.Offer, accepted: Boolean) {
         DevLog.event(this, "offer", "keep" to if (offer.keep) 1 else 0, "accepted" to if (accepted) 1 else 0)
         background.post {
+            sync()
             val store = insights ?: Insights().also { insights = it }
             val words = learned ?: Learned().also { learned = it }
             val rules = shortcuts ?: Shortcuts().also { shortcuts = it }
             store.answer(offer, accepted, words, rules)
-            prefs.edit()
-                .putString(INSIGHTS, store.encode())
-                .putString(LEARNED, words.encode())
-                .putString(SHORTCUTS, rules.encode())
-                .apply()
+            background.removeCallbacks(saveInsights)
+            insightsDirty = false
+            save(INSIGHTS to store.encode(), LEARNED to words.encode(), SHORTCUTS to rules.encode())
         }
     }
 
-    /** Everything it has picked up about how someone writes, gone. */
+    /** Everything it has picked up about how someone writes, gone: the learned words and the fixes counted. */
     fun forgetLearned() {
         background.post {
             learned?.clear()
-            prefs.edit().remove(LEARNED).apply()
+            insights = Insights()
+            insightsDirty = false
+            background.removeCallbacks(saveInsights)
+            written[LEARNED] = null
+            written[INSIGHTS] = null
+            prefs.edit().remove(LEARNED).remove(INSIGHTS).apply()
         }
     }
 
@@ -421,6 +535,9 @@ class KeysService : InputMethodService(), Ime {
                 override fun onLetters() = showCursorPad(false)
             }
         }
+        // One Feedback for both sets of letters, so one callback is registered for Bluetooth rather than two.
+        finder.keys.feedback = keys.feedback
+        if (windowShown) keys.feedback.start()
         keyboard = keys
         emoji = grid
         emojiSearch = finder
@@ -477,7 +594,8 @@ class KeysService : InputMethodService(), Ime {
             val language = actions.language
             background.post { loadEmojiNames(language) }
         } else {
-            finder.forgetTouches()
+            // What was searched for goes with the search, rather than waiting in memory for the next time it opens.
+            finder.closed()
         }
         finder.visibility = if (showing) View.VISIBLE else View.GONE
     }
@@ -595,7 +713,7 @@ class KeysService : InputMethodService(), Ime {
         // Re-read each time a field opens, so a change on the settings screen takes effect without a restart. The app
         // the field belongs to may have its own answers, and they are laid over the usual ones here, before anything
         // reads them. A password field's own rules still come after all of this, in TextActions: the field decides.
-        val chosen = settingsFor(info?.packageName)
+        val chosen = settingsFor(info?.packageName, noted = !Layouts.rulesFor(info).ephemeral)
         actions.settings = chosen
         // Asked every time rather than only when it changes: a subtype can be switched while another app is in
         // front, and the first we hear of it is the next field that opens.
@@ -616,6 +734,7 @@ class KeysService : InputMethodService(), Ime {
         emoji?.feel(chosen)
         clipboard?.feel(chosen)
         pad?.feel(chosen)
+        main.removeCallbacks(countSelection)
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
         // A keyboard may read the clipboard while it is the one on screen, so this is the moment to look. The field
@@ -630,13 +749,12 @@ class KeysService : InputMethodService(), Ime {
         // away mid-press, a call arriving - would otherwise leave a finger down forever.
         keyboard?.forgetTouches()
         // Re-read in case the setup screen has been used to forget everything since the last field.
-        background.post {
-            learned = Learned.decode(prefs.getString(LEARNED, null))
-            shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
-            insights = Insights.decode(prefs.getString(INSIGHTS, null))
-        }
-        // The strip's question waits for a gap, but not across a change of mind on the settings screen.
-        if (!chosen.offerRules) keyboard?.offer = null
+        background.post { sync() }
+        // The strip's question waits for a gap, but not across a change of mind on the settings screen, into another
+        // app, or into a field that asked not to be learned from.
+        val app = info?.packageName
+        if (!chosen.offerRules || actions.rules.ephemeral || app != offeredIn) keyboard?.offer = null
+        offeredIn = app
         // Ask the editor to keep telling us where the cursor is. Most will not, which is why nothing depends on it.
         currentInputConnection?.requestCursorUpdates(InputConnection.CURSOR_UPDATE_MONITOR)
     }
@@ -645,12 +763,14 @@ class KeysService : InputMethodService(), Ime {
      * The usual settings with [packageName]'s own laid over them, noting the app as one typed in lately.
      *
      * The package name is all that is kept - it says which app, not which field or what was in it - and only Keyd's
-     * own list of the last few apps holds it. Nothing is written when it is the app the last field was in.
+     * own list of the last few apps holds it. Nothing is written when it is the app the last field was in, and
+     * nothing when [noted] is false: a password field, or one that asked not to be learned from, is not "typed in"
+     * for anyone's list, though an app already on it still gets its own settings there.
      */
-    internal fun settingsFor(packageName: String?): Settings {
+    internal fun settingsFor(packageName: String?, noted: Boolean = true): Settings {
         val usual = Settings.load(prefs)
         val apps = AppProfiles.load(prefs)
-        if (apps.typedIn(packageName, this.packageName)) apps.save(prefs)
+        if (noted && apps.typedIn(packageName, this.packageName)) apps.save(prefs)
         return apps.apply(usual, packageName)
     }
 
@@ -692,7 +812,12 @@ class KeysService : InputMethodService(), Ime {
         oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
-        actions.selectionChanged(newSelStart, newSelEnd)
+        if (!actions.selectionMoved(newSelStart, newSelEnd)) return
+        main.removeCallbacks(countSelection)
+        // A cursor is never read, so the count goes at once. A selection is read, which is a blocking call into the
+        // app, and sliding from shift moves it once per key: it is counted when it stops, not at every step.
+        if (newSelStart == newSelEnd) actions.countSelection()
+        else if (isInputViewShown) main.postDelayed(countSelection, SELECTION_SETTLE_MS)
     }
 
     override fun selected(selection: Selected?) {
@@ -703,17 +828,24 @@ class KeysService : InputMethodService(), Ime {
     override fun onFinishInput() {
         super.onFinishInput()
         forgetCursor()
+        main.removeCallbacks(countSelection)
+        saveCountsNow()
     }
 
     override fun onWindowShown() {
         super.onWindowShown()
         windowShown = true
+        // Only while the keys are on screen: hiding keeps the view attached, so this cannot wait for a detach.
+        keyboard?.feedback?.start()
     }
 
     override fun onWindowHidden() {
         super.onWindowHidden()
         windowShown = false
         forgetCursor()
+        main.removeCallbacks(countSelection)
+        saveCountsNow()
+        keyboard?.feedback?.stop()
         // Hiding keeps the view attached, so onDetachedFromWindow never runs: a backspace held by one finger while
         // another hides the keyboard would otherwise keep deleting out of sight, and a long-press popup would wait.
         keyboard?.forgetTouches()
@@ -781,6 +913,12 @@ class KeysService : InputMethodService(), Ime {
 
         /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
         const val THINK_MS = 40L
+
+        /** How long a selection has to stay put before it is read and counted. */
+        const val SELECTION_SETTLE_MS = 80L
+
+        /** How long counted fixes wait to be saved, so a run of corrected words is one write rather than many. */
+        const val SAVE_COUNTS_MS = 2000L
 
         /** The margin both panels leave around themselves. */
         const val PANEL_PAD_DP = 6f

@@ -61,7 +61,12 @@ class Insights(
         val to = replacement.lowercase()
         if (from.isEmpty() || to.isEmpty() || from == to) return null
         val key = "$from\t$to"
-        note(fixes, key) { Entry(from, to, 0) }
+        // Counted in any case, but kept with the capitals the correction gave it: "ive" became "I've", and Always
+        // should make a shortcut to "I've", not "i've". A capital that only follows a capital typed at the start of
+        // a sentence is the sentence's, not the word's, so that one is taken off.
+        val spelled = if (typed.first().isUpperCase()) replacement.replaceFirstChar { it.lowercase() } else replacement
+        note(fixes, key) { Entry(from, spelled, 0) }
+        if (!typed.first().isUpperCase()) fixes[key] = fixes.getValue(key).copy(replacement = replacement)
         return ask(fixes, key, offering)
     }
 
@@ -178,7 +183,9 @@ class Insights(
                     settled = parts[6] == "1",
                 )
                 when (parts[0]) {
-                    "f" -> if (entry.replacement != null) fixes["${entry.typed}\t${entry.replacement}"] = entry
+                    "f" -> if (entry.replacement != null) {
+                        fixes["${entry.typed.lowercase()}\t${entry.replacement.lowercase()}"] = entry
+                    }
                     "p" -> putBacks[entry.typed.lowercase()] = entry.copy(replacement = null)
                 }
             }

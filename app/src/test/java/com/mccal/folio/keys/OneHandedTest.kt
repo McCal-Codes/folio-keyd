@@ -179,6 +179,55 @@ class OneHandedTest {
     }
 
     @Test
+    fun `the selection tools and the style menu stay inside the narrow board`() {
+        for (side in listOf(OneHanded.LEFT, OneHanded.RIGHT)) {
+            val view = keyboard(411, 891, side)
+            val (left, right) = view.boardSpan(view.width)
+            view.selection = Selected(12, 2)
+            val tools = view.toolbarPlacements
+            assertTrue(tools.any { it.key.kind == KeyKind.PASTE })
+            for (box in tools.map { it.box }) assertTrue("$side: $box outside $left..$right", box.left >= left && box.right <= right)
+            view.tap(tools.first { it.key.kind == KeyKind.STYLE }.box)
+            assertTrue(view.styleMenuItems.isNotEmpty())
+            for (box in view.styleMenuItems.map { it.box }) {
+                assertTrue("$side: menu $box outside $left..$right", box.left >= left && box.right <= right)
+            }
+        }
+    }
+
+    // ---- the panels' height -------------------------------------------------------------------------------------
+
+    @Test
+    fun `a panel is as tall as the letters, whatever size they are`() {
+        RuntimeEnvironment.setQualifiers("w411dp-h891dp-xhdpi")
+        for (settings in listOf(Settings(size = Size.LARGE, numberRow = true), Settings(size = Size.SMALL), Settings())) {
+            val keys = KeyboardView(context)
+            keys.settings = settings
+            keys.rows = Layouts.rows(Layer.LETTERS, false, FieldRules(), settings.numberRow)
+            val panels = listOf(EmojiPanel(context), ClipboardPanel(context), CursorPad(context), EmojiSearchPanel(context))
+            val frame = KeyboardFrame(context, keys)
+            frame.addView(keys)
+            panels.forEach { frame.addView(it); it.visibility = View.GONE }
+            val width = (411 * keys.resources.displayMetrics.density).toInt()
+            fun measure(): Int {
+                frame.measure(
+                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.AT_MOST),
+                )
+                frame.layout(0, 0, frame.measuredWidth, frame.measuredHeight)
+                return frame.measuredHeight
+            }
+            val letters = measure()
+            for (panel in panels) {
+                keys.visibility = View.GONE
+                panels.forEach { it.visibility = if (it === panel) View.VISIBLE else View.GONE }
+                assertEquals("${panel.javaClass.simpleName} with $settings", letters, measure())
+                assertEquals(letters, panel.height)
+            }
+        }
+    }
+
+    @Test
     fun `the letters are no smaller than a finger`() {
         val view = keyboard(330, 640, OneHanded.LEFT)
         val letters = view.placements.filter { it.key.kind == KeyKind.CHAR }

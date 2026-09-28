@@ -104,6 +104,8 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DevLog.catchCrashes(this)
+        // Settings can open before the keyboard has run since an update, so the toolbar is settled here too.
+        Settings.settleToolbar(prefs, Settings.updated(this))
         settings = Settings.load(prefs)
         page = savedInstanceState?.getString(PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() }
             // Like Folio: the first time Settings opens after an update, it opens on what's new.
@@ -1254,13 +1256,15 @@ class SettingsActivity : Activity() {
         footer(column, getString(R.string.footer_privacy))
         header(column, getString(R.string.header_what_it_knows))
         val words = Learned.decode(prefs.getString(LEARNED, null)).size
+        val counted = Insights.decode(prefs.getString(INSIGHTS, null)).size
         group(column) {
             value(it, getString(R.string.row_learned), words.toString())
-            action(it, getString(R.string.row_forget), enabled = words > 0) { confirmForget(words) }
+            action(it, getString(R.string.row_forget), enabled = words > 0 || counted > 0) { confirmForget(words) }
         }
-        // Forgotten from its own page, beside the lists it empties; here it is only counted.
+        // The counts have their own Forget beside the lists they fill; Forget above takes them too, since the fixes
+        // are words someone typed just as much as the learned ones are.
         group(column) {
-            value(it, getString(R.string.row_fixes_counted), Insights.decode(prefs.getString(INSIGHTS, null)).size.toString())
+            value(it, getString(R.string.row_fixes_counted), counted.toString())
         }
         header(column, getString(R.string.header_move))
         group(column) {
@@ -1385,11 +1389,14 @@ class SettingsActivity : Activity() {
 
     private fun confirmForget(words: Int) {
         AlertDialog.Builder(this)
-            .setTitle(resources.getQuantityString(R.plurals.confirm_forget, words, words))
+            .setTitle(
+                if (words > 0) resources.getQuantityString(R.plurals.confirm_forget, words, words)
+                else getString(R.string.confirm_forget_counts),
+            )
             .setMessage(R.string.confirm_forget_detail)
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_forget) { _, _ ->
-                prefs.edit().remove(LEARNED).apply()
+                prefs.edit().remove(LEARNED).remove(INSIGHTS).apply()
                 render(keepScroll = true)
             }
             .show()

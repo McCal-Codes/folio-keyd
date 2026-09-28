@@ -51,10 +51,15 @@ class Feedback(private val context: Context) {
      */
     fun start() {
         if (listening) return
-        listening = true
         recheck()
-        runCatching { audio?.registerAudioDeviceCallback(devices, null) }
+        // Listening only once Android has taken the callback: a failed registration left this saying it was, so
+        // nothing ever tried again and the answer went stale.
+        val manager = audio ?: return
+        listening = runCatching { manager.registerAudioDeviceCallback(devices, null) }.isSuccess
     }
+
+    /** Whether the callback is registered, for a test. */
+    internal val isListening: Boolean get() = listening
 
     /** Stops listening, for when the keys leave the screen for good. */
     fun stop() {

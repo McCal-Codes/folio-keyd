@@ -394,6 +394,19 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun `forgetting learned words takes the counted fixes too`() {
+        val a = openWithCounts()
+        a.prefs().edit().putString("learnedWords", Learned().apply { learn("keyd") }.encode()).commit()
+        a.tap("Privacy")
+        a.tap(a.getString(R.string.row_forget))
+        val dialog = ShadowDialog.getLatestDialog() as AlertDialog
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertNull(a.prefs().getString("learnedWords", null))
+        assertNull(a.prefs().getString("typingInsights", null))
+    }
+
+    @Test
     fun `privacy counts the fixes, and a reset leaves them alone`() {
         val a = openWithCounts()
         a.tap("Privacy")

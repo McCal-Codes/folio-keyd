@@ -241,8 +241,11 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         standing = null
         wordChanged()
         refresh()
+        // The last field's toolbar goes whatever this one says. Starting at -1 and then being told -1 is no change,
+        // which used to leave the count and Cut, Copy and Paste showing over a field with nothing selected.
         selStart = -1
         selEnd = -1
+        ime.selected(null)
         selectionChanged(info?.initialSelStart ?: -1, info?.initialSelEnd ?: -1)
     }
 
@@ -252,11 +255,22 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * never kept, and never logged.
      */
     fun selectionChanged(start: Int, end: Int) {
-        if (start == selStart && end == selEnd) return
+        if (selectionMoved(start, end)) countSelection()
+    }
+
+    /**
+     * Where the selection is now, noted without reading it. True when it moved. The service counts it separately,
+     * through [countSelection], once a slide from shift has stopped moving it.
+     */
+    fun selectionMoved(start: Int, end: Int): Boolean {
+        if (start == selStart && end == selEnd) return false
         selStart = start
         selEnd = end
-        ime.selected(selection())
+        return true
     }
+
+    /** Reads and counts what is selected now, for the toolbar. */
+    fun countSelection() = ime.selected(selection())
 
     private fun selection(): Selected? {
         if (!settings.selectionTools || rules.password || selStart < 0 || selEnd < 0 || selStart == selEnd) return null
@@ -515,6 +529,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onStyle(style: TextStyle) {
         if (rules.password) return
         val connection = ime.connection ?: return
+        // Too long is known from where the selection is, so it is never read just to be turned down.
+        if (selStart >= 0 && selEnd >= 0 && Selected.tooLong(abs(selEnd - selStart))) return
         val text = connection.getSelectedText(0) ?: return
         if (text.isEmpty() || Selected.tooLong(text.length)) return
         val styled = style.on(text)

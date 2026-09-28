@@ -124,6 +124,15 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
 
     fun forgetTouches() = keys.forgetTouches()
 
+    /** Closed: the touches, and what was typed and found, all let go. */
+    fun closed() {
+        keys.forgetTouches()
+        if (query.isEmpty() && results.isEmpty()) return
+        query = ""
+        results = emptyList()
+        bar.changed()
+    }
+
     private fun type(text: String) {
         if (query.length + text.length > MAX_QUERY) return
         query += text
@@ -239,7 +248,13 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
             strokeCap = Paint.Cap.ROUND
         }
         private val text = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val centred = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+        /** A TextPaint so the hint can be ellipsized with it as it is, rather than copied into a new one each frame. */
+        private val centred = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+
+        /** The hint as last drawn, kept while the words and the width stay the same. */
+        private var messageFor: String? = null
+        private var messageWidth = 0f
+        private var messageShown: CharSequence = ""
         private val nodes = Nodes()
         private var pressed = NONE
 
@@ -357,17 +372,24 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
 
         private fun drawResults(canvas: Canvas, theme: Theme) {
             val cy = (resultsTop + resultsBottom) / 2
-            val message = when {
-                query.isBlank() -> context.getString(R.string.emoji_search_hint)
-                results.isEmpty() && search != null -> context.getString(R.string.emoji_search_none, query.trim())
+            // Keyed by the query rather than the finished words, so a frame with nothing new builds no strings at all.
+            val key = when {
+                query.isBlank() -> ""
+                results.isEmpty() && search != null -> query.trim()
                 else -> null
             }
-            if (message != null) {
+            if (key != null) {
                 centred.textSize = 14 * dp
                 centred.color = theme.hint
-                val shown = TextUtils.ellipsize(
-                    message, android.text.TextPaint(centred), width - 2 * edge, TextUtils.TruncateAt.END,
-                )
+                val room = width - 2 * edge
+                if (key != messageFor || room != messageWidth) {
+                    val message = if (key.isEmpty()) context.getString(R.string.emoji_search_hint)
+                        else context.getString(R.string.emoji_search_none, key)
+                    messageShown = TextUtils.ellipsize(message, centred, room, TextUtils.TruncateAt.END)
+                    messageFor = key
+                    messageWidth = room
+                }
+                val shown = messageShown
                 canvas.drawText(shown, 0, shown.length, width / 2f, cy - (centred.descent() + centred.ascent()) / 2, centred)
                 return
             }

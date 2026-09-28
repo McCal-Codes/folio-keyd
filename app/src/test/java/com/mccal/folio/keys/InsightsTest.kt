@@ -197,4 +197,22 @@ class InsightsTest {
         assertEquals(0, learned.prune { true })
         assertEquals(Learned.MEANT_IT, learned.count("follo"))
     }
+
+    @Test
+    fun `Always makes a shortcut with the capitals the correction had`() {
+        val store = Insights()
+        store.fixStood("Ive", "I've", offering = false)
+        store.fixStood("ive", "I've", offering = false)
+        val offer = store.fixStood("ive", "I've", offering = true)!!
+        assertEquals(Insights.Offer("ive", "I've"), offer)
+        val shortcuts = Shortcuts()
+        store.answer(offer, accepted = true, Learned(), shortcuts)
+        assertEquals("I've", shortcuts.expand("ive"))
+        assertTrue(store.settled(Insights.Offer("ive", "i've")))
+        assertEquals(store.encode(), Insights.decode(store.encode()).encode())
+        // A capital typed at the start of a sentence is not kept as part of the word.
+        val sentence = Insights()
+        sentence.fixStood("Teh", "The", offering = false)
+        assertEquals("the", sentence.fixed().single().replacement)
+    }
 }
