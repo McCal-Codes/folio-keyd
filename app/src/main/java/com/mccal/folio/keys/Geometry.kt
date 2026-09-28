@@ -107,6 +107,8 @@ object Geometry {
          */
         evenKeys: Boolean = false,
         alignEnd: Boolean = false,
+        /** With [evenKeys]: a short row sits in the middle, the way the second row of a phone keyboard does. */
+        centre: Boolean = false,
     ): List<Placement> {
         if (rows.isEmpty() || width <= 0 || height <= 0) return emptyList()
         val gapX = GAP_X_DP * density
@@ -134,7 +136,12 @@ object Geometry {
             val otherUnit = if (tight && others > 0f) (usable - gapX * (row.size - 1) - shared * letters) / others else unit
             val spare = if (stretch || tight) 0f else usable - natural
             val spaces = row.count { it.kind == KeyKind.SPACE }
-            var x = left + if (spaces == 0 && alignEnd) spare else 0f
+            var x = left + when {
+                spaces > 0 -> 0f
+                alignEnd -> spare
+                centre -> spare / 2
+                else -> 0f
+            }
             for (key in row) {
                 var w = if (tight && key.kind != KeyKind.CHAR) otherUnit * key.weight else unit * key.weight
                 if (spaces > 0 && key.kind == KeyKind.SPACE) w += spare / spaces

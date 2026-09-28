@@ -27,6 +27,7 @@ class EmojiPanelTest {
     private val picked = mutableListOf<String>()
     private var backspaces = 0
     private var letters = 0
+    private var searches = 0
 
     private val density get() = panel.resources.displayMetrics.density
 
@@ -37,6 +38,7 @@ class EmojiPanelTest {
             override fun onEmoji(emoji: String) { picked += emoji }
             override fun onBackspace() { backspaces++ }
             override fun onLetters() { letters++ }
+            override fun onSearch() { searches++ }
         }
         panel.selectCategory(1)   // the recents start empty, so show a category with something in it
         lay(411)
@@ -92,8 +94,19 @@ class EmojiPanelTest {
     }
 
     @Test
-    fun `the tab bar has a letters key, a tab for every category and a backspace`() {
-        assertEquals(Emoji.CATEGORIES.size + 3, panel.tabCount)
+    fun `the tab bar has a letters key, a tab for every category, a search and a backspace`() {
+        assertEquals(Emoji.CATEGORIES.size + 4, panel.tabCount)
+    }
+
+    @Test
+    fun `the key before the backspace opens search`() {
+        val y = panel.height - panel.resources.displayMetrics.density * 40
+        val edge = (6 + Geometry.SIDE_PAD_DP) * density
+        val span = (panel.width - 2 * edge) / panel.tabCount
+        tap(edge + span * (panel.tabCount - 1.5f), y)
+        assertEquals(1, searches)
+        assertEquals(0, backspaces)
+        assertEquals("that is not an emoji", emptyList<String>(), picked)
     }
 
     @Test

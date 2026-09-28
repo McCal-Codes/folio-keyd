@@ -96,8 +96,8 @@ in; what follows is ordered by what someone would notice first, not by what is m
 
 **Later — bigger, blocked, or both**
 
-8. **Emoji search.** The panel has categories and recents, and the emoji carry no names or keywords at all — so this
-   is a data job before it is a search box.
+8. ~~**Emoji search.**~~ Done: a search key on the emoji panel, with names and keywords from Unicode CLDR in all six
+   languages.
 9. ~~**A cursor pad.**~~ Done in 0.2.0: arrows, word jumps, line start and end, select, cut and select all.
 10. **Multilingual typing.** Two dictionaries at once rather than one subtype at a time, which is what bilingual
     typing actually needs.
@@ -147,3 +147,9 @@ suggestion near it.
 
 Nothing is sent anywhere to produce a suggestion: the list is on the phone, the lookup is on the phone, and the app
 still holds no permissions at all — including no Internet permission.
+
+### Emoji names
+
+The names and keywords emoji search uses, which are also what TalkBack reads for a search result, come from Unicode
+CLDR 48.2 under the Unicode License v3. The files are in `app/src/main/assets/emoji/`, built by
+`scripts/emoji-keywords.py`, and the notice is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

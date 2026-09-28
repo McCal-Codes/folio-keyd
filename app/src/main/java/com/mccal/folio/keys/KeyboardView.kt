@@ -138,6 +138,24 @@ class KeyboardView(context: Context) : View(context) {
 
     private val showVoice get() = voiceAvailable && settings.voiceKey && !rules.password
 
+    /**
+     * The letters under the emoji search, rather than the keyboard.
+     *
+     * The same view, so the letters there are typed exactly like the letters anywhere else: the same slide between
+     * keys, the same two-thumb rollover, the same backspace repeat. What changes is only the frame. There is no toolbar,
+     * because the search row sits where it would be; no board of its own, because [EmojiSearchPanel] draws one board
+     * behind both; and short rows sit in the middle at the size of the top row's keys, since this board is shorter
+     * and stretched keys would look like a different keyboard.
+     */
+    var searchKeys: Boolean = false
+        set(value) {
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            requestLayout()
+            invalidate()
+        }
+
     var rows: List<Row> = emptyList()
         set(value) {
             field = value
@@ -176,7 +194,7 @@ class KeyboardView(context: Context) : View(context) {
     private var sideInset = 0f
 
     private val panelPad get() = PANEL_PAD_DP * dp
-    private val toolbarHeight get() = TOOLBAR_DP * dp
+    private val toolbarHeight get() = if (searchKeys) 0f else TOOLBAR_DP * dp
 
     /** One press per finger. A keyboard that tracks a single pointer drops letters the moment someone types fast. */
     private val presses = HashMap<Int, Press>()
@@ -327,6 +345,7 @@ class KeyboardView(context: Context) : View(context) {
             Shape.FULL -> Geometry.place(
                 rows, width, height, dp,
                 sideInset = sideInset + panelPad, bottomInset = bottom, top = top,
+                evenKeys = searchKeys, centre = searchKeys,
             )
             Shape.CAPPED -> {
                 // Centred and no wider than a large phone: the keys stay the size hands expect.
@@ -334,6 +353,7 @@ class KeyboardView(context: Context) : View(context) {
                 Geometry.place(
                     rows, width, height, dp, bottomInset = bottom, top = top,
                     startX = (width - capped) / 2, fillWidth = capped,
+                    evenKeys = searchKeys, centre = searchKeys,
                 )
             }
             Shape.SPLIT -> {
@@ -356,7 +376,7 @@ class KeyboardView(context: Context) : View(context) {
 
     /** The toolbar: hide the keyboard, and the three editing actions a field always supports. */
     private fun placeToolbar(): List<Placement> {
-        if (width == 0) return emptyList()
+        if (width == 0 || searchKeys) return emptyList()
         if (suggestions.isNotEmpty() && !rules.password) return placeSuggestions()
         val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
         val right = width - left
@@ -415,10 +435,13 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
-        // The panel floats: the app shows through around it, the way a phone keyboard looks.
-        scratch.set(panelPad, panelPad, width - panelPad, height - panelPad)
-        fill.color = theme.board
-        canvas.drawRoundRect(scratch, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
+        // The panel floats: the app shows through around it, the way a phone keyboard looks. Under the emoji search
+        // the panel around it has already drawn the board.
+        if (!searchKeys) {
+            scratch.set(panelPad, panelPad, width - panelPad, height - panelPad)
+            fill.color = theme.board
+            canvas.drawRoundRect(scratch, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
+        }
 
         drawToolbar(canvas)
 
@@ -509,6 +532,7 @@ class KeyboardView(context: Context) : View(context) {
             }
             KeyKind.BACKSPACE -> Icons.backspace(canvas, cx, cy, icon, stroke, stroke)
             KeyKind.GLOBE -> Icons.globe(canvas, cx, cy, icon, stroke)
+            KeyKind.EMOJI -> Icons.smiley(canvas, cx, cy, icon, stroke, fill)
             KeyKind.ACTION -> if (key.label.length > 4) drawLabel(canvas, key.label, cx, cy, box, ink)
                 else Icons.enter(canvas, cx, cy, icon * 1.1f, stroke)
             // The space bar is labelled where its width is known, which is here rather than in the row.

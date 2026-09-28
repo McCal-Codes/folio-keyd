@@ -29,6 +29,7 @@ class KeysService : InputMethodService(), Ime {
     private val actions = TextActions(this)
     private var keyboard: KeyboardView? = null
     private var emoji: EmojiPanel? = null
+    private var emojiSearch: EmojiSearchPanel? = null
     private var clipboard: ClipboardPanel? = null
     private var pad: CursorPad? = null
     private var root: View? = null
@@ -70,6 +71,9 @@ class KeysService : InputMethodService(), Ime {
     private var learned: Learned? = null
     private var shortcuts: Shortcuts? = null
     private var proximity: Suggestions.Proximity? = null
+
+    /** Which language's emoji names the search has. Only touched on the suggestion thread, like [loadedFor]. */
+    private var emojiNamesFor: Language? = null
     private var proximityFor: List<Placement>? = null
 
     /**
@@ -157,6 +161,23 @@ class KeysService : InputMethodService(), Ime {
      * The layout changes at once, because that is what they are looking at; the word list follows a moment later
      * on its own thread.
      */
+    /**
+     * Reads the emoji names for a language, the first time the search is opened in it.
+     *
+     * Not with the dictionary when the keyboard starts: most people never search for an emoji, and the ones who do
+     * will not notice a file this small being read in the moment it takes the search row to appear.
+     */
+    private fun loadEmojiNames(language: Language) {
+        if (emojiNamesFor == language) return
+        val started = android.os.SystemClock.elapsedRealtime()
+        val names = runCatching { EmojiSearch.load(this, language) }
+            .onFailure { DevLog.error(this, "EmojiSearch.load", it) }.getOrNull() ?: return
+        DevLog.event(this, "emojiNames", "ms" to android.os.SystemClock.elapsedRealtime() - started,
+            "emoji" to names.size)
+        emojiNamesFor = language
+        main.post { emojiSearch?.search = names }
+    }
+
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
         super.onCurrentInputMethodSubtypeChanged(newSubtype)
         val language = Language.of(newSubtype?.languageTag)
@@ -280,6 +301,22 @@ class KeysService : InputMethodService(), Ime {
                 override fun onBackspace() = actions.onBackspace()
 
                 override fun onLetters() = showEmoji(false)
+
+                override fun onSearch() = showEmojiSearch(true)
+            }
+        }
+        val finder = EmojiSearchPanel(this).also {
+            it.visibility = View.GONE
+            it.listener = object : EmojiSearchPanel.Listener {
+                // The same as a tap on the grid, recents and all. The search stays open for the next one.
+                override fun onEmoji(emoji: String) {
+                    actions.onEmoji(emoji)
+                    remember(emoji)
+                }
+
+                override fun onBack() = showEmoji(true)
+
+                override fun onHide() = requestHideSelf(0)
             }
         }
         val clips = ClipboardPanel(this).also {
@@ -342,6 +379,7 @@ class KeysService : InputMethodService(), Ime {
         }
         keyboard = keys
         emoji = grid
+        emojiSearch = finder
         clipboard = clips
         pad = arrows
         actions.refresh()
@@ -351,6 +389,7 @@ class KeysService : InputMethodService(), Ime {
             )
             addView(keys)
             addView(grid)
+            addView(finder)
             addView(clips)
             addView(arrows)
         }
@@ -360,6 +399,7 @@ class KeysService : InputMethodService(), Ime {
         val grid = emoji ?: return
         val updated = Emoji.remember(grid.recents, value)
         grid.recents = updated
+        emojiSearch?.recents = updated
         prefs.edit().putString(RECENTS, Emoji.encode(updated)).apply()
     }
 
@@ -370,7 +410,32 @@ class KeysService : InputMethodService(), Ime {
         }
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         emoji?.visibility = if (showing) View.VISIBLE else View.GONE
+        // Back to the grid or to the letters, the search closes either way.
+        showEmojiSearch(false)
         if (showing) emoji?.opened()
+    }
+
+    /**
+     * Swaps the emoji grid for the search, or closes it.
+     *
+     * The names are asked for here, on the suggestion thread, and arrive a moment later; until they do the results
+     * row is simply empty, which is what it shows before anything is typed anyway.
+     */
+    private fun showEmojiSearch(showing: Boolean) {
+        val finder = emojiSearch ?: return
+        if (showing) {
+            keyboard?.visibility = View.GONE
+            emoji?.visibility = View.GONE
+            clipboard?.visibility = View.GONE
+            pad?.visibility = View.GONE
+            finder.recents = emoji?.recents.orEmpty()
+            finder.opened(actions.settings, actions.language)
+            val language = actions.language
+            background.post { loadEmojiNames(language) }
+        } else {
+            finder.forgetTouches()
+        }
+        finder.visibility = if (showing) View.VISIBLE else View.GONE
     }
 
     /**
@@ -409,6 +474,7 @@ class KeysService : InputMethodService(), Ime {
         val shown = pad ?: return
         if (showing) {
             emoji?.visibility = View.GONE
+            emojiSearch?.visibility = View.GONE
             clipboard?.visibility = View.GONE
             shown.appearance = actions.settings.appearance
             shown.highContrast = actions.settings.highContrast
@@ -447,7 +513,7 @@ class KeysService : InputMethodService(), Ime {
         // fix that, so the screen is taken and the text shown in a field of its own.
         if (cursor.taken) return true
         val density = resources.displayMetrics.density
-        val shown = listOfNotNull(keyboard, emoji, clipboard, pad).firstOrNull { it.visibility == View.VISIBLE }
+        val shown = listOfNotNull(keyboard, emoji, emojiSearch, clipboard, pad).firstOrNull { it.visibility == View.VISIBLE }
         val keyboardDp = (shown?.height ?: 0) / density
         return roomAbove(resources.configuration.screenHeightDp.toFloat(), keyboardDp) < ROOM_FOR_THE_APP_DP
     }
@@ -497,7 +563,7 @@ class KeysService : InputMethodService(), Ime {
         // has just been read, which is what decides whether anything may be kept from it at all.
         rememberClip(chosen)
         // A new field starts on the letters: nobody opens a password box wanting the emoji, or the list of things
-        // they copied, that they left open.
+        // they copied, that they left open. The emoji search closes too, and forgets what was typed into it.
         showEmoji(false)
         showClipboard(false)
         showCursorPad(false)
@@ -546,6 +612,7 @@ class KeysService : InputMethodService(), Ime {
         // Hiding keeps the view attached, so onDetachedFromWindow never runs: a backspace held by one finger while
         // another hides the keyboard would otherwise keep deleting out of sight, and a long-press popup would wait.
         keyboard?.forgetTouches()
+        emojiSearch?.forgetTouches()
     }
 
     /** Every time the keyboard comes or goes, whether the screen should be taken is asked again from nothing. */
