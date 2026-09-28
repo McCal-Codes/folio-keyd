@@ -103,7 +103,7 @@ class SetupActivity : Activity() {
         }
         body(getString(R.string.setup_learning))
         forget = button(getString(R.string.setup_forget_none)) {
-            getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).apply()
+            getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).remove(SEEN).apply()
             forget.text = getString(R.string.setup_forgot)
             forget.isEnabled = false
         }
@@ -141,5 +141,6 @@ class SetupActivity : Activity() {
     private companion object {
         /** The same place the service keeps them. */
         const val LEARNED = "learnedWords"
+        const val SEEN = "seenWords"
     }
 }

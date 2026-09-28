@@ -19,7 +19,10 @@ package com.mccal.folio.keys
  *
  * It is capped, and the least used go first. Everything about it is local and it can be emptied in one tap.
  */
-class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
+class Learned(
+    private val words: MutableMap<String, Int> = LinkedHashMap(),
+    private val seen: MutableMap<String, Int> = LinkedHashMap(),
+) {
 
     val size: Int get() = words.size
 
@@ -59,6 +62,27 @@ class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
     }
 
     /**
+     * A word left exactly as typed that [learn] would not take, because it is one edit from a common word.
+     *
+     * Rule 2 above is right about "teh" and wrong about "wifi", "bruh" and "yeet", and the only way to tell them
+     * apart is to watch: a typo gets corrected, or fixed by hand, and does not come back the same way. A word that
+     * does - typed and left alone [SIGHTINGS] times - was meant, and is kept as if Keep had been tapped, so the
+     * third time it is not corrected. Returns true when the store changed.
+     */
+    fun sighted(word: String): Boolean {
+        if (word in words) return false
+        val times = (seen[word] ?: 0) + 1
+        if (times >= SIGHTINGS) {
+            seen.remove(word)
+            keep(word)
+            return true
+        }
+        if (word !in seen && seen.size >= SEEN_LIMIT) seen.remove(seen.keys.first())
+        seen[word] = times
+        return true
+    }
+
+    /**
      * Drops the words [slip] says were typos, unless they were typed often enough to mean it. Returns how many went.
      *
      * For words learned before a rule got stricter: without this they would sit in the strip for as long as the
@@ -71,7 +95,10 @@ class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
     }
 
     /** Emptied, for the tap that says "forget what you have learned about me". */
-    fun clear() = words.clear()
+    fun clear() {
+        words.clear()
+        seen.clear()
+    }
 
     /**
      * How common to treat a learned word as.
@@ -91,6 +118,9 @@ class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
 
     fun encode(): String = words.entries.joinToString("\n") { "${it.key}:${it.value}" }
 
+    /** The words seen but not yet kept, in the same shape, stored apart so nothing else mistakes them for learned. */
+    fun encodeSeen(): String = seen.entries.joinToString("\n") { "${it.key}:${it.value}" }
+
     companion object {
         /** Enough for how anyone writes, small enough to read and scan on every keystroke. */
         const val LIMIT = 1200
@@ -105,10 +135,21 @@ class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
         const val SETTLED = 6
         const val UNKNOWN = 99
 
+        /** Typed and left alone this many times, a near miss of a common word is a word. */
+        const val SIGHTINGS = 2
+
+        /** Put back with backspace this many times, a correction was wrong and the word is kept. */
+        const val PUT_BACKS = 2
+
+        /** Seen-but-not-kept words are a waiting room, not a second dictionary: the oldest leave first. */
+        const val SEEN_LIMIT = 200
+
         /** Shorter than this and it is more likely a slip or an initial than a word worth keeping. */
         const val SHORTEST = 3
 
-        fun decode(stored: String?): Learned {
+        fun decode(stored: String?, seen: String? = null): Learned = Learned(counts(stored), counts(seen))
+
+        private fun counts(stored: String?): LinkedHashMap<String, Int> {
             val words = LinkedHashMap<String, Int>()
             for (line in stored.orEmpty().split("\n")) {
                 val colon = line.lastIndexOf(':')
@@ -116,7 +157,7 @@ class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
                 val count = line.substring(colon + 1).toIntOrNull() ?: continue
                 words[line.substring(0, colon)] = count.coerceIn(1, MAX_COUNT)
             }
-            return Learned(words)
+            return words
         }
 
         /**

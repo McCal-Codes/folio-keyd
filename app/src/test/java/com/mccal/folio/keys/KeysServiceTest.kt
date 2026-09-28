@@ -86,6 +86,12 @@ class KeysServiceTest {
             taught += word
         }
 
+        val corrections = mutableListOf<Boolean>()
+        override fun learn(word: String, corrected: Boolean) {
+            corrections += corrected
+            learn(word)
+        }
+
         val stood = mutableListOf<Pair<String, String>>()
         val putBack = mutableListOf<String>()
         val answers = mutableListOf<Pair<Insights.Offer, Boolean>>()
@@ -314,6 +320,14 @@ class KeysServiceTest {
         actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("well the ", text)
+    }
+
+    @Test
+    fun `a word that was corrected is marked so, and one left alone is not`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" wifi ")
+        assertEquals(listOf(true, false), ime.corrections)
     }
 
     @Test

@@ -41,6 +41,16 @@ NOT_WORDS = {
     "ain", "mustn", "needn", "daren", "shan", "oughtn", "mightn", "usedn",
 }
 
+# Things the spoken list counts as words that are not: two words run together by whoever typed the subtitle
+# ("ofthe", "foryou"), and scanning slips where a lowercase l was read as an i ("iike", "couid"). Each one in the list
+# is worse than missing: a word the dictionary knows is a word autocorrect leaves alone, and a word it ranks common
+# is one it offers, so "couid" was the answer to "could" typed with one key off. Closed, like NOT_WORDS, and read
+# before adding anything here: "nevermind", "whatnot" and "daycare" look like the same thing and are not.
+JUNK = {
+    "ofthe", "forthe", "ifyou", "foryou", "thankyou", "areyou", "doyou", "ofyou", "ifwe", "everytime", "allright",
+    "iike", "iot", "iet", "iove", "couid", "iife", "iast", "iong", "ieast", "ifl", "nder",
+}
+
 # Letters of any alphabet, not just the twenty-six English happens to use.
 WORD = re.compile("^[^\\W\\d_][^\\W\\d_']*[']?[^\\W\\d_]*$", re.UNICODE)
 SCOWL_BANDS = [10, 20, 35, 40]
@@ -136,12 +146,16 @@ def main(final_dir, frequency_file, destination):
     spoken = 0
     have = {word.lower() for word in entries}
     for word, position in positions.items():
-        if position > SPOKEN_CUTOFF or word in NOT_WORDS or word in have:
+        if position > SPOKEN_CUTOFF or word in NOT_WORDS or word in JUNK or word in have:
             continue
         if not WORD.match(word) or not (2 < len(word) <= 20):
             continue
         entries[word] = score(position, 0)
         spoken += 1
+
+    # English ships without its borrowed accents ("café", "cliché"): ninety-odd words, and the list has always been
+    # plain ASCII. Kept that way so this reproduces the list that ships, byte for byte.
+    entries = {word: value for word, value in entries.items() if word.isascii()}
 
     with open(destination, "w", encoding="utf-8") as out:
         for word, value in sorted(entries.items(), key=lambda kv: kv[0].lower()):

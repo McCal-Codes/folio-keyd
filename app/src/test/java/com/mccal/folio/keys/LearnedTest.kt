@@ -123,4 +123,26 @@ class LearnedTest {
         assertEquals(0, Learned.decode("").size)
         assertEquals(0, Learned.decode("rubbish with no counts").size)
     }
+
+    @Test
+    fun `a near miss left alone twice is kept, and stops being corrected`() {
+        val learned = Learned()
+        learned.sighted("wifi")
+        assertEquals(0, learned.count("wifi"))
+        learned.sighted("wifi")
+        assertTrue(learned.count("wifi") >= Learned.MEANT_IT)
+    }
+
+    @Test
+    fun `seen words are stored apart and forgotten with the rest`() {
+        val learned = Learned()
+        learned.sighted("bruh")
+        val back = Learned.decode(learned.encode(), learned.encodeSeen())
+        assertEquals(0, back.size)
+        back.sighted("bruh")
+        assertEquals(1, back.size)
+        back.sighted("yeet")
+        back.clear()
+        assertEquals("", back.encodeSeen())
+    }
 }

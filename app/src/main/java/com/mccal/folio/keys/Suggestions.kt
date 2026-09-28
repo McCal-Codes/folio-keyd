@@ -92,12 +92,14 @@ object Suggestions {
         if (typed.isEmpty()) return emptyList()
         val lower = typed.lowercase()
         val scored = HashMap<String, Int>()
+        val possessive = '\'' in typed
 
         // Completions: what this word could still turn into.
         val completions = words.startingWith(lower)
         for (index in completions) {
             val word = words.word(index)
             if (word.equals(typed, ignoreCase = true)) continue
+            if (!possessive && isPossessive(word)) continue
             val cost = completionCost(words.rank(index), word.length - typed.length)
             scored.merge(word, cost, ::min)
         }
@@ -112,6 +114,7 @@ object Suggestions {
                     for (index in words.byShape(first, length)) {
                         val word = words.word(index)
                         if (word.equals(typed, ignoreCase = true)) continue
+                        if (!possessive && isPossessive(word)) continue
                         val edits = cost(lower, word.lowercase(), allowed, proximity)
                         if (edits > allowed * SCALE) continue
                         val cost = correctionCost(edits, words.rank(index))
@@ -146,10 +149,13 @@ object Suggestions {
         // there to put them back, the bare forms are never worth offering.
         if (contractions != null) scored.keys.removeAll { contractions.sure.containsKey(it.lowercase()) }
 
+        // "May" the name and "may" the word are one suggestion once they wear the case of what was typed, and
+        // the strip is too short to spend two of its places on it.
         val ranked = scored.entries
             .sortedWith(compareBy({ it.value }, { it.key.length }, { it.key }))
-            .take(LIMIT)
             .map { matchCase(typed, it.key) }
+            .distinctBy { it.lowercase() }
+            .take(LIMIT)
 
         // A shortcut is an exact answer to exactly this word, so it goes first - ahead of anything the dictionary
         // merely thinks is likely. A missing apostrophe is the next most certain answer there is. Both are still
@@ -198,7 +204,10 @@ object Suggestions {
         // finished, finishing it is the strip's job and there is nothing here to put right.
         if (words.startingWith(lower).any { words.rank(it) <= COMMON_ENOUGH }) return null
 
+        val possessive = '\'' in typed
+        val short = typed.length <= SHORT_WORD
         var best: String? = null
+        var bestRank = 0
         var bestCost = Int.MAX_VALUE
         var runnerUp = Int.MAX_VALUE
         val firsts = firstLetters(lower, proximity)
@@ -209,6 +218,7 @@ object Suggestions {
                     val candidate = words.word(index)
                     if (candidate.equals(typed, ignoreCase = true)) continue
                     if (words.rank(index) > COMMON_ENOUGH) continue
+                    if (!possessive && isPossessive(candidate)) continue
                     val edits = cost(lower, candidate.lowercase(), 1, proximity)
                     if (edits > SCALE) continue
                     // How likely the slip was comes first; how common the word is only settles the rest.
@@ -217,6 +227,7 @@ object Suggestions {
                         runnerUp = bestCost
                         bestCost = cost
                         best = candidate
+                        bestRank = words.rank(index)
                     } else if (cost < runnerUp) {
                         runnerUp = cost
                     }
@@ -225,7 +236,57 @@ object Suggestions {
         }
         if (best == null) return null
         if (runnerUp != Int.MAX_VALUE && runnerUp - bestCost < MARGIN) return null
+        // A short word is too easily something typed on purpose - "idk", "wifi", "bday" - so it is only fixed for
+        // the slips a thumb makes. A letter from across the keyboard is as likely to be meant.
+        if (short && !thumbSlip(lower, best.lowercase(), proximity)) return null
+        // No vowel at all is how "btw", "smh" and "thx" are spelled on purpose. It is also "thw", "the" with the e
+        // missed for the key beside it, and "bck", "back" with the vowel left out. Those two slips are let through,
+        // and only to a common word.
+        if (lower.none { it in VOWELS } && !(bestRank <= VOWEL_SLIP_COMMON && lostVowel(lower, best.lowercase(), proximity))) {
+            return null
+        }
         return matchCase(typed, best)
+    }
+
+    /** "wont's" and "bib's" are words, but not what someone typing "wont" or "bib" is after. */
+    private fun isPossessive(word: String) = word.endsWith("'s")
+
+    /**
+     * Whether [typed] is [word] with one of the slips a thumb makes: a neighbouring key, two letters swapped, a
+     * letter left out, a key pressed twice, or an extra key beside the one meant. What is left is a letter from
+     * across the keyboard, in place of one or on top of it, and in a short word that is as likely to be a word
+     * being spelled on purpose.
+     */
+    internal fun thumbSlip(typed: String, word: String, proximity: Suggestions.Proximity?): Boolean {
+        if (typed.length == word.length) {
+            val differ = typed.indices.filter { typed[it] != word[it] }
+            return when (differ.size) {
+                1 -> proximity?.neighbours(typed[differ[0]])?.contains(word[differ[0]]) == true
+                2 -> differ[1] == differ[0] + 1 && typed[differ[0]] == word[differ[1]] && typed[differ[1]] == word[differ[0]]
+                else -> false
+            }
+        }
+        if (typed.length + 1 == word.length) return true
+        if (typed.length != word.length + 1) return false
+        for (at in typed.indices) {
+            if (typed.removeRange(at, at + 1) != word) continue
+            val extra = typed[at]
+            val beside = listOfNotNull(typed.getOrNull(at - 1), typed.getOrNull(at + 1))
+            if (extra in beside) return true
+            if (beside.any { proximity?.neighbours(it)?.contains(extra) == true }) return true
+        }
+        return false
+    }
+
+    /** [word] is [typed] with its one vowel back: missed for the key beside it, or left out altogether. */
+    private fun lostVowel(typed: String, word: String, proximity: Suggestions.Proximity?): Boolean {
+        val vowels = word.count { it in VOWELS }
+        if (vowels != 1) return false
+        return when (word.length) {
+            typed.length -> thumbSlip(typed, word, proximity)
+            typed.length + 1 -> word.indices.any { word[it] in VOWELS && word.removeRange(it, it + 1) == typed }
+            else -> false
+        }
     }
 
     /**
@@ -342,6 +403,15 @@ object Suggestions {
      * fix "recieve" and "keybaord" - the two typos most worth fixing. Anything past 50 has no frequency data at all.
      */
     private const val COMMON_ENOUGH = 45
+
+    /** At or under this many letters, only a thumb slip is corrected unasked: see [thumbSlip]. */
+    private const val SHORT_WORD = 4
+
+    /** Common enough to be what a word with no vowels meant: "bath" for "bqth" is 33, "tux" for "thx" is 41. */
+    private const val VOWEL_SLIP_COMMON = Dictionary.COMMON
+
+    /** A word with none of these has no vowel to have mistyped, and is an abbreviation rather than a slip. */
+    private const val VOWELS = "aeiouyàáâäãåèéêëìíîïòóôöõùúûüýÿœæ"
 
     /** How much better the best candidate must be than the next one before it is worth acting on alone. */
     private const val MARGIN = 6

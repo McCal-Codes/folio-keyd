@@ -95,7 +95,7 @@ class KeysService : InputMethodService(), Ime {
         // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
         background.post {
             loadDictionary(actions.language)
-            learned = Learned.decode(prefs.getString(LEARNED, null))
+            learned = Learned.decode(prefs.getString(LEARNED, null), prefs.getString(SEEN, null))
             shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
             insights = Insights.decode(prefs.getString(INSIGHTS, null))
         }
@@ -256,7 +256,12 @@ class KeysService : InputMethodService(), Ime {
      * Saved every time rather than on a timer: an input method is killed without warning, and a word learned and
      * then lost teaches nothing. It is a few hundred bytes.
      */
-    override fun learn(word: String) {
+    override fun learn(word: String) = learn(word, corrected = false)
+
+    override fun learn(word: String, corrected: Boolean) {
+        // A typo that was corrected, and the correction stood, is the one thing that must not be learned: learned,
+        // it would never be corrected again. If it is put back instead, [putBack] decides.
+        if (corrected) return
         background.post {
             val words = dictionary ?: return@post
             val store = learned ?: Learned().also { learned = it }
@@ -271,10 +276,14 @@ class KeysService : InputMethodService(), Ime {
                 DevLog.event(this, "pruned", "words" to gone)
             }
             if (!Learned.worthLearning(lower, known, nearMiss = false)) return@post
-            // The expensive question last, and only for words that got this far.
-            if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) return@post
+            // The expensive question last, and only for words that got this far. A near miss is not learned, but it
+            // is noticed: left alone often enough, it was meant.
+            if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) {
+                if (store.sighted(lower)) save(store)
+                return@post
+            }
             store.learn(lower)
-            prefs.edit().putString(LEARNED, store.encode()).apply()
+            save(store)
         }
     }
 
@@ -298,6 +307,16 @@ class KeysService : InputMethodService(), Ime {
             val store = insights ?: Insights().also { insights = it }
             val offer = store.undone(typed, offering)
             prefs.edit().putString(INSIGHTS, store.encode()).apply()
+            // Put back twice, it is a word, whatever it is one edit away from. Kept now rather than asked about on
+            // the third time, because there should not be a third time.
+            if (store.putBacks(typed) >= Learned.PUT_BACKS) {
+                val words = learned ?: Learned().also { learned = it }
+                if (words.count(typed.lowercase()) == 0) {
+                    words.keep(typed.lowercase())
+                    save(words)
+                }
+                return@post
+            }
             offer?.let { main.post { keyboard?.offer = it } }
         }
     }
@@ -321,11 +340,15 @@ class KeysService : InputMethodService(), Ime {
         }
     }
 
+    private fun save(store: Learned) {
+        prefs.edit().putString(LEARNED, store.encode()).putString(SEEN, store.encodeSeen()).apply()
+    }
+
     /** Everything it has picked up about how someone writes, gone. */
     fun forgetLearned() {
         background.post {
             learned?.clear()
-            prefs.edit().remove(LEARNED).apply()
+            prefs.edit().remove(LEARNED).remove(SEEN).apply()
         }
     }
 
@@ -624,7 +647,7 @@ class KeysService : InputMethodService(), Ime {
         keyboard?.forgetTouches()
         // Re-read in case the setup screen has been used to forget everything since the last field.
         background.post {
-            learned = Learned.decode(prefs.getString(LEARNED, null))
+            learned = Learned.decode(prefs.getString(LEARNED, null), prefs.getString(SEEN, null))
             shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
             insights = Insights.decode(prefs.getString(INSIGHTS, null))
         }
@@ -750,6 +773,7 @@ class KeysService : InputMethodService(), Ime {
         const val VOICE_MODE = "voice"
         const val RECENTS = "emojiRecents"
         const val LEARNED = "learnedWords"
+        const val SEEN = "seenWords"
         const val PRUNED_SLIPS = "prunedSlips1"
         const val SHORTCUTS = "shortcuts"
         const val INSIGHTS = "typingInsights"

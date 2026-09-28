@@ -1220,7 +1220,7 @@ class SettingsActivity : Activity() {
             .setMessage(R.string.confirm_forget_detail)
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_forget) { _, _ ->
-                prefs.edit().remove(LEARNED).apply()
+                prefs.edit().remove(LEARNED).remove(SEEN).apply()
                 render(keepScroll = true)
             }
             .show()
@@ -1531,6 +1531,7 @@ class SettingsActivity : Activity() {
 
     private companion object {
         const val LEARNED = "learnedWords"
+        const val SEEN = "seenWords"
         const val SHORTCUTS = "shortcuts"
         const val INSIGHTS = "typingInsights"
         const val PAGE = "page"

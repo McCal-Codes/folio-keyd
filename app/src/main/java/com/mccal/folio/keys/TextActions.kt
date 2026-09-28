@@ -66,6 +66,12 @@ interface Ime {
      */
     fun learn(word: String)
 
+    /**
+     * The same, saying whether the word was corrected as it was finished. A typo that was fixed is not a word to
+     * learn; one left exactly as typed is evidence it was meant.
+     */
+    fun learn(word: String, corrected: Boolean) = learn(word)
+
     /** Swap the letters for the emoji grid, or back again. */
     fun showEmoji(showing: Boolean)
 
@@ -198,7 +204,6 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val done = word.toString()
         word.setLength(0)
         if (done.isEmpty()) return
-        if (remembering && !rules.address) ime.learn(done)
         // Only this word's verdict counts. A slower answer about the word before it is thrown away here rather
         // than applied to whatever happens to be under the cursor now.
         val answer = verdict?.takeIf { it.word == done }
@@ -207,13 +212,15 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         // An address is left exactly as typed: "keyd.dev" ends the word "keyd" at the period, and a keyboard that
         // "fixed" it would be typing somewhere else.
         if (rules.address) return
+        val fix = answer?.correction?.takeIf { Settings.correcting(settings) }
+        if (remembering) ime.learn(done, corrected = fix != null)
         // "i" is "I". That is capitalization rather than correction, so it follows the capitals setting, and it is
         // left alone wherever the app asked for no suggestions - a code editor, a username.
         val capital = if (settings.autoCapitalise && !rules.noSuggestions) Contractions.capitalI(done, language) else null
         when {
-            Settings.correcting(settings) && answer?.correction != null -> {
-                autocorrect(done, answer.correction)
-                previous = answer.correction.substringAfterLast(' ').lowercase()
+            fix != null -> {
+                autocorrect(done, fix)
+                previous = fix.substringAfterLast(' ').lowercase()
             }
             capital != null -> autocorrect(done, capital, counted = false)
             settings.spellCheck && answer?.misspelled == true -> underline(done, answer.suggestions)
