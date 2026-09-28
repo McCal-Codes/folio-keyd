@@ -180,7 +180,8 @@ object Layouts {
                     // A space bar across the gap becomes one on each side, so both thumbs have one.
                     straddles -> {
                         l += key.copy(weight = key.weight / 2)
-                        r += key.copy(weight = key.weight / 2)
+                        // Blank on the right: the language name shows once, on the left half. Output is unchanged.
+                        r += key.copy(weight = key.weight / 2, label = "")
                     }
                     used + key.weight / 2 <= total / 2 -> l += key
                     else -> r += key

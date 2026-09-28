@@ -161,6 +161,63 @@ class KeyboardViewTest {
         return fresh.shapeName
     }
 
+    /** The Fold8 unfolded (932 x 701 dp): the view laid out split, for looking at where the keys went. */
+    private fun splitAt932(rules: FieldRules = FieldRules()): KeyboardView {
+        org.robolectric.RuntimeEnvironment.setQualifiers("w932dp-h701dp-land-xhdpi")
+        val fresh = KeyboardView(ApplicationProvider.getApplicationContext<Context>())
+        fresh.rules = rules
+        fresh.rows = Layouts.rows(Layer.LETTERS, false, rules)
+        val width = (932 * fresh.resources.displayMetrics.density).toInt()
+        fresh.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        fresh.layout(0, 0, fresh.measuredWidth, fresh.measuredHeight)
+        assertEquals("SPLIT", fresh.shapeName)
+        return fresh
+    }
+
+    /**
+     * Each half used to stretch every row to fill it, so the right half's four-key row had keys a quarter wider
+     * than the left half's five, and nothing lined up between thumbs.
+     */
+    @Test
+    fun `every letter in a split keyboard is the same size`() {
+        val split = splitAt932()
+        val widths = split.placements.filter { it.key.kind == KeyKind.CHAR }.map { it.box.width }
+        val spread = widths.max() - widths.min()
+        assertTrue("letters range ${widths.min()} to ${widths.max()} px", spread < 1.5f)
+    }
+
+    @Test
+    fun `both split space bars are wide enough and type a space`() {
+        val split = splitAt932()
+        val density = split.resources.displayMetrics.density
+        val spaces = split.placements.filter { it.key.kind == KeyKind.SPACE }
+        assertEquals(2, spaces.size)
+        for (space in spaces) {
+            assertTrue("space is ${space.box.width / density} dp", space.box.width / density >= 120f)
+            assertEquals(" ", space.key.output)
+        }
+    }
+
+    /** Said once is enough: only the left half carries the language name, the way iOS draws its split bar. */
+    @Test
+    fun `only one half of a split space bar is labelled`() {
+        val labels = splitAt932().placements.filter { it.key.kind == KeyKind.SPACE }.map { it.key.label }
+        assertEquals(1, labels.count { it.isNotEmpty() })
+    }
+
+    @Test
+    fun `no split key overlaps another or leaves its half`() {
+        val split = splitAt932(Layouts.rules(0x21, 0))   // an email field, with @ and .com on the bottom row
+        val boxes = split.placements.map { it.box }
+        for (i in boxes.indices) for (j in i + 1 until boxes.size) {
+            assertTrue("keys $i and $j overlap", !boxes[i].overlaps(boxes[j]))
+        }
+        assertTrue(boxes.all { it.left >= 0f && it.right <= split.width })
+    }
+
     /** Asked for outright, or refused outright: the automatic answer is only the default. */
     @Test
     fun `split can be asked for and refused`() {
