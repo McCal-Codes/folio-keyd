@@ -100,6 +100,13 @@ object Geometry {
         startX: Float = 0f,
         /** The width to fill, when it isn't the whole view: a split half, or a capped width on a wide window. */
         fillWidth: Float = 0f,
+        /**
+         * For a split half: every row uses the top row's key size instead of stretching to fill, so the two halves'
+         * letters are the same size. A row with a space bar gives its spare room to the space bar; any other short
+         * row leaves it on the crease side ([alignEnd] for the right half), so the outer edges stay flush.
+         */
+        evenKeys: Boolean = false,
+        alignEnd: Boolean = false,
     ): List<Placement> {
         if (rows.isEmpty() || width <= 0 || height <= 0) return emptyList()
         val gapX = GAP_X_DP * density
@@ -109,13 +116,28 @@ object Geometry {
         if (usable <= 0) return emptyList()
         val rowH = (height - top - bottomInset - 2 * gapY - (rows.size - 1) * gapY) / rows.size
         val out = ArrayList<Placement>()
+        // The top row sets the key size for the whole half: it is always the fullest row of letters.
+        val first = rows.first()
+        val shared = (usable - gapX * (first.size - 1)) / first.sumOf { it.weight.toDouble() }.toFloat()
         var y = top + gapY
         for (row in rows) {
             val weights = row.sumOf { it.weight.toDouble() }.toFloat()
-            val unit = (usable - gapX * (row.size - 1)) / weights
-            var x = left
+            val natural = shared * weights + gapX * (row.size - 1)
+            // Stretching is right for a full keyboard, and for any half-row that would not fit at the shared size.
+            val stretch = !evenKeys
+            val tight = evenKeys && natural > usable + 0.5f
+            val unit = if (stretch) (usable - gapX * (row.size - 1)) / weights else shared
+            // A half-row too wide for the shared size (shift, 123 and the globe add up) keeps its letters the same
+            // size as every other letter and squeezes only the keys that aren't letters.
+            val letters = row.filter { it.kind == KeyKind.CHAR }.sumOf { it.weight.toDouble() }.toFloat()
+            val others = weights - letters
+            val otherUnit = if (tight && others > 0f) (usable - gapX * (row.size - 1) - shared * letters) / others else unit
+            val spare = if (stretch || tight) 0f else usable - natural
+            val spaces = row.count { it.kind == KeyKind.SPACE }
+            var x = left + if (spaces == 0 && alignEnd) spare else 0f
             for (key in row) {
-                val w = unit * key.weight
+                var w = if (tight && key.kind != KeyKind.CHAR) otherUnit * key.weight else unit * key.weight
+                if (spaces > 0 && key.kind == KeyKind.SPACE) w += spare / spaces
                 out += Placement(key, Box(x, y, x + w, y + rowH))
                 x += w + gapX
             }

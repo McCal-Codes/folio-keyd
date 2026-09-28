@@ -342,10 +342,10 @@ class KeyboardView(context: Context) : View(context) {
                 val (leftRows, rightRows) = Layouts.split(rows)
                 Geometry.place(
                     leftRows, width, height, dp, bottomInset = bottom, top = top,
-                    startX = edge, fillWidth = half,
+                    startX = edge, fillWidth = half, evenKeys = true,
                 ) + Geometry.place(
                     rightRows, width, height, dp, bottomInset = bottom, top = top,
-                    startX = edge + half + gutter, fillWidth = half,
+                    startX = edge + half + gutter, fillWidth = half, evenKeys = true, alignEnd = true,
                 )
             }
         }
@@ -512,7 +512,8 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.ACTION -> if (key.label.length > 4) drawLabel(canvas, key.label, cx, cy, box, ink)
                 else Icons.enter(canvas, cx, cy, icon * 1.1f, stroke)
             // The space bar is labelled where its width is known, which is here rather than in the row.
-            KeyKind.SPACE -> drawLabel(
+            // The second half of a split space bar is blank: the language said once is enough.
+            KeyKind.SPACE -> if (key.label.isNotEmpty()) drawLabel(
                 canvas, spaceLabel(box.width / dp, language, key.label), cx, cy, box, ink,
             )
             else -> drawLabel(canvas, key.label, cx, cy, box, ink)
