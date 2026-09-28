@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Builds a signed Keyd release, and Keyd Dev beside it, and points Keyd's Folio source at both.
+# Builds a signed Keyd release, and Keyd Dev beside it, and points Keyd's Folio source at Keyd.
 #
 #   dist/Keyd-<version>/Keyd-<version>.apk          Keyd, signed with the same key as Folio
-#   dist/Keyd-<version>/Keyd-Dev-<version>.apk      Keyd Dev (com.mccal.keyd.dev): the same code with its Developer page
+#   dist/Keyd-<version>/Keyd-Dev-<version>.apk      Keyd Dev (com.mccal.keyd.dev): the same code with its Developer page,
+#                                                   for McCal's own phone only. It is not published anywhere.
 #   dist/Keyd-<version>/SHA256SUMS.txt              both checksums, for the release notes
 #   dist/Keyd-<version>/signing-certificate.txt     the certificate digest (the script checks both use one key)
-#   source/packages/keyd/app.json, keyd-dev/app.json where each release asset will be, and what it hashes to
+#   source/packages/keyd/app.json                   where the release asset will be, and what it hashes to
 #
 # Needs FOLIO_RELEASE_STORE_FILE (outside the repo), FOLIO_RELEASE_STORE_PASSWORD, FOLIO_RELEASE_KEY_ALIAS and
 # FOLIO_RELEASE_KEY_PASSWORD. Upload both APKs to a GitHub release tagged v<version> with exactly those file names,
@@ -34,8 +35,8 @@ apksigner=$(ls -d "$sdk"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1
 
 (cd "$root" && ./gradlew -q :app:testDebugUnitTest :app:assembleRelease :app:assembleDev)
 
-# Keyd and Keyd Dev ship together, at the same version and signed with the same key: Keyd Dev is the same code with
-# its Developer page, under its own app id, so testers can have it beside the Keyd they rely on.
+# Keyd ships as one app. Keyd Dev is built beside it at the same version and with the same key, so it can update the
+# Keyd Dev already on McCal's phone, but it stays in dist/: it is not in the release or the source (McCal, 2026-09-28).
 mkdir -p "$out"
 : > "$out/SHA256SUMS.txt"
 for variant in release dev; do
@@ -47,6 +48,7 @@ for variant in release dev; do
     (cd "$out" && shasum -a 256 "$name" >> SHA256SUMS.txt)
     sha=$(shasum -a 256 "$out/$name" | cut -d' ' -f1)
     size=$(stat -f%z "$out/$name" 2>/dev/null || stat -c%s "$out/$name")
+    [[ $variant == release ]] || continue
     mkdir -p "$root/source/packages/$package"
     cat > "$root/source/packages/$package/app.json" <<JSON
 {
@@ -62,5 +64,6 @@ cmp -s <(grep SHA-256 "$out/signing-certificate-release.txt") <(grep SHA-256 "$o
 
 echo "Signed release: $out"
 grep "SHA-256" "$out/signing-certificate.txt" || true
-echo "Upload both APKs to the v$version release: gh release create v$version -R $repo $out/Keyd-$version.apk $out/Keyd-Dev-$version.apk"
-echo "source/packages/keyd/app.json and keyd-dev/app.json now point at v$version. Commit them after the release is up."
+echo "Upload Keyd to the v$version release: gh release create v$version -R $repo $out/Keyd-$version.apk"
+echo "Keyd Dev is for your phone only: adb install -r -i com.mccal.folio $out/Keyd-Dev-$version.apk"
+echo "source/packages/keyd/app.json now points at v$version. Commit it after the release is up."
