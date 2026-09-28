@@ -9,7 +9,6 @@ import android.graphics.RectF
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -80,8 +79,15 @@ internal class CursorPad(context: Context) : View(context) {
             invalidate()
         }
 
-    /** Keyd's own Vibration switch. Off means off here too, not only on the letters. */
-    var vibrate: Boolean = true
+    /** Keyd's own Vibration choice. Off means off here too, not only on the letters. */
+    var vibration: Vibration = Vibration.MEDIUM
+
+    /** A black board when dark, as on the letters. */
+    var pureBlack: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
 
     /** The key style the letters use, so opening the pad doesn't change the keyboard's look. */
     var keyStyle: KeyStyle = KeyStyle.FOLIO
@@ -211,7 +217,7 @@ internal class CursorPad(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance, highContrast, keyStyle)
+        theme = Theme.of(context, appearance, highContrast, keyStyle, pureBlack)
         // The panel floats: the app shows through around it, the way the letters do.
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
@@ -364,7 +370,7 @@ internal class CursorPad(context: Context) : View(context) {
                 repeated = false
                 val key = KEYS.getOrNull(pressed)
                 if (key != null) {
-                    if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    Haptics.feel(this, vibration)
                     if (key.repeats) repeat.postDelayed(repeatHeld, FIRST_REPEAT_MS)
                     invalidate()
                 }

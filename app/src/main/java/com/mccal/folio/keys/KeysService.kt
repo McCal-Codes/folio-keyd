@@ -444,6 +444,7 @@ class KeysService : InputMethodService(), Ime {
             clipboard?.appearance = actions.settings.appearance
             clipboard?.highContrast = actions.settings.highContrast
             clipboard?.keyStyle = actions.settings.keyStyle
+            clipboard?.feel(actions.settings)
         }
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         clipboard?.visibility = if (showing) View.VISIBLE else View.GONE
@@ -458,7 +459,7 @@ class KeysService : InputMethodService(), Ime {
             shown.appearance = actions.settings.appearance
             shown.highContrast = actions.settings.highContrast
             shown.keyStyle = actions.settings.keyStyle
-            shown.vibrate = actions.settings.vibrate
+            shown.feel(actions.settings)
             shown.opened()
         }
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
@@ -515,8 +516,10 @@ class KeysService : InputMethodService(), Ime {
         forgetCursor()
         DevLog.event(this, "field", "class" to ((info?.inputType ?: 0) and android.text.InputType.TYPE_MASK_CLASS),
             "restarting" to if (restarting) 1 else 0)
-        // Re-read each time a field opens, so a change on the settings screen takes effect without a restart.
-        val chosen = Settings.load(prefs)
+        // Re-read each time a field opens, so a change on the settings screen takes effect without a restart. The app
+        // the field belongs to may have its own answers, and they are laid over the usual ones here, before anything
+        // reads them. A password field's own rules still come after all of this, in TextActions: the field decides.
+        val chosen = settingsFor(info?.packageName)
         actions.settings = chosen
         // Asked every time rather than only when it changes: a subtype can be switched while another app is in
         // front, and the first we hear of it is the next field that opens.
@@ -534,8 +537,9 @@ class KeysService : InputMethodService(), Ime {
         emoji?.appearance = chosen.appearance
         emoji?.highContrast = chosen.highContrast
         emoji?.keyStyle = chosen.keyStyle
-        emoji?.vibrate = chosen.vibrate
-        clipboard?.vibrate = chosen.vibrate
+        emoji?.feel(chosen)
+        clipboard?.feel(chosen)
+        pad?.feel(chosen)
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
         // A keyboard may read the clipboard while it is the one on screen, so this is the moment to look. The field
@@ -559,6 +563,34 @@ class KeysService : InputMethodService(), Ime {
         if (!chosen.offerRules) keyboard?.offer = null
         // Ask the editor to keep telling us where the cursor is. Most will not, which is why nothing depends on it.
         currentInputConnection?.requestCursorUpdates(InputConnection.CURSOR_UPDATE_MONITOR)
+    }
+
+    /**
+     * The usual settings with [packageName]'s own laid over them, noting the app as one typed in lately.
+     *
+     * The package name is all that is kept - it says which app, not which field or what was in it - and only Keyd's
+     * own list of the last few apps holds it. Nothing is written when it is the app the last field was in.
+     */
+    internal fun settingsFor(packageName: String?): Settings {
+        val usual = Settings.load(prefs)
+        val apps = AppProfiles.load(prefs)
+        if (apps.typedIn(packageName, this.packageName)) apps.save(prefs)
+        return apps.apply(usual, packageName)
+    }
+
+    private fun EmojiPanel.feel(settings: Settings) {
+        vibration = settings.vibration
+        pureBlack = settings.pureBlack
+    }
+
+    private fun ClipboardPanel.feel(settings: Settings) {
+        vibration = settings.vibration
+        pureBlack = settings.pureBlack
+    }
+
+    private fun CursorPad.feel(settings: Settings) {
+        vibration = settings.vibration
+        pureBlack = settings.pureBlack
     }
 
     // ---- Ime -----------------------------------------------------------------------------------------------------

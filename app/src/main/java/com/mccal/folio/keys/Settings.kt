@@ -32,6 +32,12 @@ enum class KeyStyle { FOLIO, MATERIAL, SAMSUNG }
 /** Light or dark. [SYSTEM] follows the phone, which is what almost everyone wants and nobody has to choose. */
 enum class Appearance { SYSTEM, DARK, LIGHT }
 
+/**
+ * How hard a key taps back. Every step is one of Android's own haptic effects, played through the view, so it needs
+ * no vibration permission and still follows the phone's own touch-feedback setting; [Haptics] says which is which.
+ */
+enum class Vibration { OFF, LIGHT, MEDIUM, STRONG }
+
 data class Settings(
     /** The row above the keys that offers words. Off means no strip, and no autocorrect either. */
     val suggestions: Boolean = true,
@@ -73,8 +79,15 @@ data class Settings(
     val clipboardHistory: Boolean = true,
     /** The click. Follows the phone's own touch-sound setting as well; this can only turn it further off. */
     val sound: Boolean = true,
-    /** The tap you feel. Follows the phone's own vibration setting as well. */
-    val vibrate: Boolean = true,
+    /** The tap you feel. Follows the phone's own vibration setting as well, so this can only make it quieter. */
+    val vibration: Vibration = Vibration.MEDIUM,
+    /**
+     * No clicks while Bluetooth headphones or a speaker are connected. On by default: a click is for the person
+     * holding the phone, and in headphones it lands on top of whatever they were listening to.
+     */
+    val muteWithBluetooth: Boolean = true,
+    /** A black board when dark is in effect, which an OLED screen draws by switching the pixels off. */
+    val pureBlack: Boolean = false,
     /**
      * The mic on the toolbar and at the end of the suggestion strip. It hands you to the phone's own voice keyboard,
      * which is not Keyd and does use the Internet; with no voice keyboard on the phone the key is not drawn at all.
@@ -109,7 +122,11 @@ data class Settings(
             putBoolean(HIGH_CONTRAST, highContrast)
             putBoolean(CLIPBOARD, clipboardHistory)
             putBoolean(SOUND, sound)
-            putBoolean(VIBRATE, vibrate)
+            putString(VIBRATION, vibration.name)
+            // The old switch goes once its answer has been carried over, so it can't disagree with the new one.
+            remove(VIBRATE)
+            putBoolean(MUTE_WITH_BLUETOOTH, muteWithBluetooth)
+            putBoolean(PURE_BLACK, pureBlack)
             putBoolean(VOICE_KEY, voiceKey)
             putBoolean(CURSOR_PAD_KEY, cursorPadKey)
             putString(KEY_STYLE, keyStyle.name)
@@ -138,7 +155,11 @@ data class Settings(
         const val HIGH_CONTRAST = "highContrast"
         const val CLIPBOARD = "clipboardHistory"
         const val SOUND = "sound"
+        /** Before there was a choice of strength, vibration was a switch. Read once, for anyone who set it then. */
         const val VIBRATE = "vibrate"
+        const val VIBRATION = "vibration"
+        const val MUTE_WITH_BLUETOOTH = "muteWithBluetooth"
+        const val PURE_BLACK = "pureBlack"
         const val VOICE_KEY = "voiceKey"
         const val CURSOR_PAD_KEY = "cursorPadKey"
         const val KEY_STYLE = "keyStyle"
@@ -168,7 +189,9 @@ data class Settings(
                 highContrast = read(HIGH_CONTRAST, fallback.highContrast),
                 clipboardHistory = read(CLIPBOARD, fallback.clipboardHistory),
                 sound = read(SOUND, fallback.sound),
-                vibrate = read(VIBRATE, fallback.vibrate),
+                vibration = vibration(prefs, fallback.vibration),
+                muteWithBluetooth = read(MUTE_WITH_BLUETOOTH, fallback.muteWithBluetooth),
+                pureBlack = read(PURE_BLACK, fallback.pureBlack),
                 voiceKey = read(VOICE_KEY, fallback.voiceKey),
                 cursorPadKey = read(CURSOR_PAD_KEY, fallback.cursorPadKey),
                 keyStyle = choice(prefs, KEY_STYLE, fallback.keyStyle),
@@ -185,8 +208,26 @@ data class Settings(
         private inline fun <reified T : Enum<T>> choice(prefs: SharedPreferences, key: String, fallback: T): T =
             runCatching { enumValueOf<T>(prefs.getString(key, null) ?: return fallback) }.getOrDefault(fallback)
 
-        /** Everything back to how it arrived. */
-        fun reset(prefs: SharedPreferences) = Settings().also { it.save(prefs) }
+        /**
+         * The strength, or what the old switch said: on was the tap every key made then, which is [Vibration.MEDIUM],
+         * and off stays off.
+         */
+        private fun vibration(prefs: SharedPreferences, fallback: Vibration): Vibration = when {
+            prefs.contains(VIBRATION) -> choice(prefs, VIBRATION, fallback)
+            prefs.contains(VIBRATE) ->
+                if (runCatching { prefs.getBoolean(VIBRATE, true) }.getOrDefault(true)) Vibration.MEDIUM else Vibration.OFF
+            else -> fallback
+        }
+
+        /**
+         * Everything back to how it arrived, per-app settings included: an app still set its own way after "every
+         * setting back to normal" would be a setting that wasn't. Which apps have been typed in is not a setting, so
+         * the list stays.
+         */
+        fun reset(prefs: SharedPreferences) = Settings().also {
+            it.save(prefs)
+            AppProfiles.load(prefs).apply { forgetChanges() }.save(prefs)
+        }
 
         /**
          * Turning the strip off turns autocorrect off with it.

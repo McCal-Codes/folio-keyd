@@ -48,6 +48,9 @@ class SettingsActivity : Activity() {
         MAIN(R.string.page_main, null),
         TYPING(R.string.page_typing, MAIN),
         WHAT_IT_FIXES(R.string.page_what_it_fixes, TYPING),
+        APPS(R.string.row_per_app, TYPING),
+        /** One app from that list. Its title is the app's name, so [title] is only the fallback. */
+        APP(R.string.row_per_app, APPS),
         KEYS(R.string.page_keys, MAIN),
         LOOK(R.string.page_look, MAIN),
         FEEL(R.string.page_feel, MAIN),
@@ -62,6 +65,9 @@ class SettingsActivity : Activity() {
     private lateinit var settings: Settings
     private val prefs by lazy { getSharedPreferences("keys", Context.MODE_PRIVATE) }
     private var page = Page.MAIN
+
+    /** The package whose page is open, while [Page.APP] is. */
+    private var app: String? = null
     private var scroll: ScrollView? = null
     private val density by lazy { resources.displayMetrics.density }
     private fun dp(value: Float) = (value * density).toInt()
@@ -101,6 +107,8 @@ class SettingsActivity : Activity() {
         page = savedInstanceState?.getString(PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() }
             // Like Folio: the first time Settings opens after an update, it opens on what's new.
             ?: if (WhatsNew.shouldShow(this, versionName())) Page.WHATS_NEW else Page.MAIN
+        app = savedInstanceState?.getString(APP)
+        if (page == Page.APP && app == null) page = Page.APPS
         savedInstanceState?.let { state ->
             answers = DevLog.Answers(
                 state.getString(ANSWER_APP).orEmpty(), state.getString(ANSWER_DID).orEmpty(), state.getString(ANSWER_SAW).orEmpty(),
@@ -126,6 +134,7 @@ class SettingsActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(PAGE, page.name)
+        outState.putString(APP, app)
         outState.putString(ANSWER_APP, answers.app)
         outState.putString(ANSWER_DID, answers.did)
         outState.putString(ANSWER_SAW, answers.saw)
@@ -196,7 +205,7 @@ class SettingsActivity : Activity() {
         }
         // What's New draws its own centred header, as Folio's does.
         if (page != Page.WHATS_NEW) column.addView(TextView(this).apply {
-            text = getString(page.title)
+            text = if (page == Page.APP) appName(app.orEmpty()) else getString(page.title)
             setTextColor(colors.text)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f)
             typeface = Typeface.DEFAULT_BOLD
@@ -208,6 +217,8 @@ class SettingsActivity : Activity() {
             Page.MAIN -> main(column)
             Page.TYPING -> typing(column)
             Page.WHAT_IT_FIXES -> whatItFixes(column)
+            Page.APPS -> apps(column)
+            Page.APP -> app(column, app.orEmpty())
             Page.KEYS -> keys(column)
             Page.LOOK -> look(column)
             Page.FEEL -> feel(column)
@@ -675,6 +686,92 @@ class SettingsActivity : Activity() {
                 subtitle = getString(R.string.row_what_it_fixes_note),
             ) { show(Page.WHAT_IT_FIXES) }
         }
+        val changed = AppProfiles.load(prefs).changed.size
+        group(column) {
+            nav(it, null, null, getString(R.string.row_per_app),
+                resources.getQuantityString(R.plurals.value_apps, changed, changed)) { show(Page.APPS) }
+        }
+    }
+
+    // ---- Per-app settings ----------------------------------------------------------------------------------------
+
+    /**
+     * Every app typed in lately: the ones set their own way first, then the rest. Only apps Keyd has actually been
+     * used in are here, because that is the only way it hears of an app at all.
+     */
+    private fun apps(column: LinearLayout) {
+        footer(column, getString(R.string.per_app_note))
+        val apps = AppProfiles.load(prefs)
+        if (apps.recentApps.isEmpty()) {
+            group(column) { card ->
+                row(card, iconSpace = false).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setPadding(dp(16f), dp(20f), dp(16f), dp(20f))
+                    addView(TextView(context).apply {
+                        text = getString(R.string.per_app_empty)
+                        setTextColor(colors.text)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+                        gravity = Gravity.CENTER
+                    })
+                    addView(TextView(context).apply {
+                        text = getString(R.string.per_app_empty_note)
+                        setTextColor(colors.secondary)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                        gravity = Gravity.CENTER
+                    })
+                    isFocusable = true
+                }
+            }
+        }
+        if (apps.changed.isNotEmpty()) {
+            header(column, getString(R.string.header_changed))
+            group(column) { card ->
+                apps.changed.forEach { app -> appRow(card, app, changeSummary(apps.changes(app, settings))) }
+            }
+        }
+        if (apps.asUsual.isNotEmpty()) {
+            header(column, getString(R.string.header_as_usual))
+            group(column) { card -> apps.asUsual.forEach { app -> appRow(card, app, null) } }
+        }
+        if (apps.recentApps.isNotEmpty()) footer(column, getString(R.string.per_app_footer, AppProfiles.LIMIT))
+    }
+
+    /** "No fixing" when one thing is different, "2 changes" when more are. */
+    private fun changeSummary(changes: List<AppProfiles.Change>): String = when (changes.size) {
+        0 -> getString(R.string.change_none)
+        1 -> getString(when (changes.single()) {
+            AppProfiles.Change.SUGGESTIONS_OFF -> R.string.change_suggestions_off
+            AppProfiles.Change.SUGGESTIONS_ON -> R.string.change_suggestions_on
+            AppProfiles.Change.FIXING_OFF -> R.string.change_fixing_off
+            AppProfiles.Change.FIXING_ON -> R.string.change_fixing_on
+            AppProfiles.Change.LEARNING_OFF -> R.string.change_learning_off
+            AppProfiles.Change.LEARNING_ON -> R.string.change_learning_on
+            AppProfiles.Change.NUMBER_ROW_ON -> R.string.change_number_row_on
+            AppProfiles.Change.NUMBER_ROW_OFF -> R.string.change_number_row_off
+        })
+        else -> resources.getQuantityString(R.plurals.value_changes, changes.size, changes.size)
+    }
+
+    /** One app in the list: its icon and name, what is different about it, and the way into its page. */
+    private fun appRow(card: LinearLayout, app: String, value: String?) {
+        val name = appName(app)
+        row(card, iconSpace = true).apply {
+            addView(android.widget.ImageView(context).apply {
+                setImageDrawable(appIcon(app))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(dp(29f), dp(29f)).apply { marginEnd = dp(13f) })
+            addView(label(name))
+            value?.let { addView(trailing(it)) }
+            addView(chevron())
+            isClickable = true
+            background = selectable()
+            contentDescription = listOfNotNull(name, value).joinToString(", ")
+            setOnClickListener {
+                this@SettingsActivity.app = app
+                show(Page.APP)
+            }
+        }
     }
 
     /**
@@ -789,6 +886,89 @@ class SettingsActivity : Activity() {
         }
     }
 
+    /**
+     * An app's own name, or its package name when Android won't say.
+     *
+     * Keyd asks for no permission to see other apps. Android still shows a keyboard the app it is typing into, which
+     * is how these names normally resolve; an app it has not typed in since the phone restarted may stay hidden, and
+     * then the package name is the honest fallback.
+     */
+    private fun appName(app: String): String = runCatching {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString()
+    }.getOrNull()?.takeIf { it.isNotBlank() } ?: app
+
+    private fun appIcon(app: String): android.graphics.drawable.Drawable =
+        runCatching { packageManager.getApplicationIcon(app) }.getOrNull() ?: packageManager.defaultActivityIcon
+
+    /** Switches on one app's page, kept so turning "use the usual settings" on or off can grey them in place. */
+    private val appSwitches = mutableListOf<Pair<Switch, TextView>>()
+
+    /** One app's page: whether it follows the usual settings, and if not, its own four switches. */
+    private fun app(column: LinearLayout, app: String) {
+        appSwitches.clear()
+        val name = appName(app)
+        var profile = AppProfiles.load(prefs).profile(app)
+        fun save(update: AppProfiles.Profile) {
+            profile = update
+            AppProfiles.load(prefs).apply { set(app, update) }.save(prefs)
+        }
+        lateinit var refresh: () -> Unit
+        group(column) {
+            switchRow(it, getString(R.string.app_use_usual), profile.useUsual) { on ->
+                save(profile.copy(useUsual = on))
+                refresh()
+            }
+        }
+        footer(column, getString(R.string.app_use_usual_note, name))
+        header(column, getString(R.string.header_in_app, name.uppercase()))
+        group(column) { card ->
+            appSwitch(card, getString(R.string.settings_suggestions)) { on -> save(profile.copy(suggestions = on)); refresh() }
+            appSwitch(card, getString(R.string.settings_autocorrect)) { on -> save(profile.copy(autocorrect = on)) }
+            appSwitch(card, getString(R.string.settings_learn)) { on -> save(profile.copy(learn = on)) }
+            appSwitch(card, getString(R.string.settings_number_row)) { on -> save(profile.copy(numberRow = on)) }
+        }
+        refresh = {
+            val mine = profile.over(settings)
+            val states = listOf(
+                mine.suggestions to !profile.useUsual,
+                // Fixing is the strip's top answer applied, so it goes with the strip, as it does on the first page.
+                Settings.correcting(mine) to (!profile.useUsual && mine.suggestions),
+                mine.learn to !profile.useUsual,
+                mine.numberRow to !profile.useUsual,
+            )
+            appSwitches.zip(states).forEach { (parts, state) ->
+                val (switch, title) = parts
+                val (checked, enabled) = state
+                switch.tag = SHOWING
+                switch.isChecked = checked
+                switch.tag = null
+                switch.isEnabled = enabled
+                title.setTextColor(if (enabled) colors.text else colors.secondary)
+                (switch.parent as View).isEnabled = enabled
+                (switch.parent as View).isClickable = enabled
+            }
+        }
+        refresh()
+        group(column) { card ->
+            action(card, getString(R.string.app_forget), enabled = true) {
+                AppProfiles.load(prefs).apply { forget(app) }.save(prefs)
+                this.app = null
+                show(Page.APPS)
+            }
+        }
+        footer(column, getString(R.string.app_forget_note))
+    }
+
+    /** A switch on an app's page. Its state is set by that page's refresh, which is not the person changing it. */
+    private fun appSwitch(card: LinearLayout, title: String, changed: (Boolean) -> Unit) {
+        switchRow(card, title, on = false) { on -> changed(on) }
+        val row = card.getChildAt(card.childCount - 1) as ViewGroup
+        val switch = (0 until row.childCount).map { row.getChildAt(it) }.filterIsInstance<Switch>().single()
+        val label = row.getChildAt(0) as TextView
+        switch.setOnCheckedChangeListener { _, checked -> if (switch.tag !== SHOWING) changed(checked) }
+        appSwitches += switch to label
+    }
+
     private fun keys(column: LinearLayout) {
         header(column, getString(R.string.header_keys))
         group(column) {
@@ -837,6 +1017,12 @@ class SettingsActivity : Activity() {
             ), settings.appearance) { value -> settings.copy(appearance = value) }
         }
         footer(column, getString(R.string.settings_appearance_note))
+        group(column) {
+            switchRow(
+                it, getString(R.string.settings_pure_black), settings.pureBlack,
+                subtitle = getString(R.string.settings_pure_black_note),
+            ) { on -> change(settings.copy(pureBlack = on)) }
+        }
         group(column) { toggle(it, getString(R.string.settings_high_contrast), settings.highContrast) { on -> settings.copy(highContrast = on) } }
         footer(column, getString(R.string.settings_high_contrast_note))
         header(column, getString(R.string.settings_size).uppercase())
@@ -862,7 +1048,19 @@ class SettingsActivity : Activity() {
     private fun feel(column: LinearLayout) {
         group(column) {
             toggle(it, getString(R.string.settings_sound), settings.sound) { on -> settings.copy(sound = on) }
-            toggle(it, getString(R.string.settings_vibrate), settings.vibrate) { on -> settings.copy(vibrate = on) }
+            switchRow(
+                it, getString(R.string.settings_mute_bluetooth), settings.muteWithBluetooth,
+                subtitle = getString(R.string.settings_mute_bluetooth_note),
+            ) { on -> change(settings.copy(muteWithBluetooth = on)) }
+        }
+        header(column, getString(R.string.settings_vibrate).uppercase())
+        group(column) {
+            pick(it, listOf(
+                getString(R.string.vibration_off) to Vibration.OFF,
+                getString(R.string.vibration_light) to Vibration.LIGHT,
+                getString(R.string.vibration_medium) to Vibration.MEDIUM,
+                getString(R.string.vibration_strong) to Vibration.STRONG,
+            ), settings.vibration) { value -> settings.copy(vibration = value) }
         }
         footer(column, getString(R.string.settings_system_note))
     }
@@ -1152,14 +1350,19 @@ class SettingsActivity : Activity() {
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
 
-    /** A row that leads somewhere, with its coloured icon and, where there is one, what it is set to now. */
+    /**
+     * A row that leads somewhere, with its colored icon (none for an app row, which draws its own) and, where there is
+     * one, what it is set to now and a line under the title saying what it holds.
+     */
     private fun nav(
-        card: LinearLayout, glyph: SettingsIcon.Glyph, tile: String, title: String, value: String?,
+        card: LinearLayout, glyph: SettingsIcon.Glyph?, tile: String?, title: String, value: String?,
         subtitle: String? = null, open: () -> Unit,
     ) {
-        row(card, iconSpace = true).apply {
-            addView(SettingsIcon(context, glyph, Color.parseColor(tile)), LinearLayout.LayoutParams(dp(29f), dp(29f))
-                .apply { marginEnd = dp(13f) })
+        row(card, iconSpace = glyph != null).apply {
+            if (glyph != null && tile != null) {
+                addView(SettingsIcon(context, glyph, Color.parseColor(tile)), LinearLayout.LayoutParams(dp(29f), dp(29f))
+                    .apply { marginEnd = dp(13f) })
+            }
             if (subtitle == null) addView(label(title)) else addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(label(title).apply {
@@ -1331,6 +1534,10 @@ class SettingsActivity : Activity() {
         const val SHORTCUTS = "shortcuts"
         const val INSIGHTS = "typingInsights"
         const val PAGE = "page"
+        const val APP = "app"
+
+        /** Marks a switch being set to show a state, so its listener knows nobody tapped it. */
+        val SHOWING = Any()
         const val ANSWER_APP = "answerApp"
         const val ANSWER_DID = "answerDid"
         const val ANSWER_SAW = "answerSaw"

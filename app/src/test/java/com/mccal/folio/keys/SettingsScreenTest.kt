@@ -89,9 +89,11 @@ class SettingsScreenTest {
             R.string.settings_number_row, R.string.settings_accents, R.string.settings_preview,
             R.string.settings_flick_down, R.string.settings_flick_up, R.string.settings_cursor_swipe,
             R.string.settings_delete_word, R.string.settings_swipe_hide, R.string.settings_sound,
-            R.string.settings_vibrate, R.string.settings_high_contrast, R.string.settings_clipboard,
+            R.string.settings_high_contrast, R.string.settings_clipboard,
             R.string.settings_size_small, R.string.settings_appearance_dark, R.string.settings_split_never,
             R.string.settings_voice_key, R.string.settings_cursor_pad_key, R.string.settings_key_style_samsung,
+            R.string.settings_mute_bluetooth, R.string.vibration_strong, R.string.settings_pure_black,
+            R.string.row_per_app,
         ).map { a.getString(it) }
         assertEquals(emptyList<String>(), every.filterNot { it in found })
     }
@@ -389,5 +391,158 @@ class SettingsScreenTest {
         (ShadowDialog.getLatestDialog() as AlertDialog).getButton(AlertDialog.BUTTON_POSITIVE).performClick()
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
         assertEquals(2, Insights.decode(a.prefs().getString("typingInsights", null)).size)
+    }
+
+    // ---- Keyd 0.3.0 --------------------------------------------------------------------------------------------
+
+    /** A switch in a row that has a line under its title, where the title sits one level further in. */
+    private fun SettingsActivity.subtitledSwitch(label: String): Switch {
+        var row: View = text(label)!!
+        while (row.parent is View && (row as? ViewGroup)?.let { g -> (0 until g.childCount).any { g.getChildAt(it) is Switch } } != true) {
+            row = row.parent as View
+        }
+        val group = row as ViewGroup
+        return (0 until group.childCount).map { group.getChildAt(it) }.filterIsInstance<Switch>().single()
+    }
+
+    private fun openWithApps(vararg apps: String, set: AppProfiles.() -> Unit = {}): SettingsActivity {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("keys", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        DevLog.clear(context)
+        AppProfiles().apply {
+            apps.reversed().forEach { typedIn(it, context.packageName) }
+            set()
+        }.save(prefs)
+        return Robolectric.buildActivity(SettingsActivity::class.java).setup().get()
+    }
+
+    private fun SettingsActivity.apps() = AppProfiles.load(getSharedPreferences("keys", Context.MODE_PRIVATE))
+
+    @Test
+    fun `typing leads to per-app settings, which says how many apps have changes`() {
+        val a = openWithApps("com.termux", "com.whatsapp") {
+            set("com.termux", AppProfiles.Profile(useUsual = false, autocorrect = false))
+        }
+        a.tap("Typing")
+        assertNotNull(a.text("1 app"))
+        a.tap("Per-app settings")
+        assertNotNull(a.text(a.getString(R.string.per_app_note)))
+        assertNotNull(a.text("CHANGED"))
+        assertNotNull(a.text("AS USUAL"))
+        assertNotNull(a.text("No fixing"))
+        assertNotNull(a.text("Only the last 30 apps you typed in are listed, newest first."))
+        // No app of that name is installed here, so the package name stands in for it.
+        assertNotNull(a.text("com.termux"))
+        assertNotNull(a.text("com.whatsapp"))
+        a.tap("‹ Typing")
+        assertNotNull(a.text("Per-app settings"))
+    }
+
+    @Test
+    fun `with no apps yet the list says so`() {
+        val a = openWithApps()
+        a.tap("Typing")
+        assertNotNull(a.text("0 apps"))
+        a.tap("Per-app settings")
+        assertNotNull(a.text(a.getString(R.string.per_app_empty)))
+        assertNull(a.text("CHANGED"))
+        assertNull(a.text("AS USUAL"))
+    }
+
+    @Test
+    fun `an app's own switches are greyed while it uses the usual settings`() {
+        val a = openWithApps("com.termux")
+        a.tap("Typing")
+        a.tap("Per-app settings")
+        a.tap("com.termux")
+        assertNotNull(a.text("IN COM.TERMUX"))
+        assertNotNull(a.text("Off means the switches below are used in com.termux instead of Keyd’s own."))
+        assertTrue(a.switchIn("Use the usual settings").isChecked)
+        for (label in listOf("Suggestions", "Fix clear typos", "Learn new words", "Number row")) {
+            assertFalse("$label should be greyed", a.switchIn(label).isEnabled)
+        }
+        // Showing the usual answers: suggestions on, number row off.
+        assertTrue(a.switchIn("Suggestions").isChecked)
+        assertFalse(a.switchIn("Number row").isChecked)
+        a.tap("Use the usual settings")
+        assertTrue(a.switchIn("Number row").isEnabled)
+        a.tap("Fix clear typos")
+        a.tap("Number row")
+        val profile = a.apps().profile("com.termux")
+        assertEquals(AppProfiles.Profile(useUsual = false, autocorrect = false, numberRow = true), profile)
+        assertEquals(listOf("com.termux"), a.apps().changed)
+        // Nothing else moved: the usual settings are as they were.
+        assertTrue(a.stored().autocorrect)
+        assertFalse(a.stored().numberRow)
+        a.tap("‹ Per-app settings")
+        assertNotNull(a.text("2 changes"))
+    }
+
+    @Test
+    fun `fixing typos goes with suggestions on an app's page too`() {
+        val a = openWithApps("com.termux") { set("com.termux", AppProfiles.Profile(useUsual = false)) }
+        a.tap("Typing")
+        a.tap("Per-app settings")
+        a.tap("com.termux")
+        a.tap("Suggestions")
+        assertFalse(a.switchIn("Fix clear typos").isChecked)
+        assertFalse(a.switchIn("Fix clear typos").isEnabled)
+        assertEquals(AppProfiles.Profile(useUsual = false, suggestions = false), a.apps().profile("com.termux"))
+    }
+
+    @Test
+    fun `forgetting an app takes it off the list with its settings`() {
+        val a = openWithApps("com.termux", "com.whatsapp") {
+            set("com.termux", AppProfiles.Profile(useUsual = false, learn = false))
+        }
+        a.tap("Typing")
+        a.tap("Per-app settings")
+        a.tap("com.termux")
+        a.tap("Forget this app")
+        assertNotNull(a.text("AS USUAL"))
+        assertNull(a.text("com.termux"))
+        assertEquals(listOf("com.whatsapp"), a.apps().recentApps)
+        assertEquals(AppProfiles.Profile(), a.apps().profile("com.termux"))
+    }
+
+    @Test
+    fun `an app's page is still open after the phone turns`() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("keys", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        AppProfiles().apply { typedIn("com.termux", context.packageName) }.save(prefs)
+        val controller = Robolectric.buildActivity(SettingsActivity::class.java).setup()
+        controller.get().tap("Typing")
+        controller.get().tap("Per-app settings")
+        controller.get().tap("com.termux")
+        controller.recreate()
+        assertNotNull(controller.get().text("IN COM.TERMUX"))
+    }
+
+    @Test
+    fun `vibration is a strength, and the Bluetooth switch saves`() {
+        val a = open()
+        a.tap("Sound and vibration")
+        for (label in listOf("VIBRATION", "Off", "Light", "Medium", "Strong", "No clicks in your headphones")) {
+            assertNotNull("missing $label", a.text(label))
+        }
+        a.tap("Strong")
+        assertEquals(Vibration.STRONG, a.stored().vibration)
+        assertTrue(a.subtitledSwitch("Mute with Bluetooth audio").isChecked)
+        a.tap("Mute with Bluetooth audio")
+        assertFalse(a.stored().muteWithBluetooth)
+    }
+
+    @Test
+    fun `pure black is under the light and dark choice, and saves`() {
+        val a = open()
+        a.tap("Look and size")
+        assertNotNull(a.text("Saves power on this screen"))
+        val all = a.all().filterIsInstance<TextView>().map { it.text.toString() }
+        assertTrue(all.indexOf(a.getString(R.string.settings_appearance_dark)) < all.indexOf("Pure black when dark"))
+        assertFalse(a.subtitledSwitch("Pure black when dark").isChecked)
+        a.tap("Pure black when dark")
+        assertTrue(a.stored().pureBlack)
     }
 }

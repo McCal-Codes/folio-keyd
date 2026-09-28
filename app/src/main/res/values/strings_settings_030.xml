@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings for Keyd 0.3.0: per-app settings, vibration strength, muting with Bluetooth audio, and pure black. -->
+<resources>
+    <!-- Typing › Per-app settings -->
+    <string name="row_per_app">Per-app settings</string>
+    <plurals name="value_apps">
+        <item quantity="one">%1$d app</item>
+        <item quantity="other">%1$d apps</item>
+    </plurals>
+    <string name="per_app_note">Keyd knows which app a text field belongs to, so no extra permission is needed. Apps appear here once you have typed in them.</string>
+    <string name="header_changed">CHANGED</string>
+    <string name="header_as_usual">AS USUAL</string>
+    <string name="per_app_footer">Only the last %1$d apps you typed in are listed, newest first.</string>
+    <string name="per_app_empty">No apps yet</string>
+    <string name="per_app_empty_note">Type in any app and it shows up here.</string>
+    <string name="change_suggestions_off">No suggestions</string>
+    <string name="change_suggestions_on">Suggestions</string>
+    <string name="change_fixing_off">No fixing</string>
+    <string name="change_fixing_on">Fixing typos</string>
+    <string name="change_learning_off">No learning</string>
+    <string name="change_learning_on">Learning</string>
+    <string name="change_number_row_on">Number row</string>
+    <string name="change_number_row_off">No number row</string>
+    <string name="change_none">Same as usual</string>
+    <plurals name="value_changes">
+        <item quantity="one">%1$d change</item>
+        <item quantity="other">%1$d changes</item>
+    </plurals>
+
+    <!-- One app -->
+    <string name="app_use_usual">Use the usual settings</string>
+    <string name="app_use_usual_note">Off means the switches below are used in %1$s instead of Keyd’s own.</string>
+    <string name="header_in_app">IN %1$s</string>
+    <string name="app_forget">Forget this app</string>
+    <string name="app_forget_note">Takes it off the list, with its settings. It comes back the next time you type in it.</string>
+
+    <!-- Sound and vibration -->
+    <string name="settings_mute_bluetooth">Mute with Bluetooth audio</string>
+    <string name="settings_mute_bluetooth_note">No clicks in your headphones</string>
+    <string name="vibration_off">Off</string>
+    <string name="vibration_light">Light</string>
+    <string name="vibration_medium">Medium</string>
+    <string name="vibration_strong">Strong</string>
+
+    <!-- Look and size -->
+    <string name="settings_pure_black">Pure black when dark</string>
+    <string name="settings_pure_black_note">Saves power on this screen</string>
+</resources>
