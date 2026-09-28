@@ -44,9 +44,19 @@ data class FieldRules(
     /** The app asked for nothing to be remembered from this field (IME_FLAG_NO_PERSONALIZED_LEARNING). */
     val noLearning: Boolean = false,
     val multiline: Boolean = false,
+    /** The app asked for no suggestions (TYPE_TEXT_FLAG_NO_SUGGESTIONS): a code editor, a filter, a one-time code. */
+    val noSuggestions: Boolean = false,
+    /** The app asked for return to be a plain Enter, never its editor action (IME_FLAG_NO_ENTER_ACTION). */
+    val plainEnter: Boolean = false,
 ) {
     /** True when nothing typed here may be kept, whatever the user's own settings say. */
     val ephemeral: Boolean get() = password || noLearning
+
+    /**
+     * An address, not prose: a web address or an email. "keyd.dev" is not a sentence with a typo in it, so nothing
+     * is corrected, underlined or learned here, and two spaces never become a period.
+     */
+    val address: Boolean get() = kind == FieldKind.URL || kind == FieldKind.EMAIL
 }
 
 /**
@@ -250,6 +260,9 @@ object Layouts {
             password = password,
             noLearning = imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0,
             multiline = multiline,
+            noSuggestions = klass == InputType.TYPE_CLASS_TEXT &&
+                inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS != 0,
+            plainEnter = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0,
         )
     }
 

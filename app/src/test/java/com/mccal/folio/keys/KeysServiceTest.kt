@@ -29,9 +29,17 @@ class KeysServiceTest {
     /** A real editable behind the connection, plus a note of the actions an app would have been asked to perform. */
     private class Field(view: View) : BaseInputConnection(view, true) {
         val performed = mutableListOf<Int>()
+        val keys = mutableListOf<Int>()
+        /** An app that doesn't handle its own action answers false. */
+        var handles = true
         override fun performEditorAction(actionCode: Int): Boolean {
             performed += actionCode
-            return true
+            return handles
+        }
+
+        override fun sendKeyEvent(event: android.view.KeyEvent): Boolean {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) keys += event.keyCode
+            return super.sendKeyEvent(event)
         }
     }
 
@@ -738,4 +746,77 @@ class KeysServiceTest {
         actions.onSwitchKeyboard()
         assertEquals(1, ime.switches)
     }
+
+    // ---- return, search and go ------------------------------------------------------------------------------------
+
+    private val url = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+    private val email = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+
+    @Test
+    fun `search runs the app's search`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH)
+        type("cats")
+        actions.onAction()
+        assertEquals(listOf(EditorInfo.IME_ACTION_SEARCH), field.performed)
+        assertTrue(field.keys.isEmpty())
+    }
+
+    /** A search box that ignores its own action used to leave Search doing nothing at all. */
+    @Test
+    fun `an app that ignores its action still gets enter`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH)
+        field.handles = false
+        actions.onAction()
+        assertEquals(listOf(android.view.KeyEvent.KEYCODE_ENTER), field.keys)
+    }
+
+    @Test
+    fun `an app that asks for plain enter gets enter, not its action`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_ENTER_ACTION)
+        actions.onAction()
+        assertTrue(field.performed.isEmpty())
+        assertEquals(listOf(android.view.KeyEvent.KEYCODE_ENTER), field.keys)
+    }
+
+    /** "keyd.dev": the period ends the word "keyd", and fixing it would send the browser somewhere else. */
+    @Test
+    fun `nothing is corrected in a web address`() {
+        start(url, EditorInfo.IME_ACTION_GO)
+        type("keyd")
+        actions.offered(Verdict("keyd", correction = "keys", misspelled = true))
+        type(".dev")
+        assertEquals("keyd.dev", text)
+    }
+
+    @Test
+    fun `nothing is corrected in an email address`() {
+        start(email, EditorInfo.IME_ACTION_NEXT)
+        type("mccal")
+        actions.offered(Verdict("mccal", correction = "metal", misspelled = true))
+        type("@")
+        assertEquals("mccal@", text)
+    }
+
+    @Test
+    fun `addresses are never learned`() {
+        start(url, EditorInfo.IME_ACTION_GO)
+        type("keyd.dev ")
+        assertTrue(ime.taught.isEmpty())
+    }
+
+    @Test
+    fun `two spaces stay two spaces in an address`() {
+        start(url, EditorInfo.IME_ACTION_GO)
+        type("keyd  ")
+        assertEquals("keyd  ", text)
+    }
+
+    @Test
+    fun `an app that asks for no suggestions gets none`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0)
+        ime.suggestedFor.clear()
+        type("hel")
+        assertTrue(ime.suggestedFor.all { it.isEmpty() })
+    }
 }
+
