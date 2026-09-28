@@ -153,6 +153,24 @@ object Layouts {
             extras.drop(1) + tail + Key(rules.actionLabel, KeyKind.ACTION, weight = 1.5f)
     }
 
+    /**
+     * The letters under the emoji search: the language's own rows, then back to the emoji, space and backspace.
+     *
+     * No shift, because search ignores case, and no digits in the corners, because nothing in the emoji names is
+     * found by a digit worth a long press. Backspace moves to the bottom row so the third row is only letters.
+     */
+    fun searchRows(language: Language): List<Row> =
+        language.rows.map { line -> line.map { Key(it.toString()) } } + listOf(
+            listOf(
+                Key(BACK_TO_EMOJI, KeyKind.EMOJI, weight = 1.5f),
+                Key("space", KeyKind.SPACE, weight = 5f, output = " "),
+                Key("⌫", KeyKind.BACKSPACE, weight = 1.5f),
+            ),
+        )
+
+    /** What the emoji key under the search letters is called, and what TalkBack reads for it. */
+    const val BACK_TO_EMOJI = "Back to emoji"
+
     /** A number field has no letters to offer, so the pad carries no key that would do nothing if pressed. */
     private fun numberPad(rules: FieldRules): List<Row> = listOf(
         listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"),

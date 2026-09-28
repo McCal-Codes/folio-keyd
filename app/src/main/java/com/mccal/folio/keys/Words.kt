@@ -40,7 +40,8 @@ object Spoken {
         KeyKind.COPY -> "Copy"
         KeyKind.PASTE -> "Paste"
         KeyKind.CLIPBOARD -> "Clipboard history"
-        KeyKind.EMOJI -> "Emoji"
+        // The toolbar's key says "Emoji"; the one under the search letters says "Back to emoji".
+        KeyKind.EMOJI -> key.label
         KeyKind.VOICE -> "Voice typing, opens your phone's voice keyboard"
         KeyKind.CURSOR_PAD -> "Cursor pad"
         KeyKind.SUGGESTION -> key.output

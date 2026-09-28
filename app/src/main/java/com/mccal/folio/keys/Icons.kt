@@ -185,6 +185,28 @@ object Icons {
         canvas.drawLine(cx, cy + half * 0.2f, cx, cy + half, stroke)
     }
 
+    /** A magnifying glass: the lens up and to the left, the handle down to the right, the way every search key is. */
+    fun magnifier(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        val r = half * 0.56f
+        val lensX = cx - half * 0.16f
+        val lensY = cy - half * 0.16f
+        canvas.drawCircle(lensX, lensY, r, stroke)
+        // The handle starts on the rim, at 45 degrees, so it looks attached rather than floating beside the lens.
+        val rim = r * 0.7071f
+        canvas.drawLine(lensX + rim, lensY + rim, cx + half * 0.78f, cy + half * 0.78f, stroke)
+    }
+
+    /** An arrow pointing left: back to where you came from. */
+    fun back(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        val tip = cx - half * 0.8f
+        val head = half * 0.62f
+        canvas.drawLine(tip, cy, cx + half * 0.8f, cy, stroke)
+        canvas.drawLine(tip, cy, tip + head, cy - head, stroke)
+        canvas.drawLine(tip, cy, tip + head, cy + head, stroke)
+    }
+
     /** A cross, for forgetting one clip. */
     fun close(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
         val half = size / 2 * 0.62f
