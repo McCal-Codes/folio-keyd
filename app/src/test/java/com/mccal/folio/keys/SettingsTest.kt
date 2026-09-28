@@ -41,7 +41,7 @@ class SettingsTest {
         val chosen = Settings(
             suggestions = false, autocorrect = false, learn = false, autoCapitalise = false,
             doubleSpaceFullStop = false, numberRow = true, accents = false, keyPreview = false,
-            sound = false, vibrate = false,
+            sound = false, vibrate = false, offerRules = false,
         )
         chosen.save(prefs)
         assertEquals(chosen, Settings.load(prefs))
@@ -57,6 +57,7 @@ class SettingsTest {
         assertTrue(fresh.cursorSwipe)
         assertTrue(fresh.deleteWordSwipe)
         assertTrue(fresh.swipeDownToHide)
+        assertTrue(fresh.offerRules)
     }
 
     @Test

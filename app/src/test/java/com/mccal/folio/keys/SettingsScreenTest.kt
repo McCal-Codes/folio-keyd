@@ -291,4 +291,103 @@ class SettingsScreenTest {
         a.tap("Share…")
         assertFalse(DevLog.crashedSinceLooked(a))
     }
+
+    // ---- Keyd 0.3.0: what it fixes ------------------------------------------------------------------------------
+
+    /** Settings opened with some counts already on the phone: "teh" fixed 41 times, "Folio" put back 3. */
+    private fun openWithCounts(): SettingsActivity {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<Context>()
+        val store = Insights()
+        repeat(41) { store.fixStood("teh", "the", offering = false) }
+        repeat(3) { store.undone("Folio", offering = false) }
+        context.getSharedPreferences("keys", Context.MODE_PRIVATE).edit().clear()
+            .putString("typingInsights", store.encode()).commit()
+        DevLog.clear(context)
+        return Robolectric.buildActivity(SettingsActivity::class.java).setup().get()
+    }
+
+    private fun SettingsActivity.prefs() = getSharedPreferences("keys", Context.MODE_PRIVATE)
+
+    @Test
+    fun `typing leads to what it fixes, which starts empty`() {
+        val a = open()
+        a.tap("Typing")
+        assertNotNull(a.text("The words it corrects for you, and the ones you put back"))
+        a.tap("What it fixes")
+        for (label in listOf(
+            "Keyd keeps count of the fixes it makes and the ones you undo, on this phone only, and never from a password field.",
+            "FIXED FOR YOU", "YOU PUT BACK", "Offer these on the keyboard",
+        )) assertNotNull("missing $label", a.text(label))
+        assertEquals(2, a.all().filterIsInstance<TextView>().count { it.text.toString() == "Nothing yet" })
+        assertTrue(a.switchIn("Offer these on the keyboard").isChecked)
+        // Nothing to forget, so the red row can't be tapped.
+        assertFalse((a.text("Forget these counts")!!.parent as View).isEnabled)
+        a.tap("‹ Typing")
+        assertNotNull(a.text("What it fixes"))
+    }
+
+    @Test
+    fun `a fix shows its count, and a tap makes it a rule`() {
+        val a = openWithCounts()
+        a.tap("Typing")
+        a.tap("What it fixes")
+        assertNotNull(a.text("teh → the"))
+        assertNotNull(a.text("41 times"))
+        assertNotNull(a.text("Tap for a rule that always fixes it"))
+        a.tap("teh → the")
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals("Added a rule", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
+        assertEquals("the", Shortcuts.decode(a.prefs().getString("shortcuts", null)).expand("teh"))
+        assertNotNull(a.text("Rule added"))
+        // Answered here is answered: the strip will not ask about it again.
+        assertTrue(Insights.decode(a.prefs().getString("typingInsights", null)).settled(Insights.Offer("teh", "the")))
+    }
+
+    @Test
+    fun `a word put back can be kept with a tap`() {
+        val a = openWithCounts()
+        a.tap("Typing")
+        a.tap("What it fixes")
+        assertNotNull(a.text("3 times"))
+        a.tap("Folio")
+        assertTrue(Learned.decode(a.prefs().getString("learnedWords", null)).count("folio") >= Learned.MEANT_IT)
+        assertNotNull(a.text("Kept"))
+        assertNull(a.text("Tap to keep it as a word"))
+    }
+
+    @Test
+    fun `offers on the keyboard can be turned off`() {
+        val a = open()
+        a.tap("Typing")
+        a.tap("What it fixes")
+        a.tap("Offer these on the keyboard")
+        assertFalse(a.stored().offerRules)
+    }
+
+    @Test
+    fun `forgetting the counts asks first`() {
+        val a = openWithCounts()
+        a.tap("Typing")
+        a.tap("What it fixes")
+        a.tap("Forget these counts")
+        val dialog = ShadowDialog.getLatestDialog() as AlertDialog
+        assertTrue(dialog.isShowing)
+        assertNotNull(a.prefs().getString("typingInsights", null))
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertNull(a.prefs().getString("typingInsights", null))
+        assertEquals(2, a.all().filterIsInstance<TextView>().count { it.text.toString() == "Nothing yet" })
+    }
+
+    @Test
+    fun `privacy counts the fixes, and a reset leaves them alone`() {
+        val a = openWithCounts()
+        a.tap("Privacy")
+        val row = a.text("Fixes it has counted")!!.parent as ViewGroup
+        assertEquals("2", (row.getChildAt(1) as TextView).text.toString())
+        a.tap(a.getString(R.string.settings_reset))
+        (ShadowDialog.getLatestDialog() as AlertDialog).getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(2, Insights.decode(a.prefs().getString("typingInsights", null)).size)
+    }
 }

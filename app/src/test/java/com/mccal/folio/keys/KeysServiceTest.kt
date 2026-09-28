@@ -71,6 +71,13 @@ class KeysServiceTest {
         override fun learn(word: String) {
             taught += word
         }
+
+        val stood = mutableListOf<Pair<String, String>>()
+        val putBack = mutableListOf<String>()
+        val answers = mutableListOf<Pair<Insights.Offer, Boolean>>()
+        override fun fixStood(typed: String, replacement: String) { stood += typed to replacement }
+        override fun putBack(typed: String) { putBack += typed }
+        override fun answered(offer: Insights.Offer, accepted: Boolean) { answers += offer to accepted }
     }
 
     private lateinit var ime: FakeIme
@@ -338,6 +345,85 @@ class KeysServiceTest {
         actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("teh ", text)
+    }
+
+    // ---- counting what it fixes ---------------------------------------------------------------------------------
+
+    private fun correctTeh(ending: String = " ") {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(ending)
+    }
+
+    @Test
+    fun `a correction counts as a fix once the next word begins without an undo`() {
+        correctTeh()
+        // Not yet: the next key could still be the backspace that takes it back.
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        type("c")
+        assertEquals(listOf("teh" to "the"), ime.stood)
+        type("at ")
+        assertEquals(1, ime.stood.size)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `undoing a correction counts as putting it back, not as a fix`() {
+        correctTeh()
+        actions.onBackspace()
+        assertEquals("teh ", text)
+        assertEquals(listOf("teh"), ime.putBack)
+        type("cat ")
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+    }
+
+    @Test
+    fun `a correction followed by moving the cursor is neither`() {
+        correctTeh()
+        actions.onCursor(-2)
+        type("x")
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `nothing is counted when the app asked not to be learned from`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        correctTeh()
+        assertEquals("the ", text)
+        type("c")
+        correctTeh()
+        actions.onBackspace()
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `nothing is counted in a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        correctTeh()
+        type("c")
+        actions.onBackspace()
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `nothing is counted with learning off`() {
+        actions.settings = Settings(learn = false)
+        correctTeh()
+        type("c")
+        correctTeh()
+        actions.onBackspace()
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `the strip's answer goes to the keyboard service`() {
+        actions.onOffer(Insights.Offer("teh", "the"), accepted = true)
+        actions.onOffer(Insights.Offer("Folio", null), accepted = false)
+        assertEquals(listOf(Insights.Offer("teh", "the") to true, Insights.Offer("Folio", null) to false), ime.answers)
     }
 
     // ---- underlining what it has never heard of ------------------------------------------------------------------

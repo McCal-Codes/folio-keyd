@@ -44,6 +44,7 @@ object Spoken {
         KeyKind.VOICE -> "Voice typing, opens your phone's voice keyboard"
         KeyKind.CURSOR_PAD -> "Cursor pad"
         KeyKind.SUGGESTION -> key.output
+        KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO -> key.label
         KeyKind.ACTION, KeyKind.CHAR -> key.label
     }
 }

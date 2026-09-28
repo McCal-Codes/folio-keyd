@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyd 0.3.0: what autocorrect fixes and what gets put back, counted, and the strip's offer to make either permanent. -->
+<resources>
+    <!-- The strip. %1$s is the word typed, %2$s what it was fixed to. The short forms are for windows under 400dp. -->
+    <string name="offer_keep">Keep “%1$s” as a word?</string>
+    <string name="offer_keep_short">Keep “%1$s”?</string>
+    <string name="offer_always">Always fix “%1$s” to “%2$s”?</string>
+    <string name="offer_always_short">Fix “%1$s” to “%2$s”?</string>
+    <string name="offer_answer_keep">Keep</string>
+    <string name="offer_answer_always">Always</string>
+    <string name="offer_answer_no">No</string>
+
+    <!-- Settings › Typing › What it fixes -->
+    <string name="page_what_it_fixes">What it fixes</string>
+    <string name="row_what_it_fixes_note">The words it corrects for you, and the ones you put back</string>
+    <string name="what_it_fixes_intro">Keyd keeps count of the fixes it makes and the ones you undo, on this phone only, and never from a password field.</string>
+    <string name="header_fixed_for_you">FIXED FOR YOU</string>
+    <string name="header_you_put_back">YOU PUT BACK</string>
+    <string name="fixed_pair">%1$s → %2$s</string>
+    <plurals name="value_times">
+        <item quantity="one">%1$d time</item>
+        <item quantity="other">%1$d times</item>
+    </plurals>
+    <string name="fixed_tap">Tap for a rule that always fixes it</string>
+    <string name="fixed_rule_added">Rule added</string>
+    <string name="put_back_tap">Tap to keep it as a word</string>
+    <string name="put_back_kept">Kept</string>
+    <string name="toast_rule_added">Added a rule</string>
+    <string name="insights_nothing_yet">Nothing yet</string>
+    <string name="footer_what_it_fixes">A word you keep goes in with the words it has learned, so it stops being corrected. A rule is a text shortcut, so it works even where fixing is off.</string>
+    <string name="settings_offer_rules">Offer these on the keyboard</string>
+    <string name="footer_offer_rules">After the same fix or undo three times, the strip asks once whether to make it permanent.</string>
+    <string name="row_forget_counts">Forget these counts</string>
+    <string name="confirm_forget_counts">Forget the fixes Keyd has counted?</string>
+    <string name="confirm_forget_counts_detail">Both lists start again from nothing. Learned words and rules stay as they are. This cannot be undone.</string>
+
+    <!-- Settings › Privacy -->
+    <string name="row_fixes_counted">Fixes it has counted</string>
+</resources>

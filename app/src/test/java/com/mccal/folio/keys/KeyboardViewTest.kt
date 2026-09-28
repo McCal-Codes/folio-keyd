@@ -63,6 +63,9 @@ class KeyboardViewTest {
             override fun onSuggestion(word: String) { toolbar += "suggestion:$word" }
             override fun onVoice() { toolbar += "voice" }
             override fun onCursorPad() { toolbar += "cursorPad" }
+            override fun onOffer(offer: Insights.Offer, accepted: Boolean) {
+                toolbar += (if (accepted) "yes:" else "no:") + offer.typed
+            }
         }
         show(FieldRules())
     }
@@ -917,5 +920,118 @@ class KeyboardViewTest {
         val backspace = view.placements.indexOfFirst { it.key.kind == KeyKind.BACKSPACE }
         val description = provider.createAccessibilityNodeInfo(backspace)?.contentDescription.toString()
         assertTrue("backspace reads as $description", description.startsWith("Backspace"))
+    }
+
+    // ---- the strip asking to keep a word or add a rule -----------------------------------------------------------
+
+    private val keepFolio = Insights.Offer("Folio", null)
+    private val alwaysThe = Insights.Offer("teh", "the")
+
+    private fun tapStrip(label: String) {
+        val box = view.toolbarPlacements.first { it.key.label == label }.box
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_UP, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+    }
+
+    @Test
+    fun `an offer to keep a word takes the toolbar's row`() {
+        view.offer = keepFolio
+        assertEquals(listOf("Keep “Folio” as a word?", "Keep", "No"), stripLabels())
+        assertTrue(view.offerShowing)
+    }
+
+    @Test
+    fun `an offer to always fix asks with both words`() {
+        view.offer = alwaysThe
+        assertEquals(listOf("Always fix “teh” to “the”?", "Always", "No"), stripLabels())
+    }
+
+    @Test
+    fun `a narrow keyboard asks in fewer words`() {
+        val width = (360 * density).toInt()
+        view.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        view.offer = keepFolio
+        assertEquals("Keep “Folio”?", stripLabels().first())
+        view.offer = alwaysThe
+        assertEquals("Fix “teh” to “the”?", stripLabels().first())
+    }
+
+    @Test
+    fun `keep and always report yes, and the offer goes`() {
+        view.offer = keepFolio
+        tapStrip("Keep")
+        view.offer = alwaysThe
+        tapStrip("Always")
+        assertEquals(listOf("yes:Folio", "yes:teh"), toolbar)
+        assertEquals(null, view.offer)
+        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+    }
+
+    @Test
+    fun `no reports no`() {
+        view.offer = alwaysThe
+        tapStrip("No")
+        assertEquals(listOf("no:teh"), toolbar)
+        assertEquals(null, view.offer)
+    }
+
+    @Test
+    fun `typing the next letter puts the offer away, and the letter is still typed`() {
+        view.offer = keepFolio
+        tap("c")
+        assertEquals("c", typed.toString())
+        assertEquals(null, view.offer)
+        assertEquals(emptyList<String>(), toolbar)
+    }
+
+    /** While a word is being typed the strip is showing words; the question waits for them to go. */
+    @Test
+    fun `an offer waits behind the words being suggested`() {
+        view.suggestions = listOf("wor", "word", "work")
+        view.offer = alwaysThe
+        assertEquals(listOf("wor", "word", "work"), stripLabels())
+        tap("d")
+        assertEquals(alwaysThe, view.offer)
+        view.suggestions = emptyList()
+        assertEquals("Always", stripLabels()[1])
+    }
+
+    @Test
+    fun `no offer in a password field`() {
+        show(FieldRules(password = true))
+        view.offer = keepFolio
+        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+    }
+
+    @Test
+    fun `the answers are a full 48dp to hit`() {
+        view.offer = alwaysThe
+        for (placement in view.toolbarPlacements.drop(1)) {
+            val box = placement.box
+            assertTrue("${placement.key.label} is ${box.width / density} dp wide", box.width / density >= 48f - 0.01f)
+            assertTrue("${placement.key.label} is ${box.height / density} dp tall", box.height / density >= 48f - 0.01f)
+            // And the keys below still get their own taps.
+            assertTrue(box.bottom <= view.placements.minOf { it.box.top })
+        }
+    }
+
+    @Test
+    fun `a screen reader reads the question and names the answers`() {
+        view.offer = keepFolio
+        val provider = view.accessibilityNodeProvider!!
+        val first = view.placements.size
+        val question = provider.createAccessibilityNodeInfo(first)!!
+        assertEquals("Keep “Folio” as a word?", question.contentDescription)
+        assertTrue(question.actionList.none { it.id == AccessibilityNodeInfo.ACTION_CLICK })
+        assertEquals("Keep", provider.createAccessibilityNodeInfo(first + 1)!!.contentDescription)
+        assertEquals("No", provider.createAccessibilityNodeInfo(first + 2)!!.contentDescription)
+        provider.performAction(first + 1, AccessibilityNodeInfo.ACTION_CLICK, null)
+        assertEquals(listOf("yes:Folio"), toolbar)
+        view.offer = alwaysThe
+        assertEquals("Always", provider.createAccessibilityNodeInfo(first + 1)!!.contentDescription)
     }
 }

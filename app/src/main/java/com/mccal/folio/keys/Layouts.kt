@@ -12,6 +12,8 @@ import android.view.inputmethod.EditorInfo
 enum class KeyKind {
     CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, CLIPBOARD, EMOJI,
     SUGGESTION, VOICE, CURSOR_PAD,
+    /** The strip asking whether to keep a word or add a rule: the question, its Yes, and its No. */
+    OFFER, OFFER_YES, OFFER_NO,
 }
 
 data class Key(

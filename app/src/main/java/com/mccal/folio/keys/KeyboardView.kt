@@ -75,6 +75,9 @@ class KeyboardView(context: Context) : View(context) {
 
         /** Swap the letters for the arrows and selection keys. */
         fun onCursorPad() {}
+
+        /** The strip's question, answered: Keep or Always when [accepted], No when not. */
+        fun onOffer(offer: Insights.Offer, accepted: Boolean) {}
     }
 
     var listener: Listener? = null
@@ -93,6 +96,24 @@ class KeyboardView(context: Context) : View(context) {
             keyNodes.invalidateRoot()
             invalidate()
         }
+
+    /**
+     * A question for the strip: keep a word it keeps putting back, or make a fix it keeps making into a rule.
+     *
+     * It waits for a gap. While a word is being typed the strip is showing words, so the question sits behind them
+     * and takes the toolbar's place once there is nothing else to show. The next key typed puts it away.
+     */
+    var offer: Insights.Offer? = null
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
+    /** Whether the question is on screen now, rather than waiting behind the word being typed. */
+    internal val offerShowing: Boolean get() = tools.firstOrNull()?.key?.kind == KeyKind.OFFER
 
     /** What the person has chosen: which of the keyboard's habits are switched on. */
     var settings: Settings = Settings()
@@ -215,6 +236,7 @@ class KeyboardView(context: Context) : View(context) {
         override fun run() {
             val press = repeatingFor ?: return
             press.handled = true
+            putOfferAway()
             listener?.onBackspaceRepeat()
             repeat.postDelayed(this, REPEAT_MS)
         }
@@ -358,6 +380,7 @@ class KeyboardView(context: Context) : View(context) {
     private fun placeToolbar(): List<Placement> {
         if (width == 0) return emptyList()
         if (suggestions.isNotEmpty() && !rules.password) return placeSuggestions()
+        if (offer != null && !rules.password) return placeOffer()
         val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
         val right = width - left
         val top = panelPad
@@ -412,6 +435,89 @@ class KeyboardView(context: Context) : View(context) {
         }
         if (mic > 0f) placed += Placement(Key("Voice", KeyKind.VOICE), Box(words, top, right, bottom))
         return placed
+    }
+
+    /**
+     * The question, then its two answers at the end of the row where a thumb already goes for the strip.
+     *
+     * The answers reach from the top of the window to the keys, so each is a full 48 dp to hit though the row it
+     * sits in is shorter; nothing is above them to take a stray touch instead.
+     */
+    private fun placeOffer(): List<Placement> {
+        val asked = offer ?: return emptyList()
+        val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        val right = width - left
+        val top = 0f
+        val bottom = panelPad + toolbarHeight
+        val narrow = width / dp < NARROW_OFFER_DP
+        val question = context.getString(
+            when {
+                asked.keep && narrow -> R.string.offer_keep_short
+                asked.keep -> R.string.offer_keep
+                narrow -> R.string.offer_always_short
+                else -> R.string.offer_always
+            },
+            asked.typed, asked.replacement.orEmpty(),
+        )
+        val yes = context.getString(if (asked.keep) R.string.offer_answer_keep else R.string.offer_answer_always)
+        val no = context.getString(R.string.offer_answer_no)
+        text.textSize = offerTextSize()
+        sizedAt = -1f
+        fun widthOf(label: String) = max(OFFER_BUTTON_DP * dp, text.measureText(label) + 2 * OFFER_BUTTON_PAD_DP * dp)
+        val noLeft = right - widthOf(no)
+        val yesLeft = noLeft - OFFER_GAP_DP * dp - widthOf(yes)
+        return listOf(
+            Placement(Key(question, KeyKind.OFFER), Box(left, panelPad, yesLeft - OFFER_GAP_DP * dp, bottom)),
+            Placement(Key(yes, KeyKind.OFFER_YES), Box(yesLeft, top, noLeft - OFFER_GAP_DP * dp, bottom)),
+            Placement(Key(no, KeyKind.OFFER_NO), Box(noLeft, top, right, bottom)),
+        )
+    }
+
+    private fun offerTextSize() = min(toolbarHeight * 0.38f, 15 * dp)
+
+    /** The next key typed answers nothing, and the question goes. Only once it has been seen: one waiting stays. */
+    private fun putOfferAway() {
+        if (offerShowing) offer = null
+    }
+
+    /** Text from a key, a flick or a held key's row: the one place it leaves, so the question can go first. */
+    private fun type(value: String) {
+        putOfferAway()
+        listener?.onText(value)
+    }
+
+    private fun drawOffer(canvas: Canvas, placement: Placement) {
+        val box = placement.box
+        text.textSize = offerTextSize()
+        sizedAt = -1f
+        // Drawn in the toolbar's own band; the extra reach above it is for fingers, not for the eye.
+        val bandTop = panelPad
+        val cy = (bandTop + box.bottom) / 2
+        val baseline = cy - (text.descent() + text.ascent()) / 2
+        when (placement.key.kind) {
+            KeyKind.OFFER -> {
+                val room = box.right - box.left
+                var label = placement.key.label
+                if (text.measureText(label) > room) {
+                    val fits = text.breakText(label, true, room - text.measureText("…"), null)
+                    label = label.take(fits).trimEnd() + "…"
+                }
+                text.color = theme.label
+                text.textAlign = Paint.Align.LEFT
+                canvas.drawText(label, box.left, baseline, text)
+                text.textAlign = Paint.Align.CENTER
+            }
+            KeyKind.OFFER_YES, KeyKind.OFFER_NO -> {
+                val yes = placement.key.kind == KeyKind.OFFER_YES
+                val pill = OFFER_PILL_DP * dp
+                scratch.set(box.left, cy - pill / 2, box.right, cy + pill / 2)
+                fill.color = if (yes) theme.accent else theme.altKey
+                canvas.drawRoundRect(scratch, pill / 2, pill / 2, fill)
+                text.color = if (yes) theme.onAccent else theme.label
+                canvas.drawText(placement.key.label, (box.left + box.right) / 2, baseline, text)
+            }
+            else -> Unit
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -563,6 +669,10 @@ class KeyboardView(context: Context) : View(context) {
             stroke.color = theme.label
             stroke.strokeWidth = max(1.5f * dp, size * 0.072f)
             fill.color = theme.label
+            if (placement.key.kind in OFFER_KINDS) {
+                drawOffer(canvas, placement)
+                continue
+            }
             if (placement.key.kind == KeyKind.SUGGESTION) {
                 // The first is what was actually typed, and is drawn quieter than the alternatives so the eye goes
                 // to what is being offered rather than to what it already knows it wrote.
@@ -769,7 +879,7 @@ class KeyboardView(context: Context) : View(context) {
             if (items.size == 1) {
                 // Nothing to choose between, so holding simply gives it.
                 press.handled = true
-                listener?.onText(items.first())
+                type(items.first())
             } else {
                 popup = openPopup(press.origin, items)
             }
@@ -873,7 +983,7 @@ class KeyboardView(context: Context) : View(context) {
                         cancelHold(press)
                         press.swiping = true
                         press.handled = true
-                        listener?.onText(flicked)
+                        type(flicked)
                         if (settings.vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         invalidate()
                         return
@@ -900,7 +1010,7 @@ class KeyboardView(context: Context) : View(context) {
         cancelHold(press)
         closePopup()?.let { open ->
             if (repeatingFor === press) stopRepeat()
-            listener?.onText(open.items[open.choice])
+            type(open.items[open.choice])
             invalidate()
             return true
         }
@@ -933,6 +1043,10 @@ class KeyboardView(context: Context) : View(context) {
     private fun dispatch(key: Key) {
         val l = listener ?: return
         when (key.kind) {
+            KeyKind.CHAR, KeyKind.SPACE, KeyKind.BACKSPACE, KeyKind.ACTION -> putOfferAway()
+            else -> Unit
+        }
+        when (key.kind) {
             KeyKind.CHAR, KeyKind.SPACE -> l.onText(key.output)
             KeyKind.BACKSPACE -> l.onBackspace()
             KeyKind.SHIFT -> l.onShift()
@@ -948,6 +1062,11 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.SUGGESTION -> l.onSuggestion(key.output)
             KeyKind.VOICE -> l.onVoice()
             KeyKind.CURSOR_PAD -> l.onCursorPad()
+            KeyKind.OFFER -> Unit
+            KeyKind.OFFER_YES, KeyKind.OFFER_NO -> offer?.let { asked ->
+                offer = null
+                l.onOffer(asked, accepted = key.kind == KeyKind.OFFER_YES)
+            }
         }
     }
 
@@ -981,8 +1100,13 @@ class KeyboardView(context: Context) : View(context) {
                 return
             }
             node.contentDescription = Spoken.name(placement.key, shift)
-            node.className = "android.widget.Button"
-            node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+            if (placement.key.kind == KeyKind.OFFER) {
+                // The question is read, not pressed: its answers are the two buttons beside it.
+                node.className = "android.widget.TextView"
+            } else {
+                node.className = "android.widget.Button"
+                node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+            }
             val box = placement.box
             node.setBoundsInParent(
                 Rect(box.left.toInt(), box.top.toInt(), box.right.roundToInt(), box.bottom.roundToInt()),
@@ -1021,5 +1145,11 @@ class KeyboardView(context: Context) : View(context) {
         const val CAP_WIDTH_DP = 460f
         const val SPLIT_AT_DP = 600f    // an unfolded Fold or a tablet: split, the way Samsung does
         const val SHORT_DP = 480f       // below this the window is a phone on its side, however wide
+        const val NARROW_OFFER_DP = 400f  // narrower than this, the strip's question is asked in fewer words
+        const val OFFER_BUTTON_DP = 56f   // no answer narrower than this, whatever its label
+        const val OFFER_BUTTON_PAD_DP = 14f
+        const val OFFER_GAP_DP = 6f
+        const val OFFER_PILL_DP = 32f
+        val OFFER_KINDS = setOf(KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO)
     }
 }

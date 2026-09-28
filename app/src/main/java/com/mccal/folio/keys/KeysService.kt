@@ -69,6 +69,7 @@ class KeysService : InputMethodService(), Ime {
     private var loadedFor: Language? = null
     private var learned: Learned? = null
     private var shortcuts: Shortcuts? = null
+    private var insights: Insights? = null
     private var proximity: Suggestions.Proximity? = null
     private var proximityFor: List<Placement>? = null
 
@@ -92,6 +93,7 @@ class KeysService : InputMethodService(), Ime {
             loadDictionary(actions.language)
             learned = Learned.decode(prefs.getString(LEARNED, null))
             shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
+            insights = Insights.decode(prefs.getString(INSIGHTS, null))
         }
     }
 
@@ -249,6 +251,49 @@ class KeysService : InputMethodService(), Ime {
             if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) return@post
             store.learn(lower)
             prefs.edit().putString(LEARNED, store.encode()).apply()
+        }
+    }
+
+    /**
+     * A correction stood, or was put back. Counted on the suggestion thread and saved there, the way a learned word
+     * is; if that was the third time, the strip is handed the question on the way back.
+     */
+    override fun fixStood(typed: String, replacement: String) {
+        val offering = actions.settings.offerRules
+        background.post {
+            val store = insights ?: Insights().also { insights = it }
+            val offer = store.fixStood(typed, replacement, offering)
+            prefs.edit().putString(INSIGHTS, store.encode()).apply()
+            offer?.let { main.post { keyboard?.offer = it } }
+        }
+    }
+
+    override fun putBack(typed: String) {
+        val offering = actions.settings.offerRules
+        background.post {
+            val store = insights ?: Insights().also { insights = it }
+            val offer = store.undone(typed, offering)
+            prefs.edit().putString(INSIGHTS, store.encode()).apply()
+            offer?.let { main.post { keyboard?.offer = it } }
+        }
+    }
+
+    /**
+     * Keep puts the word in with the learned ones, which is what stops it being corrected; Always makes a text
+     * shortcut. Either answer, or No, is remembered so the same question is never asked again.
+     */
+    override fun answered(offer: Insights.Offer, accepted: Boolean) {
+        DevLog.event(this, "offer", "keep" to if (offer.keep) 1 else 0, "accepted" to if (accepted) 1 else 0)
+        background.post {
+            val store = insights ?: Insights().also { insights = it }
+            val words = learned ?: Learned().also { learned = it }
+            val rules = shortcuts ?: Shortcuts().also { shortcuts = it }
+            store.answer(offer, accepted, words, rules)
+            prefs.edit()
+                .putString(INSIGHTS, store.encode())
+                .putString(LEARNED, words.encode())
+                .putString(SHORTCUTS, rules.encode())
+                .apply()
         }
     }
 
@@ -508,7 +553,10 @@ class KeysService : InputMethodService(), Ime {
         background.post {
             learned = Learned.decode(prefs.getString(LEARNED, null))
             shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
+            insights = Insights.decode(prefs.getString(INSIGHTS, null))
         }
+        // The strip's question waits for a gap, but not across a change of mind on the settings screen.
+        if (!chosen.offerRules) keyboard?.offer = null
         // Ask the editor to keep telling us where the cursor is. Most will not, which is why nothing depends on it.
         currentInputConnection?.requestCursorUpdates(InputConnection.CURSOR_UPDATE_MONITOR)
     }
@@ -602,6 +650,7 @@ class KeysService : InputMethodService(), Ime {
         const val LEARNED = "learnedWords"
         const val PRUNED_SLIPS = "prunedSlips1"
         const val SHORTCUTS = "shortcuts"
+        const val INSIGHTS = "typingInsights"
 
         /** When to look at the clipboard after Copy, in milliseconds. */
         val COPY_LOOKS = longArrayOf(150, 600)

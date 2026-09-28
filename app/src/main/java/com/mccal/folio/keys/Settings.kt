@@ -83,6 +83,8 @@ data class Settings(
     /** The toolbar key that swaps the letters for arrows, word jumps and selection. */
     val cursorPadKey: Boolean = true,
     val keyStyle: KeyStyle = KeyStyle.FOLIO,
+    /** After the same fix or undo three times, the strip asks once whether to make it permanent. */
+    val offerRules: Boolean = true,
 ) {
 
     fun save(prefs: SharedPreferences) {
@@ -111,6 +113,7 @@ data class Settings(
             putBoolean(VOICE_KEY, voiceKey)
             putBoolean(CURSOR_PAD_KEY, cursorPadKey)
             putString(KEY_STYLE, keyStyle.name)
+            putBoolean(OFFER_RULES, offerRules)
         }.apply()
     }
 
@@ -139,6 +142,7 @@ data class Settings(
         const val VOICE_KEY = "voiceKey"
         const val CURSOR_PAD_KEY = "cursorPadKey"
         const val KEY_STYLE = "keyStyle"
+        const val OFFER_RULES = "offerRules"
 
         fun load(prefs: SharedPreferences): Settings {
             val fallback = Settings()
@@ -168,6 +172,7 @@ data class Settings(
                 voiceKey = read(VOICE_KEY, fallback.voiceKey),
                 cursorPadKey = read(CURSOR_PAD_KEY, fallback.cursorPadKey),
                 keyStyle = choice(prefs, KEY_STYLE, fallback.keyStyle),
+                offerRules = read(OFFER_RULES, fallback.offerRules),
             )
         }
 

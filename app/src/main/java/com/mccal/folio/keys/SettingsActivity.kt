@@ -47,6 +47,7 @@ class SettingsActivity : Activity() {
     private enum class Page(val title: Int, val parent: Page?) {
         MAIN(R.string.page_main, null),
         TYPING(R.string.page_typing, MAIN),
+        WHAT_IT_FIXES(R.string.page_what_it_fixes, TYPING),
         KEYS(R.string.page_keys, MAIN),
         LOOK(R.string.page_look, MAIN),
         FEEL(R.string.page_feel, MAIN),
@@ -206,6 +207,7 @@ class SettingsActivity : Activity() {
         when (page) {
             Page.MAIN -> main(column)
             Page.TYPING -> typing(column)
+            Page.WHAT_IT_FIXES -> whatItFixes(column)
             Page.KEYS -> keys(column)
             Page.LOOK -> look(column)
             Page.FEEL -> feel(column)
@@ -667,6 +669,124 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_double_space), settings.doubleSpaceFullStop) { on -> settings.copy(doubleSpaceFullStop = on) }
         }
         footer(column, "${getString(R.string.settings_capitals_note)} ${getString(R.string.settings_double_space_note)}")
+        group(column) {
+            nav(
+                it, SettingsIcon.Glyph.TYPING, "#248A3D", getString(R.string.page_what_it_fixes), null,
+                subtitle = getString(R.string.row_what_it_fixes_note),
+            ) { show(Page.WHAT_IT_FIXES) }
+        }
+    }
+
+    /**
+     * What autocorrect fixed and what was put back, most counted first, and the tap that makes either permanent.
+     * Every row is one pair of words and a number; the text around them never reaches this screen.
+     */
+    private fun whatItFixes(column: LinearLayout) {
+        footer(column, getString(R.string.what_it_fixes_intro))
+        val insights = Insights.decode(prefs.getString(INSIGHTS, null))
+        val rules = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
+        val learned = Learned.decode(prefs.getString(LEARNED, null))
+        header(column, getString(R.string.header_fixed_for_you))
+        group(column) { card ->
+            val fixed = insights.fixed().take(SHOWN_PAIRS)
+            if (fixed.isEmpty()) nothingYet(card)
+            fixed.forEach { entry ->
+                val replacement = entry.replacement ?: return@forEach
+                val done = rules.expand(entry.typed)?.equals(replacement, ignoreCase = true) == true
+                tally(
+                    card, getString(R.string.fixed_pair, entry.typed, replacement), entry.count,
+                    getString(R.string.fixed_tap), getString(R.string.fixed_rule_added), done,
+                ) {
+                    answer(Insights.Offer(entry.typed, replacement))
+                    toast(getString(R.string.toast_rule_added))
+                }
+            }
+        }
+        header(column, getString(R.string.header_you_put_back))
+        group(column) { card ->
+            val back = insights.putBack().take(SHOWN_PAIRS)
+            if (back.isEmpty()) nothingYet(card)
+            back.forEach { entry ->
+                tally(
+                    card, entry.typed, entry.count, getString(R.string.put_back_tap), getString(R.string.put_back_kept),
+                    learned.count(entry.typed.lowercase()) > 0,
+                ) {
+                    answer(Insights.Offer(entry.typed, null))
+                }
+            }
+        }
+        footer(column, getString(R.string.footer_what_it_fixes))
+        group(column) {
+            toggle(it, getString(R.string.settings_offer_rules), settings.offerRules) { on -> settings.copy(offerRules = on) }
+        }
+        footer(column, getString(R.string.footer_offer_rules))
+        group(column) {
+            action(it, getString(R.string.row_forget_counts), enabled = !insights.isEmpty()) { confirmForgetCounts() }
+        }
+    }
+
+    private fun nothingYet(card: LinearLayout) {
+        row(card, iconSpace = false).apply {
+            addView(label(getString(R.string.insights_nothing_yet), colors.secondary))
+            isFocusable = true
+        }
+    }
+
+    /**
+     * Keep or Always, from here rather than the strip, and the same answer: the strip never asks about it again.
+     * Everything is read again at the tap, since the keyboard may have changed any of it since the page was drawn,
+     * and it reads them all again when the next field opens.
+     */
+    private fun answer(offer: Insights.Offer) {
+        val insights = Insights.decode(prefs.getString(INSIGHTS, null))
+        val learned = Learned.decode(prefs.getString(LEARNED, null))
+        val shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
+        insights.answer(offer, accepted = true, learned, shortcuts)
+        prefs.edit()
+            .putString(INSIGHTS, insights.encode())
+            .putString(LEARNED, learned.encode())
+            .putString(SHORTCUTS, shortcuts.encode())
+            .apply()
+    }
+
+    /**
+     * One counted pair: the words, how many times, and what a tap does. Once done, the line under it says so and the
+     * row stops being a button. Changed in place, so TalkBack stays where it was.
+     */
+    private fun tally(
+        card: LinearLayout, title: String, count: Int, tapNote: String, doneNote: String, done: Boolean, run: () -> Unit,
+    ) {
+        row(card, iconSpace = false).apply {
+            val times = resources.getQuantityString(R.plurals.value_times, count, count)
+            val note = TextView(context).apply {
+                text = if (done) doneNote else tapNote
+                setTextColor(colors.secondary)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            }
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(label(title).apply {
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                })
+                addView(note)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(trailing(times))
+            fun describe() { contentDescription = "$title, $times, ${note.text}" }
+            describe()
+            isFocusable = true
+            if (!done) {
+                isClickable = true
+                background = selectable()
+                setOnClickListener {
+                    run()
+                    note.text = doneNote
+                    describe()
+                    setOnClickListener(null)
+                    isClickable = false
+                    sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_CLICKED)
+                }
+            }
+        }
     }
 
     private fun keys(column: LinearLayout) {
@@ -770,6 +890,10 @@ class SettingsActivity : Activity() {
         group(column) {
             value(it, getString(R.string.row_learned), words.toString())
             action(it, getString(R.string.row_forget), enabled = words > 0) { confirmForget(words) }
+        }
+        // Forgotten from its own page, beside the lists it empties; here it is only counted.
+        group(column) {
+            value(it, getString(R.string.row_fixes_counted), Insights.decode(prefs.getString(INSIGHTS, null)).size.toString())
         }
         header(column, getString(R.string.header_move))
         group(column) {
@@ -904,6 +1028,19 @@ class SettingsActivity : Activity() {
             .show()
     }
 
+    private fun confirmForgetCounts() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.confirm_forget_counts)
+            .setMessage(R.string.confirm_forget_counts_detail)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_forget) { _, _ ->
+                // The keyboard reads the counts again when the next field opens, so there is nothing to tell it.
+                prefs.edit().remove(INSIGHTS).apply()
+                render(keepScroll = true)
+            }
+            .show()
+    }
+
     private fun confirmReset() {
         AlertDialog.Builder(this)
             .setTitle(R.string.confirm_reset)
@@ -1016,16 +1153,29 @@ class SettingsActivity : Activity() {
     }
 
     /** A row that leads somewhere, with its coloured icon and, where there is one, what it is set to now. */
-    private fun nav(card: LinearLayout, glyph: SettingsIcon.Glyph, tile: String, title: String, value: String?, open: () -> Unit) {
+    private fun nav(
+        card: LinearLayout, glyph: SettingsIcon.Glyph, tile: String, title: String, value: String?,
+        subtitle: String? = null, open: () -> Unit,
+    ) {
         row(card, iconSpace = true).apply {
             addView(SettingsIcon(context, glyph, Color.parseColor(tile)), LinearLayout.LayoutParams(dp(29f), dp(29f))
                 .apply { marginEnd = dp(13f) })
-            addView(label(title))
+            if (subtitle == null) addView(label(title)) else addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(label(title).apply {
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                })
+                addView(TextView(context).apply {
+                    text = subtitle
+                    setTextColor(colors.secondary)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                })
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             value?.let { addView(trailing(it)) }
             addView(chevron())
             isClickable = true
             background = selectable()
-            contentDescription = listOfNotNull(title, value).joinToString(", ")
+            contentDescription = listOfNotNull(title, value, subtitle).joinToString(", ")
             setOnClickListener { open() }
         }
     }
@@ -1179,6 +1329,7 @@ class SettingsActivity : Activity() {
     private companion object {
         const val LEARNED = "learnedWords"
         const val SHORTCUTS = "shortcuts"
+        const val INSIGHTS = "typingInsights"
         const val PAGE = "page"
         const val ANSWER_APP = "answerApp"
         const val ANSWER_DID = "answerDid"
@@ -1187,5 +1338,8 @@ class SettingsActivity : Activity() {
         const val REQUEST_EXPORT = 20
         const val REQUEST_IMPORT = 21
         const val MAX_BACKUP_BYTES = 1 shl 20
+
+        /** Each list on What it fixes shows this many, most counted first. */
+        const val SHOWN_PAIRS = 10
     }
 }

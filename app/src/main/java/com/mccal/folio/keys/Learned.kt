@@ -46,6 +46,19 @@ class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
     }
 
     /**
+     * A word someone said, in so many words, to keep.
+     *
+     * Straight in at [MEANT_IT], past the rules [learn] is guarded by: it was asked, and answered Keep. That is also
+     * what stops it being corrected, since a correction never touches a learned word, and what keeps [prune] from
+     * taking it back out.
+     */
+    fun keep(word: String) {
+        val existing = words[word]
+        if (existing == null && words.size >= LIMIT) forgetLeastUsed()
+        words[word] = maxOf(existing ?: 0, MEANT_IT)
+    }
+
+    /**
      * Drops the words [slip] says were typos, unless they were typed often enough to mean it. Returns how many went.
      *
      * For words learned before a rule got stricter: without this they would sit in the strip for as long as the

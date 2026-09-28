@@ -71,6 +71,18 @@ interface Ime {
 
     /** Swap the letters for the cursor pad, or back. */
     fun showCursorPad(showing: Boolean) {}
+
+    /**
+     * A correction stood: the next word began and it was not undone. Counted off the typing thread, like [learn],
+     * and under the same rules - never from a password field, never when learning is off.
+     */
+    fun fixStood(typed: String, replacement: String) {}
+
+    /** A correction was put back with backspace. Counted the same way. */
+    fun putBack(typed: String) {}
+
+    /** The strip asked, and was answered: Keep or Always when [accepted], No when not. */
+    fun answered(offer: Insights.Offer, accepted: Boolean) {}
 }
 
 /**
@@ -109,6 +121,15 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     /** What the last autocorrect replaced, so the next backspace can put it back. */
     private var undo: Pair<String, String>? = null
+
+    /**
+     * The last correction, until it is known whether it stood: the next word beginning says it did, backspace says
+     * it did not. Only ever set where it may be counted at all.
+     */
+    private var standing: Pair<String, String>? = null
+
+    /** Whether what is typed here may be counted or kept. The same test for learning a word and counting a fix. */
+    private val remembering get() = settings.learn && !rules.ephemeral
 
     /**
      * Told, from the suggestion thread, what to do if this word is finished now.
@@ -155,7 +176,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val done = word.toString()
         word.setLength(0)
         if (done.isEmpty()) return
-        if (settings.learn && !rules.ephemeral) ime.learn(done)
+        if (remembering) ime.learn(done)
         // Only this word's verdict counts. A slower answer about the word before it is thrown away here rather
         // than applied to whatever happens to be under the cursor now.
         val answer = verdict?.takeIf { it.word == done }
@@ -174,6 +195,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     private fun autocorrect(typed: String, replacement: String) {
         undo = null
+        standing = null
         val connection = ime.connection ?: return
         if (rules.password) return
         // The ending is whatever was typed after the word: a space, a full stop, a bracket.
@@ -185,9 +207,12 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.commitText(replacement + ending, 1)
         connection.endBatchEdit()
         undo = typed to (replacement + ending)
+        if (remembering) standing = typed to replacement
     }
 
     private fun forget() {
+        // The cursor went somewhere else: what is typed next is not the word after the correction.
+        standing = null
         if (word.isEmpty()) return
         word.setLength(0)
         wordChanged()
@@ -199,6 +224,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         layer = if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) Layer.NUMBERS else Layer.LETTERS
         shift = if (settings.autoCapitalise && autoCaps(info)) Shift.ONCE else Shift.OFF
         word.setLength(0)
+        standing = null
         wordChanged()
         refresh()
     }
@@ -219,6 +245,9 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         ime.connection?.commitText(text, 1) ?: return
         // A letter continues the word; anything else - a space, a full stop, a bracket - ends it.
         if (text.length == 1 && (text[0].isLetter() || text[0] == '\'')) {
+            // The first letter of the next word, with no backspace in between: the correction before it stood.
+            if (word.isEmpty()) standing?.let { (typed, replacement) -> ime.fixStood(typed, replacement) }
+            standing = null
             word.append(text)
         } else {
             finished()
@@ -275,10 +304,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
                 connection.deleteSurroundingText(replaced.length, 0)
                 connection.commitText(typed + replaced.takeLast(1), 1)
                 connection.endBatchEdit()
+                if (standing != null) ime.putBack(typed)
+                standing = null
                 wordChanged()
                 return
             }
         }
+        standing = null
         // Asking for the selection is a blocking call into the app. Worth it once, to delete a selection whole.
         val selected = connection.getSelectedText(0)
         if (!selected.isNullOrEmpty()) {
@@ -340,6 +372,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onHide() = ime.hideKeyboard()
 
     override fun onEmojiPanel() = ime.showEmoji(true)
+
+    override fun onOffer(offer: Insights.Offer, accepted: Boolean) = ime.answered(offer, accepted)
 
     /**
      * A suggestion, taken.
