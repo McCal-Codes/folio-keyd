@@ -47,7 +47,12 @@ class SettingsActivity : Activity() {
     private enum class Page(val title: Int, val parent: Page?) {
         MAIN(R.string.page_main, null),
         TYPING(R.string.page_typing, MAIN),
+        WHAT_IT_FIXES(R.string.page_what_it_fixes, TYPING),
+        APPS(R.string.row_per_app, TYPING),
+        /** One app from that list. Its title is the app's name, so [title] is only the fallback. */
+        APP(R.string.row_per_app, APPS),
         KEYS(R.string.page_keys, MAIN),
+        TOOLBAR(R.string.row_toolbar, KEYS),
         LOOK(R.string.page_look, MAIN),
         FEEL(R.string.page_feel, MAIN),
         CLIPBOARD(R.string.page_clipboard, MAIN),
@@ -61,6 +66,9 @@ class SettingsActivity : Activity() {
     private lateinit var settings: Settings
     private val prefs by lazy { getSharedPreferences("keys", Context.MODE_PRIVATE) }
     private var page = Page.MAIN
+
+    /** The package whose page is open, while [Page.APP] is. */
+    private var app: String? = null
     private var scroll: ScrollView? = null
     private val density by lazy { resources.displayMetrics.density }
     private fun dp(value: Float) = (value * density).toInt()
@@ -96,10 +104,14 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DevLog.catchCrashes(this)
+        // Settings can open before the keyboard has run since an update, so the toolbar is settled here too.
+        Settings.settleToolbar(prefs, Settings.updated(this))
         settings = Settings.load(prefs)
         page = savedInstanceState?.getString(PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() }
             // Like Folio: the first time Settings opens after an update, it opens on what's new.
             ?: if (WhatsNew.shouldShow(this, versionName())) Page.WHATS_NEW else Page.MAIN
+        app = savedInstanceState?.getString(APP)
+        if (page == Page.APP && app == null) page = Page.APPS
         savedInstanceState?.let { state ->
             answers = DevLog.Answers(
                 state.getString(ANSWER_APP).orEmpty(), state.getString(ANSWER_DID).orEmpty(), state.getString(ANSWER_SAW).orEmpty(),
@@ -125,6 +137,7 @@ class SettingsActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(PAGE, page.name)
+        outState.putString(APP, app)
         outState.putString(ANSWER_APP, answers.app)
         outState.putString(ANSWER_DID, answers.did)
         outState.putString(ANSWER_SAW, answers.saw)
@@ -195,7 +208,7 @@ class SettingsActivity : Activity() {
         }
         // What's New draws its own centred header, as Folio's does.
         if (page != Page.WHATS_NEW) column.addView(TextView(this).apply {
-            text = getString(page.title)
+            text = if (page == Page.APP) appName(app.orEmpty()) else getString(page.title)
             setTextColor(colors.text)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f)
             typeface = Typeface.DEFAULT_BOLD
@@ -206,7 +219,11 @@ class SettingsActivity : Activity() {
         when (page) {
             Page.MAIN -> main(column)
             Page.TYPING -> typing(column)
+            Page.WHAT_IT_FIXES -> whatItFixes(column)
+            Page.APPS -> apps(column)
+            Page.APP -> app(column, app.orEmpty())
             Page.KEYS -> keys(column)
+            Page.TOOLBAR -> toolbar(column)
             Page.LOOK -> look(column)
             Page.FEEL -> feel(column)
             Page.CLIPBOARD -> clipboard(column)
@@ -223,6 +240,13 @@ class SettingsActivity : Activity() {
         }
         setContentView(scroll)
         scroll?.post { scroll?.scrollTo(0, y) }
+        // A button that moved a row rebuilt the page; TalkBack goes back to the button, now in its new place.
+        focusAfterRender?.let { wanted ->
+            focusAfterRender = null
+            column.findViewWithTag<View>(wanted)?.let { view ->
+                view.post { view.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null) }
+            }
+        }
         if (Build.VERSION.SDK_INT >= 33) {
             val callback = back as OnBackInvokedCallback
             onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback)
@@ -667,6 +691,293 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_double_space), settings.doubleSpaceFullStop) { on -> settings.copy(doubleSpaceFullStop = on) }
         }
         footer(column, "${getString(R.string.settings_capitals_note)} ${getString(R.string.settings_double_space_note)}")
+        group(column) {
+            nav(
+                it, SettingsIcon.Glyph.TYPING, "#248A3D", getString(R.string.page_what_it_fixes), null,
+                subtitle = getString(R.string.row_what_it_fixes_note),
+            ) { show(Page.WHAT_IT_FIXES) }
+        }
+        val changed = AppProfiles.load(prefs).changed.size
+        group(column) {
+            nav(it, null, null, getString(R.string.row_per_app),
+                resources.getQuantityString(R.plurals.value_apps, changed, changed)) { show(Page.APPS) }
+        }
+    }
+
+    // ---- Per-app settings ----------------------------------------------------------------------------------------
+
+    /**
+     * Every app typed in lately: the ones set their own way first, then the rest. Only apps Keyd has actually been
+     * used in are here, because that is the only way it hears of an app at all.
+     */
+    private fun apps(column: LinearLayout) {
+        footer(column, getString(R.string.per_app_note))
+        val apps = AppProfiles.load(prefs)
+        if (apps.recentApps.isEmpty()) {
+            group(column) { card ->
+                row(card, iconSpace = false).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setPadding(dp(16f), dp(20f), dp(16f), dp(20f))
+                    addView(TextView(context).apply {
+                        text = getString(R.string.per_app_empty)
+                        setTextColor(colors.text)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+                        gravity = Gravity.CENTER
+                    })
+                    addView(TextView(context).apply {
+                        text = getString(R.string.per_app_empty_note)
+                        setTextColor(colors.secondary)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                        gravity = Gravity.CENTER
+                    })
+                    isFocusable = true
+                }
+            }
+        }
+        if (apps.changed.isNotEmpty()) {
+            header(column, getString(R.string.header_changed))
+            group(column) { card ->
+                apps.changed.forEach { app -> appRow(card, app, changeSummary(apps.changes(app, settings))) }
+            }
+        }
+        if (apps.asUsual.isNotEmpty()) {
+            header(column, getString(R.string.header_as_usual))
+            group(column) { card -> apps.asUsual.forEach { app -> appRow(card, app, null) } }
+        }
+        if (apps.recentApps.isNotEmpty()) footer(column, getString(R.string.per_app_footer, AppProfiles.LIMIT))
+    }
+
+    /** "No fixing" when one thing is different, "2 changes" when more are. */
+    private fun changeSummary(changes: List<AppProfiles.Change>): String = when (changes.size) {
+        0 -> getString(R.string.change_none)
+        1 -> getString(when (changes.single()) {
+            AppProfiles.Change.SUGGESTIONS_OFF -> R.string.change_suggestions_off
+            AppProfiles.Change.SUGGESTIONS_ON -> R.string.change_suggestions_on
+            AppProfiles.Change.FIXING_OFF -> R.string.change_fixing_off
+            AppProfiles.Change.FIXING_ON -> R.string.change_fixing_on
+            AppProfiles.Change.LEARNING_OFF -> R.string.change_learning_off
+            AppProfiles.Change.LEARNING_ON -> R.string.change_learning_on
+            AppProfiles.Change.NUMBER_ROW_ON -> R.string.change_number_row_on
+            AppProfiles.Change.NUMBER_ROW_OFF -> R.string.change_number_row_off
+        })
+        else -> resources.getQuantityString(R.plurals.value_changes, changes.size, changes.size)
+    }
+
+    /** One app in the list: its icon and name, what is different about it, and the way into its page. */
+    private fun appRow(card: LinearLayout, app: String, value: String?) {
+        val name = appName(app)
+        row(card, iconSpace = true).apply {
+            addView(android.widget.ImageView(context).apply {
+                setImageDrawable(appIcon(app))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(dp(29f), dp(29f)).apply { marginEnd = dp(13f) })
+            addView(label(name))
+            value?.let { addView(trailing(it)) }
+            addView(chevron())
+            isClickable = true
+            background = selectable()
+            contentDescription = listOfNotNull(name, value).joinToString(", ")
+            setOnClickListener {
+                this@SettingsActivity.app = app
+                show(Page.APP)
+            }
+        }
+    }
+
+    /**
+     * What autocorrect fixed and what was put back, most counted first, and the tap that makes either permanent.
+     * Every row is one pair of words and a number; the text around them never reaches this screen.
+     */
+    private fun whatItFixes(column: LinearLayout) {
+        footer(column, getString(R.string.what_it_fixes_intro))
+        val insights = Insights.decode(prefs.getString(INSIGHTS, null))
+        val rules = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
+        val learned = Learned.decode(prefs.getString(LEARNED, null))
+        header(column, getString(R.string.header_fixed_for_you))
+        group(column) { card ->
+            val fixed = insights.fixed().take(SHOWN_PAIRS)
+            if (fixed.isEmpty()) nothingYet(card)
+            fixed.forEach { entry ->
+                val replacement = entry.replacement ?: return@forEach
+                val done = rules.expand(entry.typed)?.equals(replacement, ignoreCase = true) == true
+                tally(
+                    card, getString(R.string.fixed_pair, entry.typed, replacement), entry.count,
+                    getString(R.string.fixed_tap), getString(R.string.fixed_rule_added), done,
+                ) {
+                    answer(Insights.Offer(entry.typed, replacement))
+                    toast(getString(R.string.toast_rule_added))
+                }
+            }
+        }
+        header(column, getString(R.string.header_you_put_back))
+        group(column) { card ->
+            val back = insights.putBack().take(SHOWN_PAIRS)
+            if (back.isEmpty()) nothingYet(card)
+            back.forEach { entry ->
+                tally(
+                    card, entry.typed, entry.count, getString(R.string.put_back_tap), getString(R.string.put_back_kept),
+                    learned.count(entry.typed.lowercase()) > 0,
+                ) {
+                    answer(Insights.Offer(entry.typed, null))
+                }
+            }
+        }
+        footer(column, getString(R.string.footer_what_it_fixes))
+        group(column) {
+            toggle(it, getString(R.string.settings_offer_rules), settings.offerRules) { on -> settings.copy(offerRules = on) }
+        }
+        footer(column, getString(R.string.footer_offer_rules))
+        group(column) {
+            action(it, getString(R.string.row_forget_counts), enabled = !insights.isEmpty()) { confirmForgetCounts() }
+        }
+    }
+
+    private fun nothingYet(card: LinearLayout) {
+        row(card, iconSpace = false).apply {
+            addView(label(getString(R.string.insights_nothing_yet), colors.secondary))
+            isFocusable = true
+        }
+    }
+
+    /**
+     * Keep or Always, from here rather than the strip, and the same answer: the strip never asks about it again.
+     * Everything is read again at the tap, since the keyboard may have changed any of it since the page was drawn,
+     * and it reads them all again when the next field opens.
+     */
+    private fun answer(offer: Insights.Offer) {
+        val insights = Insights.decode(prefs.getString(INSIGHTS, null))
+        val learned = Learned.decode(prefs.getString(LEARNED, null))
+        val shortcuts = Shortcuts.decode(prefs.getString(SHORTCUTS, null))
+        insights.answer(offer, accepted = true, learned, shortcuts)
+        prefs.edit()
+            .putString(INSIGHTS, insights.encode())
+            .putString(LEARNED, learned.encode())
+            .putString(SHORTCUTS, shortcuts.encode())
+            .apply()
+    }
+
+    /**
+     * One counted pair: the words, how many times, and what a tap does. Once done, the line under it says so and the
+     * row stops being a button. Changed in place, so TalkBack stays where it was.
+     */
+    private fun tally(
+        card: LinearLayout, title: String, count: Int, tapNote: String, doneNote: String, done: Boolean, run: () -> Unit,
+    ) {
+        row(card, iconSpace = false).apply {
+            val times = resources.getQuantityString(R.plurals.value_times, count, count)
+            val note = TextView(context).apply {
+                text = if (done) doneNote else tapNote
+                setTextColor(colors.secondary)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            }
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(label(title).apply {
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                })
+                addView(note)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(trailing(times))
+            fun describe() { contentDescription = "$title, $times, ${note.text}" }
+            describe()
+            isFocusable = true
+            if (!done) {
+                isClickable = true
+                background = selectable()
+                setOnClickListener {
+                    run()
+                    note.text = doneNote
+                    describe()
+                    setOnClickListener(null)
+                    isClickable = false
+                    sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_CLICKED)
+                }
+            }
+        }
+    }
+
+    /**
+     * An app's own name, or its package name when Android won't say.
+     *
+     * Keyd asks for no permission to see other apps. Android still shows a keyboard the app it is typing into, which
+     * is how these names normally resolve; an app it has not typed in since the phone restarted may stay hidden, and
+     * then the package name is the honest fallback.
+     */
+    private fun appName(app: String): String = runCatching {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString()
+    }.getOrNull()?.takeIf { it.isNotBlank() } ?: app
+
+    private fun appIcon(app: String): android.graphics.drawable.Drawable =
+        runCatching { packageManager.getApplicationIcon(app) }.getOrNull() ?: packageManager.defaultActivityIcon
+
+    /** Switches on one app's page, kept so turning "use the usual settings" on or off can grey them in place. */
+    private val appSwitches = mutableListOf<Pair<Switch, TextView>>()
+
+    /** One app's page: whether it follows the usual settings, and if not, its own four switches. */
+    private fun app(column: LinearLayout, app: String) {
+        appSwitches.clear()
+        val name = appName(app)
+        var profile = AppProfiles.load(prefs).profile(app)
+        fun save(update: AppProfiles.Profile) {
+            profile = update
+            AppProfiles.load(prefs).apply { set(app, update) }.save(prefs)
+        }
+        lateinit var refresh: () -> Unit
+        group(column) {
+            switchRow(it, getString(R.string.app_use_usual), profile.useUsual) { on ->
+                save(profile.copy(useUsual = on))
+                refresh()
+            }
+        }
+        footer(column, getString(R.string.app_use_usual_note, name))
+        header(column, getString(R.string.header_in_app, name.uppercase()))
+        group(column) { card ->
+            appSwitch(card, getString(R.string.settings_suggestions)) { on -> save(profile.copy(suggestions = on)); refresh() }
+            appSwitch(card, getString(R.string.settings_autocorrect)) { on -> save(profile.copy(autocorrect = on)) }
+            appSwitch(card, getString(R.string.settings_learn)) { on -> save(profile.copy(learn = on)) }
+            appSwitch(card, getString(R.string.settings_number_row)) { on -> save(profile.copy(numberRow = on)) }
+        }
+        refresh = {
+            val mine = profile.over(settings)
+            val states = listOf(
+                mine.suggestions to !profile.useUsual,
+                // Fixing is the strip's top answer applied, so it goes with the strip, as it does on the first page.
+                Settings.correcting(mine) to (!profile.useUsual && mine.suggestions),
+                mine.learn to !profile.useUsual,
+                mine.numberRow to !profile.useUsual,
+            )
+            appSwitches.zip(states).forEach { (parts, state) ->
+                val (switch, title) = parts
+                val (checked, enabled) = state
+                switch.tag = SHOWING
+                switch.isChecked = checked
+                switch.tag = null
+                switch.isEnabled = enabled
+                title.setTextColor(if (enabled) colors.text else colors.secondary)
+                (switch.parent as View).isEnabled = enabled
+                (switch.parent as View).isClickable = enabled
+            }
+        }
+        refresh()
+        group(column) { card ->
+            action(card, getString(R.string.app_forget), enabled = true) {
+                AppProfiles.load(prefs).apply { forget(app) }.save(prefs)
+                this.app = null
+                show(Page.APPS)
+            }
+        }
+        footer(column, getString(R.string.app_forget_note))
+    }
+
+    /** A switch on an app's page. Its state is set by that page's refresh, which is not the person changing it. */
+    private fun appSwitch(card: LinearLayout, title: String, changed: (Boolean) -> Unit) {
+        switchRow(card, title, on = false) { on -> changed(on) }
+        val row = card.getChildAt(card.childCount - 1) as ViewGroup
+        val switch = (0 until row.childCount).map { row.getChildAt(it) }.filterIsInstance<Switch>().single()
+        val label = row.getChildAt(0) as TextView
+        switch.setOnCheckedChangeListener { _, checked -> if (switch.tag !== SHOWING) changed(checked) }
+        appSwitches += switch to label
     }
 
     private fun keys(column: LinearLayout) {
@@ -677,12 +988,19 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_preview), settings.keyPreview) { on -> settings.copy(keyPreview = on) }
         }
         footer(column, "${getString(R.string.settings_number_row_note)} ${getString(R.string.settings_accents_note)}")
-        header(column, getString(R.string.header_toolbar))
+        header(column, getString(R.string.header_editing))
         group(column) {
-            toggle(it, getString(R.string.settings_voice_key), settings.voiceKey) { on -> settings.copy(voiceKey = on) }
-            toggle(it, getString(R.string.settings_cursor_pad_key), settings.cursorPadKey) { on -> settings.copy(cursorPadKey = on) }
+            switchRow(
+                it, getString(R.string.settings_edit_swipes), settings.editSwipes,
+                subtitle = getString(R.string.settings_edit_swipes_note),
+            ) { on -> change(settings.copy(editSwipes = on)) }
+            toggle(it, getString(R.string.settings_shift_select), settings.shiftSelect) { on -> settings.copy(shiftSelect = on) }
+            toggle(it, getString(R.string.settings_selection_tools), settings.selectionTools) { on -> settings.copy(selectionTools = on) }
+            val buttons = settings.toolbar.size
+            nav(it, null, null, getString(R.string.row_toolbar),
+                resources.getQuantityString(R.plurals.value_buttons, buttons, buttons)) { show(Page.TOOLBAR) }
         }
-        footer(column, getString(R.string.footer_toolbar))
+        footer(column, getString(R.string.footer_editing))
         header(column, getString(R.string.header_flicks))
         group(column) {
             toggle(it, getString(R.string.settings_flick_down), settings.flickForAlternate) { on -> settings.copy(flickForAlternate = on) }
@@ -696,6 +1014,150 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_delete_word), settings.deleteWordSwipe) { on -> settings.copy(deleteWordSwipe = on) }
         }
         footer(column, getString(R.string.settings_gestures_note))
+    }
+
+    // ---- The toolbar ---------------------------------------------------------------------------------------------
+
+    /** The row to give TalkBack's focus back to after the page is rebuilt, by its tag. */
+    private var focusAfterRender: String? = null
+
+    private fun toolName(tool: ToolKey): String = getString(when (tool) {
+        ToolKey.EMOJI -> R.string.tool_emoji
+        ToolKey.UNDO -> R.string.tool_undo
+        ToolKey.REDO -> R.string.tool_redo
+        ToolKey.CURSOR_PAD -> R.string.tool_cursor_pad
+        ToolKey.SELECT_ALL -> R.string.tool_select_all
+        ToolKey.CUT -> R.string.tool_cut
+        ToolKey.COPY -> R.string.tool_copy
+        ToolKey.PASTE -> R.string.tool_paste
+        ToolKey.CLIPBOARD -> R.string.tool_clipboard
+        ToolKey.VOICE -> R.string.tool_voice
+    })
+
+    /** Saves a new arrangement and draws the page again, since rows move between the two lists. */
+    private fun arrange(toolbar: List<ToolKey>, focus: String? = null) {
+        change(settings.copy(toolbar = toolbar.distinct().take(Settings.MAX_TOOLS)))
+        focusAfterRender = focus
+        render(keepScroll = true)
+    }
+
+    /**
+     * The toolbar's buttons: what it looks like now, the ones on it in order, and the ones that could be.
+     *
+     * Rows move with an up and a down button rather than by dragging: a drag needs a steady finger and a long press
+     * TalkBack can't make, and two buttons read "Move Copy up" to anyone, however they use the phone.
+     */
+    private fun toolbar(column: LinearLayout) {
+        val chosen = settings.toolbar
+        group(column) { card ->
+            card.addView(ToolbarPreview(this, chosen).apply {
+                contentDescription = getString(
+                    R.string.toolbar_preview,
+                    (listOf(getString(R.string.tool_hide)) + chosen.map(::toolName)).joinToString(", "),
+                )
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56f)))
+        }
+        header(column, getString(R.string.header_on_toolbar))
+        group(column) { card ->
+            value(card, getString(R.string.tool_hide), getString(R.string.value_always_first))
+            chosen.forEachIndexed { index, tool -> chosenRow(card, tool, index, chosen) }
+        }
+        footer(column, getString(R.string.footer_on_toolbar))
+        val unused = ToolKey.entries.filter { it !in chosen }
+        if (unused.isNotEmpty()) {
+            header(column, getString(R.string.header_more_buttons))
+            val room = chosen.size < Settings.MAX_TOOLS
+            group(column) { card ->
+                unused.forEach { tool ->
+                    switchRow(card, toolName(tool), on = false, enabled = room) { on ->
+                        if (on) arrange(chosen + tool)
+                    }
+                }
+            }
+        }
+        footer(column, getString(R.string.footer_more_buttons))
+        group(column) { card ->
+            link(card, getString(R.string.toolbar_reset)) { arrange(Settings.DEFAULT_TOOLBAR) }
+        }
+        footer(column, getString(R.string.footer_voice))
+    }
+
+    /** One button on the toolbar: its name, a move up and a move down, and the switch that takes it off. */
+    private fun chosenRow(card: LinearLayout, tool: ToolKey, index: Int, chosen: List<ToolKey>) {
+        val name = toolName(tool)
+        row(card, iconSpace = false).apply {
+            addView(label(name))
+            fun moved(by: Int) = chosen.toMutableList().apply { add(index + by, removeAt(index)) }
+            val up = getString(R.string.toolbar_move_up, name)
+            val down = getString(R.string.toolbar_move_down, name)
+            addView(moveButton("↑", up, enabled = index > 0) { arrange(moved(-1), focus = up) })
+            addView(moveButton("↓", down, enabled = index < chosen.lastIndex) { arrange(moved(1), focus = down) })
+            val switch = Switch(context).apply {
+                isChecked = true
+                thumbTintList = ColorStateList.valueOf(Color.WHITE)
+                trackTintList = ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                    intArrayOf(colors.on, colors.off),
+                )
+                contentDescription = name
+                setOnCheckedChangeListener { _, checked -> if (!checked) arrange(chosen - tool) }
+            }
+            addView(switch)
+            setOnClickListener { switch.toggle() }
+            background = selectable()
+        }
+    }
+
+    /** A 48dp button with an arrow on it, named for what it does. Greyed at the end of the list it can't pass. */
+    private fun moveButton(arrow: String, name: String, enabled: Boolean, run: () -> Unit) = TextView(this).apply {
+        text = arrow
+        tag = name
+        setTextColor(if (enabled) colors.link else colors.divider)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+        gravity = Gravity.CENTER
+        minWidth = dp(48f)
+        minHeight = dp(48f)
+        contentDescription = name
+        isEnabled = enabled
+        isClickable = enabled
+        isFocusable = true
+        if (enabled) {
+            background = selectable()
+            setOnClickListener { run() }
+        }
+        accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = android.widget.Button::class.java.name
+            }
+        }
+    }
+
+    /** The toolbar as the keyboard draws it, Hide first, in the page's own colors. Voice is drawn whether or not it shows. */
+    private inner class ToolbarPreview(context: Context, private val chosen: List<ToolKey>) : View(context) {
+        private val stroke = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeJoin = android.graphics.Paint.Join.ROUND
+            color = colors.text
+        }
+        private val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = colors.text }
+
+        init {
+            isFocusable = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
+
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            val kinds = listOf(KeyKind.HIDE) + chosen.map { it.kind }
+            val pad = 12 * resources.displayMetrics.density
+            val slot = (width - 2 * pad) / kinds.size
+            val size = minOf(height * 0.46f, slot * 0.6f)
+            stroke.strokeWidth = maxOf(1.5f * resources.displayMetrics.density, size * 0.072f)
+            kinds.forEachIndexed { index, kind ->
+                Icons.tool(canvas, kind, pad + slot * (index + 0.5f), height / 2f, size, stroke, fill)
+            }
+        }
     }
 
     private fun look(column: LinearLayout) {
@@ -717,6 +1179,12 @@ class SettingsActivity : Activity() {
             ), settings.appearance) { value -> settings.copy(appearance = value) }
         }
         footer(column, getString(R.string.settings_appearance_note))
+        group(column) {
+            switchRow(
+                it, getString(R.string.settings_pure_black), settings.pureBlack,
+                subtitle = getString(R.string.settings_pure_black_note),
+            ) { on -> change(settings.copy(pureBlack = on)) }
+        }
         group(column) { toggle(it, getString(R.string.settings_high_contrast), settings.highContrast) { on -> settings.copy(highContrast = on) } }
         footer(column, getString(R.string.settings_high_contrast_note))
         header(column, getString(R.string.settings_size).uppercase())
@@ -737,12 +1205,33 @@ class SettingsActivity : Activity() {
             ), settings.split) { value -> settings.copy(split = value) }
         }
         footer(column, getString(R.string.settings_split_note))
+        header(column, getString(R.string.settings_one_handed).uppercase())
+        group(column) {
+            pick(it, listOf(
+                getString(R.string.settings_one_handed_off) to OneHanded.OFF,
+                getString(R.string.settings_one_handed_left) to OneHanded.LEFT,
+                getString(R.string.settings_one_handed_right) to OneHanded.RIGHT,
+            ), settings.oneHanded) { value -> settings.copy(oneHanded = value) }
+        }
+        footer(column, getString(R.string.settings_one_handed_note))
     }
 
     private fun feel(column: LinearLayout) {
         group(column) {
             toggle(it, getString(R.string.settings_sound), settings.sound) { on -> settings.copy(sound = on) }
-            toggle(it, getString(R.string.settings_vibrate), settings.vibrate) { on -> settings.copy(vibrate = on) }
+            switchRow(
+                it, getString(R.string.settings_mute_bluetooth), settings.muteWithBluetooth,
+                subtitle = getString(R.string.settings_mute_bluetooth_note),
+            ) { on -> change(settings.copy(muteWithBluetooth = on)) }
+        }
+        header(column, getString(R.string.settings_vibrate).uppercase())
+        group(column) {
+            pick(it, listOf(
+                getString(R.string.vibration_off) to Vibration.OFF,
+                getString(R.string.vibration_light) to Vibration.LIGHT,
+                getString(R.string.vibration_medium) to Vibration.MEDIUM,
+                getString(R.string.vibration_strong) to Vibration.STRONG,
+            ), settings.vibration) { value -> settings.copy(vibration = value) }
         }
         footer(column, getString(R.string.settings_system_note))
     }
@@ -767,9 +1256,15 @@ class SettingsActivity : Activity() {
         footer(column, getString(R.string.footer_privacy))
         header(column, getString(R.string.header_what_it_knows))
         val words = Learned.decode(prefs.getString(LEARNED, null)).size
+        val counted = Insights.decode(prefs.getString(INSIGHTS, null)).size
         group(column) {
             value(it, getString(R.string.row_learned), words.toString())
-            action(it, getString(R.string.row_forget), enabled = words > 0) { confirmForget(words) }
+            action(it, getString(R.string.row_forget), enabled = words > 0 || counted > 0) { confirmForget(words) }
+        }
+        // The counts have their own Forget beside the lists they fill; Forget above takes them too, since the fixes
+        // are words someone typed just as much as the learned ones are.
+        group(column) {
+            value(it, getString(R.string.row_fixes_counted), counted.toString())
         }
         header(column, getString(R.string.header_move))
         group(column) {
@@ -894,11 +1389,27 @@ class SettingsActivity : Activity() {
 
     private fun confirmForget(words: Int) {
         AlertDialog.Builder(this)
-            .setTitle(resources.getQuantityString(R.plurals.confirm_forget, words, words))
+            .setTitle(
+                if (words > 0) resources.getQuantityString(R.plurals.confirm_forget, words, words)
+                else getString(R.string.confirm_forget_counts),
+            )
             .setMessage(R.string.confirm_forget_detail)
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_forget) { _, _ ->
-                prefs.edit().remove(LEARNED).apply()
+                prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).apply()
+                render(keepScroll = true)
+            }
+            .show()
+    }
+
+    private fun confirmForgetCounts() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.confirm_forget_counts)
+            .setMessage(R.string.confirm_forget_counts_detail)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_forget) { _, _ ->
+                // The keyboard reads the counts again when the next field opens, so there is nothing to tell it.
+                prefs.edit().remove(INSIGHTS).apply()
                 render(keepScroll = true)
             }
             .show()
@@ -1015,17 +1526,35 @@ class SettingsActivity : Activity() {
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
 
-    /** A row that leads somewhere, with its coloured icon and, where there is one, what it is set to now. */
-    private fun nav(card: LinearLayout, glyph: SettingsIcon.Glyph, tile: String, title: String, value: String?, open: () -> Unit) {
-        row(card, iconSpace = true).apply {
-            addView(SettingsIcon(context, glyph, Color.parseColor(tile)), LinearLayout.LayoutParams(dp(29f), dp(29f))
-                .apply { marginEnd = dp(13f) })
-            addView(label(title))
+    /**
+     * A row that leads somewhere, with its colored icon (none for an app row, which draws its own) and, where there is
+     * one, what it is set to now and a line under the title saying what it holds.
+     */
+    private fun nav(
+        card: LinearLayout, glyph: SettingsIcon.Glyph?, tile: String?, title: String, value: String?,
+        subtitle: String? = null, open: () -> Unit,
+    ) {
+        row(card, iconSpace = glyph != null).apply {
+            if (glyph != null && tile != null) {
+                addView(SettingsIcon(context, glyph, Color.parseColor(tile)), LinearLayout.LayoutParams(dp(29f), dp(29f))
+                    .apply { marginEnd = dp(13f) })
+            }
+            if (subtitle == null) addView(label(title)) else addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(label(title).apply {
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                })
+                addView(TextView(context).apply {
+                    text = subtitle
+                    setTextColor(colors.secondary)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                })
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             value?.let { addView(trailing(it)) }
             addView(chevron())
             isClickable = true
             background = selectable()
-            contentDescription = listOfNotNull(title, value).joinToString(", ")
+            contentDescription = listOfNotNull(title, value, subtitle).joinToString(", ")
             setOnClickListener { open() }
         }
     }
@@ -1178,8 +1707,14 @@ class SettingsActivity : Activity() {
 
     private companion object {
         const val LEARNED = "learnedWords"
+        const val SEEN = "seenWords"
         const val SHORTCUTS = "shortcuts"
+        const val INSIGHTS = "typingInsights"
         const val PAGE = "page"
+        const val APP = "app"
+
+        /** Marks a switch being set to show a state, so its listener knows nobody tapped it. */
+        val SHOWING = Any()
         const val ANSWER_APP = "answerApp"
         const val ANSWER_DID = "answerDid"
         const val ANSWER_SAW = "answerSaw"
@@ -1187,5 +1722,8 @@ class SettingsActivity : Activity() {
         const val REQUEST_EXPORT = 20
         const val REQUEST_IMPORT = 21
         const val MAX_BACKUP_BYTES = 1 shl 20
+
+        /** Each list on What it fixes shows this many, most counted first. */
+        const val SHOWN_PAIRS = 10
     }
 }

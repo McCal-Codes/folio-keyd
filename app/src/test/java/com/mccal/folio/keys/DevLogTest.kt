@@ -151,8 +151,9 @@ class DevLogTest {
         val lines = DevLog.switches(Settings())
         // Every field of Settings, each one name=value where the value is a switch or a choice's name.
         assertEquals(Settings::class.java.declaredFields.count { !java.lang.reflect.Modifier.isStatic(it.modifiers) }, lines.size)
-        assertTrue(lines.all { Regex("[a-zA-Z]+=(true|false|[A-Z_]+)").matches(it) })
+        assertTrue(lines.all { Regex("[a-zA-Z]+=(true|false|[A-Z_]+(\\+[A-Z_]+)*)").matches(it) })
         assertTrue("keyStyle=FOLIO" in lines)
-        assertTrue("voiceKey=true" in lines)
+        assertTrue("toolbar=EMOJI+UNDO+CURSOR_PAD+COPY+PASTE+CLIPBOARD+VOICE" in lines)
+        assertTrue("toolbar=NONE" in DevLog.switches(Settings(toolbar = emptyList())))
     }
 }

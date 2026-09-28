@@ -19,8 +19,15 @@
     <string name="emoji_letters">ABC</string>
     <string name="emoji_no_recents">Emoji you use will show up here</string>
     <string name="emoji_open">Emoji</string>
+    <string name="emoji_search">Search emoji</string>
+    <string name="emoji_search_field">Search emoji, %1$s</string>
+    <string name="emoji_search_back">Back to emoji</string>
+    <string name="emoji_search_clear">Clear search</string>
+    <string name="emoji_search_hint">Type a word, like heart or cat</string>
+    <string name="emoji_search_none">Nothing for “%1$s”</string>
     <string name="setup_learning">Keyd remembers words you type that it does not already know — names, places, the way you spell things — so it stops suggesting something else instead. It is kept on this phone, never from a password field, and never from an app that asks it not to.</string>
-    <string name="setup_forget">Forget the %1$d words it has learned</string>
+    <string name="setup_forget">Forget the %1$d words it has learned, and the fixes it has counted</string>
+    <string name="setup_forget_counts">Forget the fixes it has counted</string>
     <string name="setup_forget_none">It has not learned any words yet</string>
     <string name="setup_forgot">Forgotten.</string>
     <string name="settings_title">Keyd settings</string>
@@ -61,6 +68,13 @@
     <string name="settings_split_auto">Automatic</string>
     <string name="settings_split_always">Always</string>
     <string name="settings_split_never">Never</string>
+    <string name="settings_one_handed">One-handed</string>
+    <string name="settings_one_handed_note">A narrower keyboard against one edge. Only on screens too small to split.</string>
+    <string name="settings_one_handed_off">Off</string>
+    <string name="settings_one_handed_left">Left</string>
+    <string name="settings_one_handed_right">Right</string>
+    <string name="one_handed_full_width">Full width</string>
+    <string name="one_handed_other_side">Move to the other side</string>
     <string name="settings_cursor_swipe">Swipe the space bar to move the cursor</string>
     <string name="settings_delete_word">Swipe left on backspace for a whole word</string>
     <string name="settings_swipe_hide">Swipe down on the space bar to hide</string>
@@ -121,9 +135,9 @@
         <item quantity="other">Forget the %1$d words Keyd has learned?</item>
     </plurals>
     <string name="back_to">‹ %1$s</string>
-    <string name="confirm_forget_detail">It will start suggesting other words for them again. This cannot be undone.</string>
+    <string name="confirm_forget_detail">It will start suggesting other words for them again, and the fixes it has counted start again from nothing. Rules and text shortcuts stay as they are. This cannot be undone.</string>
     <string name="confirm_reset">Put every setting back to normal?</string>
-    <string name="confirm_reset_detail">Learned words, shortcuts and clipboard history stay as they are.</string>
+    <string name="confirm_reset_detail">Apps with their own settings go back to the usual ones. Learned words, fix counts, shortcuts and clipboard history stay as they are.</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_forget">Forget</string>
     <string name="action_reset">Reset</string>

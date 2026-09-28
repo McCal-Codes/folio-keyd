@@ -205,4 +205,61 @@ class SuggestionsTest {
         assertTrue('g' in proximity.neighbours('h'))
         assertFalse('p' in proximity.neighbours('q'))
     }
+
+    // ---- apostrophes ----------------------------------------------------------------------------------------------
+
+    private val withBareForms = Small(listOf("don't" to 14, "dont" to 35, "done" to 20, "don" to 30, "dot" to 33))
+
+    @Test
+    fun `a missing apostrophe is fixed even though the list knows the bare word`() {
+        val english = Contractions.of(Language.ENGLISH)
+        assertEquals("don't", Suggestions.correction("dont", withBareForms, proximity, contractions = english))
+    }
+
+    @Test
+    fun `a missing apostrophe is offered first, and the bare word not at all`() {
+        val english = Contractions.of(Language.ENGLISH)
+        val found = Suggestions.forWord("dont", withBareForms, proximity, contractions = english)
+        assertEquals("don't", found.first())
+        assertFalse(found.contains("dont"))
+    }
+
+    @Test
+    fun `a contraction kept as a word is left alone`() {
+        val learned = Learned().also { it.keep("dont") }
+        val english = Contractions.of(Language.ENGLISH)
+        assertEquals(null, Suggestions.correction("dont", withBareForms, proximity, learned, english))
+    }
+
+    // ---- the word before ------------------------------------------------------------------------------------------
+
+    private val following = NextWords.read("i\twant was think\n.\tthe i\n".byteInputStream())
+
+    @Test
+    fun `after a space the strip offers what usually comes next`() {
+        assertEquals(listOf("want", "was", "think"), Suggestions.predict("i", following))
+        assertEquals(listOf("The", "I"), Suggestions.predict(SENTENCE_START, following, Shift.ONCE))
+        assertEquals(emptyList<String>(), Suggestions.predict("keyboard", following))
+        assertEquals(emptyList<String>(), Suggestions.predict("i", null))
+    }
+
+    @Test
+    fun `the word before decides between two equally close words`() {
+        val close = Small(listOf("want" to 20, "wait" to 20, "went" to 20))
+        assertEquals("want", Suggestions.forWord("wsnt", close, proximity, previous = "i", next = following).first())
+    }
+
+    @Test
+    fun `a shortcut is offered in the case it was typed`() {
+        val shortcuts = Shortcuts().also { it.add("omw", "on my way") }
+        assertEquals("On my way", Suggestions.forWord("Omw", words, proximity, shortcuts = shortcuts).first())
+        assertEquals("on my way", Suggestions.forWord("omw", words, proximity, shortcuts = shortcuts).first())
+    }
+
+    @Test
+    fun `half a word is never a correction`() {
+        val halves = Small(listOf("ma'" to 20, "jusqu'" to 20, "mai" to 40))
+        val fix = Suggestions.correction("maa", halves, proximity)
+        assertTrue(fix, fix == null || !fix.endsWith("'"))
+    }
 }

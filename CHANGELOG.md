@@ -4,6 +4,35 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.3.0] - 2026-09-28
+
+### Added
+- **Emoji search:** a magnifier in the emoji panel. Type "heart" or "cat" and pick from what comes up, in all six languages.
+- **What it fixes:** Keyd counts the typos it fixes and the fixes you undo. After three, the strip asks once whether to keep a word or always fix it, and Settings shows both lists.
+- **Per-app settings:** different suggestions, fixing, learning and number row for each app you type in.
+- **Swipe up to edit:** on Z, X, C, V and A a swipe up does undo, cut, copy, paste and select all.
+- **Slide from shift to select**, the way the space bar moves the cursor.
+- **Your toolbar:** Undo is on it now, and Settings lets you choose and order up to seven buttons, including Redo, Cut and Select all.
+- **Selected text:** the toolbar counts characters and words, and Style turns the selection bold, italic, script or monospace.
+- **One-handed:** a narrower keyboard against either edge, with a rail to switch sides or go back to full width.
+- **Feel:** vibration strength, no key clicks while Bluetooth audio is connected, and pure black in dark mode.
+
+- **Next word:** after a space the strip suggests the next word, in all six languages, and the word before helps pick the right fix.
+- **Contractions:** dont, im, youre and about 40 more get their apostrophe back, and "i" becomes "I".
+
+### Changed
+- Fewer wrong fixes: slang like btw, idk and wifi is left alone and learned, possessives stay out of the strip unless you type an apostrophe, and a word is never shown twice.
+- Missing accents in German, Spanish, French, Italian and Portuguese are offered first in the strip, and a real word is never swapped for its accented twin.
+- "thisis" becomes "this is".
+- A word you leave as typed is learned after three times on two different days, not the first time.
+
+### Fixed
+- Search and Go no longer cancel when a thumb rolls off the corner.
+- Web and email addresses are left as typed: nothing corrected, learned or given a double-space period.
+- The split keyboard's keys are one size in both halves, and the space bar says its language once.
+- Keyd no longer learns typos of fairly common words, like "updste" for "update".
+- Making a shortcut from a pinned clip goes back to the app you were typing in.
+
 ## [0.2.0] - 2026-09-26
 
 ### Added

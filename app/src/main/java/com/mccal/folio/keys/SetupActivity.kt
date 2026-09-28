@@ -103,7 +103,8 @@ class SetupActivity : Activity() {
         }
         body(getString(R.string.setup_learning))
         forget = button(getString(R.string.setup_forget_none)) {
-            getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).apply()
+            // The fix counts go too: they are words typed on this phone as much as the learned ones are.
+            getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).apply()
             forget.text = getString(R.string.setup_forgot)
             forget.isEnabled = false
         }
@@ -117,10 +118,15 @@ class SetupActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        val words = Learned.decode(getSharedPreferences("keys", MODE_PRIVATE).getString(LEARNED, null)).size
-        forget.text =
-            if (words == 0) getString(R.string.setup_forget_none) else getString(R.string.setup_forget, words)
-        forget.isEnabled = words > 0
+        val prefs = getSharedPreferences("keys", MODE_PRIVATE)
+        val words = Learned.decode(prefs.getString(LEARNED, null)).size
+        val counted = !Insights.decode(prefs.getString(INSIGHTS, null)).isEmpty()
+        forget.text = when {
+            words > 0 -> getString(R.string.setup_forget, words)
+            counted -> getString(R.string.setup_forget_counts)
+            else -> getString(R.string.setup_forget_none)
+        }
+        forget.isEnabled = words > 0 || counted
         val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         // Asked of the input-method service rather than read out of Settings: an app is allowed this one.
         val added = runCatching {
@@ -141,5 +147,7 @@ class SetupActivity : Activity() {
     private companion object {
         /** The same place the service keeps them. */
         const val LEARNED = "learnedWords"
+        const val INSIGHTS = "typingInsights"
+        const val SEEN = "seenWords"
     }
 }

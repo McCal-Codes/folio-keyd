@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.Paint
 import android.graphics.RectF
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.VelocityTracker
@@ -41,6 +40,9 @@ class EmojiPanel(context: Context) : View(context) {
 
         /** Back to the letters. */
         fun onLetters()
+
+        /** Open the search: a row for a word, and the letters to type it with. */
+        fun onSearch() {}
     }
 
     var listener: Listener? = null
@@ -69,8 +71,15 @@ class EmojiPanel(context: Context) : View(context) {
             invalidate()
         }
 
-    /** Keyd's own Vibration switch. Off means off here too, not only on the letters. */
-    var vibrate: Boolean = true
+    /** Keyd's own Vibration choice. Off means off here too, not only on the letters. */
+    var vibration: Vibration = Vibration.MEDIUM
+
+    /** A black board when dark, as on the letters. */
+    var pureBlack: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
 
     /** The key style the letters use, so switching to this panel doesn't change the keyboard's look. */
     var keyStyle: KeyStyle = KeyStyle.FOLIO
@@ -84,6 +93,10 @@ class EmojiPanel(context: Context) : View(context) {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val glyph = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
     private val rect = RectF()
 
     /** 0 is the recents; the rest index [Emoji.CATEGORIES]. */
@@ -177,7 +190,7 @@ class EmojiPanel(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance, highContrast, keyStyle)
+        theme = Theme.of(context, appearance, highContrast, keyStyle, pureBlack)
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
@@ -253,6 +266,11 @@ class EmojiPanel(context: Context) : View(context) {
                     label.color = theme.label
                     canvas.drawText("⌫", cx, cy + labelBaseline, label)
                 }
+                searchSlot(slots) -> {
+                    stroke.color = theme.label
+                    stroke.strokeWidth = 1.6f * dp
+                    Icons.magnifier(canvas, cx, cy, tabHeight * 0.46f, stroke)
+                }
                 else -> {
                     val which = index - 1
                     if (which == category) {
@@ -267,10 +285,13 @@ class EmojiPanel(context: Context) : View(context) {
         }
     }
 
-    /** Left to right: the letters key, one tab per category, then the backspace. */
+    /** The search key sits after the last category and before the backspace. */
+    private fun searchSlot(slots: List<Pair<Float, Float>>) = slots.lastIndex - 1
+
+    /** Left to right: the letters key, one tab per category, the search, then the backspace. */
     private fun tabSlots(): List<Pair<Float, Float>> {
         val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
-        val count = Emoji.CATEGORIES.size + 3   // letters + recents + categories + backspace
+        val count = Emoji.CATEGORIES.size + 4   // letters + recents + categories + search + backspace
         val span = (width - 2 * edge) / count
         return (0 until count).map { edge + it * span to edge + (it + 1) * span }
     }
@@ -346,10 +367,11 @@ class EmojiPanel(context: Context) : View(context) {
             val slots = tabSlots()
             val index = slots.indexOfFirst { x >= it.first && x < it.second }
             if (index < 0) return
-            if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            Haptics.feel(this, vibration)
             when (index) {
                 0 -> listener?.onLetters()
                 slots.lastIndex -> listener?.onBackspace()
+                searchSlot(slots) -> listener?.onSearch()
                 else -> {
                     category = index - 1
                     scroll = 0f
@@ -362,7 +384,7 @@ class EmojiPanel(context: Context) : View(context) {
         val index = indexAt(x, y)
         val list = items()
         if (index in list.indices) {
-            if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            Haptics.feel(this, vibration)
             listener?.onEmoji(list[index])
         }
     }
@@ -406,6 +428,7 @@ class EmojiPanel(context: Context) : View(context) {
         return when (tab) {
             0 -> context.getString(R.string.emoji_letters)
             slots.lastIndex -> Spoken.name(Key("", KeyKind.BACKSPACE), Shift.OFF)
+            searchSlot(slots) -> context.getString(R.string.emoji_search)
             1 -> Emoji.RECENT
             else -> Emoji.CATEGORIES.getOrNull(tab - 2)?.name.orEmpty()
         }
@@ -422,6 +445,7 @@ class EmojiPanel(context: Context) : View(context) {
         when (tab) {
             0 -> listener?.onLetters()
             slots.lastIndex -> listener?.onBackspace()
+            searchSlot(slots) -> listener?.onSearch()
             else -> selectCategory(tab - 1)
         }
         return true

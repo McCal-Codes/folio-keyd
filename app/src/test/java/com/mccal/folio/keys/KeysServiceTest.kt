@@ -8,6 +8,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -29,9 +30,17 @@ class KeysServiceTest {
     /** A real editable behind the connection, plus a note of the actions an app would have been asked to perform. */
     private class Field(view: View) : BaseInputConnection(view, true) {
         val performed = mutableListOf<Int>()
+        val keys = mutableListOf<Int>()
+        /** An app that doesn't handle its own action answers false. */
+        var handles = true
         override fun performEditorAction(actionCode: Int): Boolean {
             performed += actionCode
-            return true
+            return handles
+        }
+
+        override fun sendKeyEvent(event: android.view.KeyEvent): Boolean {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) keys += event.keyCode
+            return super.sendKeyEvent(event)
         }
     }
 
@@ -68,9 +77,28 @@ class KeysServiceTest {
             suggestedFor += word
         }
 
+        val previousFor = mutableListOf<String>()
+        override fun suggest(word: String, previous: String) {
+            previousFor += previous
+            suggest(word)
+        }
+
         override fun learn(word: String) {
             taught += word
         }
+
+        val corrections = mutableListOf<Boolean>()
+        override fun learn(word: String, corrected: Boolean) {
+            corrections += corrected
+            learn(word)
+        }
+
+        val stood = mutableListOf<Pair<String, String>>()
+        val putBack = mutableListOf<String>()
+        val answers = mutableListOf<Pair<Insights.Offer, Boolean>>()
+        override fun fixStood(typed: String, replacement: String) { stood += typed to replacement }
+        override fun putBack(typed: String) { putBack += typed }
+        override fun answered(offer: Insights.Offer, accepted: Boolean) { answers += offer to accepted }
     }
 
     private lateinit var ime: FakeIme
@@ -295,6 +323,86 @@ class KeysServiceTest {
         assertEquals("well the ", text)
     }
 
+    @Test
+    fun `a word that was corrected is marked so, and one left alone is not`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" wifi ")
+        assertEquals(listOf(true, false), ime.corrections)
+    }
+
+    @Test
+    fun `i on its own becomes I`() {
+        type("so i")
+        type(" ")
+        assertEquals("so I ", text)
+    }
+
+    @Test
+    fun `i as a numeral is left alone`() {
+        type("part i: ")
+        type("i) ")
+        type("i. ")
+        assertEquals("part i: i) i. ", text)
+    }
+
+    @Test
+    fun `an underlined word is only learned once the next word begins`() {
+        type("zorp")
+        actions.offered(Verdict("zorp", null, misspelled = true))
+        type(" ")
+        assertTrue(ime.taught.isEmpty())
+        type("a")
+        assertEquals(listOf("zorp"), ime.taught)
+    }
+
+    @Test
+    fun `an underlined word that is backspaced into is not learned`() {
+        type("zorp")
+        actions.offered(Verdict("zorp", null, misspelled = true))
+        type(" ")
+        actions.onBackspace()
+        type("s ")
+        assertFalse(ime.taught.contains("zorp"))
+    }
+
+    @Test
+    fun `a predicted word after text the app changed still gets its own space`() {
+        type("I want ")
+        field.editable!!.delete(field.editable!!.length - 1, field.editable!!.length)
+        actions.onSuggestion("to")
+        assertEquals("I want to ", text)
+    }
+
+    @Test
+    fun `i is left alone with capitals off`() {
+        actions.settings = Settings(autoCapitalise = false)
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("so i ")
+        assertEquals("so i ", text)
+    }
+
+    @Test
+    fun `i becomes I even with autocorrect off, and backspace puts it back`() {
+        actions.settings = Settings(autocorrect = false)
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("so i'm ")
+        assertEquals("so I'm ", text)
+        actions.onBackspace()
+        assertEquals("so i'm ", text)
+        assertTrue(ime.stood.isEmpty() && ime.putBack.isEmpty())
+    }
+
+    @Test
+    fun `the word before goes with every question to the strip`() {
+        type("hello wor")
+        assertEquals("hello", ime.previousFor.last())
+        type("ld. ")
+        assertEquals(SENTENCE_START, ime.previousFor.last())
+        type("a, ")
+        assertEquals("", ime.previousFor.last())
+    }
+
     /** The one key that undoes it. Without this, correcting on its own would not be worth doing at all. */
     @Test
     fun `backspace straight after a correction puts back what was typed`() {
@@ -338,6 +446,85 @@ class KeysServiceTest {
         actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("teh ", text)
+    }
+
+    // ---- counting what it fixes ---------------------------------------------------------------------------------
+
+    private fun correctTeh(ending: String = " ") {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(ending)
+    }
+
+    @Test
+    fun `a correction counts as a fix once the next word begins without an undo`() {
+        correctTeh()
+        // Not yet: the next key could still be the backspace that takes it back.
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        type("c")
+        assertEquals(listOf("teh" to "the"), ime.stood)
+        type("at ")
+        assertEquals(1, ime.stood.size)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `undoing a correction counts as putting it back, not as a fix`() {
+        correctTeh()
+        actions.onBackspace()
+        assertEquals("teh ", text)
+        assertEquals(listOf("teh"), ime.putBack)
+        type("cat ")
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+    }
+
+    @Test
+    fun `a correction followed by moving the cursor is neither`() {
+        correctTeh()
+        actions.onCursor(-2)
+        type("x")
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `nothing is counted when the app asked not to be learned from`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        correctTeh()
+        assertEquals("the ", text)
+        type("c")
+        correctTeh()
+        actions.onBackspace()
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `nothing is counted in a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        correctTeh()
+        type("c")
+        actions.onBackspace()
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `nothing is counted with learning off`() {
+        actions.settings = Settings(learn = false)
+        correctTeh()
+        type("c")
+        correctTeh()
+        actions.onBackspace()
+        assertEquals(emptyList<Pair<String, String>>(), ime.stood)
+        assertEquals(emptyList<String>(), ime.putBack)
+    }
+
+    @Test
+    fun `the strip's answer goes to the keyboard service`() {
+        actions.onOffer(Insights.Offer("teh", "the"), accepted = true)
+        actions.onOffer(Insights.Offer("Folio", null), accepted = false)
+        assertEquals(listOf(Insights.Offer("teh", "the") to true, Insights.Offer("Folio", null) to false), ime.answers)
     }
 
     // ---- underlining what it has never heard of ------------------------------------------------------------------
@@ -474,9 +661,60 @@ class KeysServiceTest {
 
     @Test
     fun `there is nothing to replace when no word is being typed`() {
-        type("hello ")
+        type("hello.")
         actions.onSuggestion("hello")
-        assertEquals("a suggestion with no word must do nothing", "hello ", text)
+        assertEquals("a suggestion with no word, and nowhere a word begins, must do nothing", "hello.", text)
+    }
+
+    /** After a space the strip holds what might come next, and taking one is typing it. */
+    @Test
+    fun `a predicted word taken after a space goes in with its own space`() {
+        type("I want ")
+        actions.onSuggestion("to")
+        assertEquals("I want to ", text)
+        assertEquals("to", ime.previousFor.last())
+    }
+
+    @Test
+    fun `a predicted word uses up a capital waiting for one letter`() {
+        type("hi. ")
+        actions.onShift()
+        actions.onSuggestion("The")
+        assertEquals("hi. The ", text)
+        assertEquals(Shift.OFF, ime.shift)
+    }
+
+    @Test
+    fun `the strip is only asked what comes next where a word begins`() {
+        type("hello")
+        type(".")
+        assertEquals("", ime.previousFor.last())
+        type(" ")
+        assertEquals(SENTENCE_START, ime.previousFor.last())
+        actions.onBackspace()
+        assertEquals("", ime.previousFor.last())
+    }
+
+    @Test
+    fun `nothing is predicted where suggestions are off`() {
+        actions.settings = Settings(suggestions = false)
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("I want ")
+        assertEquals("", ime.previousFor.last())
+    }
+
+    @Test
+    fun `nothing is predicted in a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("I want ")
+        assertEquals("", ime.previousFor.last())
+    }
+
+    @Test
+    fun `nothing is predicted in an address`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("keyd ")
+        assertEquals("", ime.previousFor.last())
     }
 
     /**
@@ -652,4 +890,119 @@ class KeysServiceTest {
         actions.onSwitchKeyboard()
         assertEquals(1, ime.switches)
     }
+
+    // ---- return, search and go ------------------------------------------------------------------------------------
+
+    private val url = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+    private val email = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+
+    @Test
+    fun `search runs the app's search`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH)
+        type("cats")
+        actions.onAction()
+        assertEquals(listOf(EditorInfo.IME_ACTION_SEARCH), field.performed)
+        assertTrue(field.keys.isEmpty())
+    }
+
+    @Test
+    fun `an app that asks for plain enter gets enter, not its action`() {
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_ENTER_ACTION)
+        actions.onAction()
+        assertTrue(field.performed.isEmpty())
+        assertEquals(listOf(android.view.KeyEvent.KEYCODE_ENTER), field.keys)
+    }
+
+    /** "keyd.dev": the period ends the word "keyd", and fixing it would send the browser somewhere else. */
+    @Test
+    fun `nothing is corrected in a web address`() {
+        start(url, EditorInfo.IME_ACTION_GO)
+        type("keyd")
+        actions.offered(Verdict("keyd", correction = "keys", misspelled = true))
+        type(".dev")
+        assertEquals("keyd.dev", text)
+    }
+
+    @Test
+    fun `nothing is corrected in an email address`() {
+        start(email, EditorInfo.IME_ACTION_NEXT)
+        type("mccal")
+        actions.offered(Verdict("mccal", correction = "metal", misspelled = true))
+        type("@")
+        assertEquals("mccal@", text)
+    }
+
+    @Test
+    fun `addresses are never learned`() {
+        start(url, EditorInfo.IME_ACTION_GO)
+        type("keyd.dev ")
+        assertTrue(ime.taught.isEmpty())
+    }
+
+    @Test
+    fun `two spaces stay two spaces in an address`() {
+        start(url, EditorInfo.IME_ACTION_GO)
+        type("keyd  ")
+        assertEquals("keyd  ", text)
+    }
+
+    @Test
+    fun `an app that asks for no suggestions gets none`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0)
+        ime.suggestedFor.clear()
+        type("hel")
+        assertTrue(ime.suggestedFor.all { it.isEmpty() })
+    }
+
+    // ---- the capital at the start of a sentence -------------------------------------------------------------------
+
+    private val sentences = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+
+    @Test
+    fun `a new field starts with a capital`() {
+        start(sentences, 0)
+        assertEquals(Shift.ONCE, ime.shift)
+    }
+
+    @Test
+    fun `a period and a space bring the capital back`() {
+        start(sentences, 0)
+        type("hi. ")
+        assertEquals(Shift.ONCE, ime.shift)
+    }
+
+    @Test
+    fun `mid-sentence a space does not`() {
+        start(sentences, 0)
+        type("hi there ")
+        assertEquals(Shift.OFF, ime.shift)
+    }
+
+    /** Found typing "the quick brown fox" on a phone: after deleting everything, the T came out lowercase. */
+    @Test
+    fun `deleting back to an empty field brings the capital back`() {
+        start(sentences, 0)
+        type("ab")
+        assertEquals(Shift.OFF, ime.shift)
+        actions.onBackspace()
+        actions.onBackspace()
+        assertEquals("", text)
+        assertEquals(Shift.ONCE, ime.shift)
+    }
+
+    @Test
+    fun `caps lock is left alone`() {
+        start(sentences, 0)
+        actions.onShift()   // ONCE to LOCKED
+        type("ab ")
+        assertEquals(Shift.LOCKED, ime.shift)
+    }
+
+    @Test
+    fun `a field that asks for no capitals never gets one`() {
+        start(InputType.TYPE_CLASS_TEXT, 0)
+        type("hi. ")
+        assertEquals(Shift.OFF, ime.shift)
+    }
 }
+

@@ -697,6 +697,7 @@ agarrou:39
 agatha:42
 age:37
 agem:41
+agencia:98
 agenda:36
 agendado:44
 agendar:44
@@ -768,7 +769,7 @@ agricultores:39
 agricultura:40
 agrícola:42
 agrícolas:44
-agua:41
+agua:98
 aguarda:39
 aguardam:43
 aguardamos:42
@@ -884,6 +885,7 @@ albert:35
 alberto:41
 albino:44
 albright:43
+album:98
 albuquerque:42
 alcance:34
 alcança:42
@@ -895,6 +897,7 @@ alcatifa:44
 alcatraz:43
 alcatrão:43
 alce:41
+alcool:98
 alcoolismo:43
 alcoólatra:44
 alcoólica:41
@@ -938,7 +941,7 @@ aleijado:40
 aleijar:43
 alejandro:42
 aleluia:39
-alem:42
+alem:98
 alemanha:34
 alemã:38
 alemães:34
@@ -980,7 +983,7 @@ algo:21
 algodão:38
 algoritmo:41
 algoritmos:44
-alguem:38
+alguem:98
 algum:23
 alguma:21
 algumas:25
@@ -997,6 +1000,7 @@ aliado:39
 aliados:37
 aliança:34
 alianças:41
+alias:98
 alibi:43
 alicate:43
 alice:33
@@ -1031,6 +1035,7 @@ alivia:43
 aliviada:41
 aliviado:40
 aliviar:38
+alivio:98
 aliás:35
 all:38
 allah:43
@@ -1150,7 +1155,7 @@ amamentar:43
 amamos:37
 aman:43
 amanda:34
-amanha:41
+amanha:98
 amanhecer:36
 amanhã:24
 amanhä:43
@@ -1220,7 +1225,7 @@ amem:42
 amen:42
 amendoim:38
 amendoins:40
-america:40
+america:98
 american:39
 americana:34
 americanas:38
@@ -1297,6 +1302,7 @@ analisando:44
 analisar:35
 analise:43
 analisei:41
+analises:98
 analisou:43
 analista:40
 analistas:43
@@ -1402,7 +1408,7 @@ aniquilar:43
 aniquilação:43
 anita:40
 aniversariante:42
-aniversario:44
+aniversario:98
 aniversário:30
 aniversários:41
 anjinho:43
@@ -1866,6 +1872,7 @@ ardeu:41
 ardor:44
 arduamente:41
 are:40
+area:98
 areia:34
 areias:42
 arejar:44
@@ -2076,6 +2083,7 @@ articulações:43
 artie:37
 artificiais:43
 artificial:39
+artificio:98
 artifício:40
 artigo:33
 artigos:37
@@ -2090,7 +2098,8 @@ artérias:42
 artística:41
 artístico:40
 arvin:44
-arvore:44
+arvore:98
+arvores:98
 arya:44
 arábia:41
 as:14
@@ -2107,6 +2116,7 @@ ash:39
 asher:42
 ashley:36
 ashton:42
+asia:98
 asilo:39
 asiática:41
 asiático:40
@@ -2154,6 +2164,7 @@ assassinas:43
 assassinaste:44
 assassinato:32
 assassinatos:37
+assassinio:98
 assassino:28
 assassinos:34
 assassinou:39
@@ -2248,6 +2259,7 @@ assustes:41
 assusto:44
 assustou:40
 assédio:40
+asteroide:98
 asteróide:41
 asteróides:43
 aston:44
@@ -2291,7 +2303,7 @@ ataquem:40
 ataques:34
 atar:42
 atarefado:44
-ate:40
+ate:98
 atear:44
 atenas:41
 atenciosa:43
@@ -2413,7 +2425,7 @@ atrai:39
 atrair:37
 atraiu:41
 atrapalhar:39
-atras:42
+atras:98
 atrasa:43
 atrasada:34
 atrasadas:42
@@ -2426,6 +2438,7 @@ atrases:42
 atraso:34
 atrasos:42
 atrasou:43
+atraves:98
 atravessa:40
 atravessado:43
 atravessam:43
@@ -2484,6 +2497,7 @@ atómico:44
 au:39
 aubrey:41
 audaz:44
+audio:98
 auditivo:44
 auditoria:42
 auditório:42
@@ -2547,6 +2561,7 @@ automático:39
 automóveis:40
 automóvel:38
 autonomia:44
+autopsia:98
 autor:37
 autora:43
 autores:42
@@ -2571,6 +2586,7 @@ autópsia:36
 autópsias:43
 auxiliar:38
 auxiliares:43
+auxilio:98
 auxílio:41
 av:41
 ava:38
@@ -2646,6 +2662,7 @@ avistamentos:44
 aviv:44
 avião:29
 aviões:35
+avo:98
 avon:44
 avozinha:41
 avozinho:43
@@ -2717,6 +2734,7 @@ bagdade:43
 bagunça:41
 bahamas:42
 bai:44
+baia:98
 baila:44
 bailarina:40
 bailarinas:43
@@ -2979,6 +2997,7 @@ baton:42
 batota:37
 batoteiro:43
 battlestar:44
+bau:98
 baudelaire:44
 bauer:37
 baunilha:40
@@ -3011,6 +3030,7 @@ beau:40
 beaumont:42
 beaver:43
 beba:37
+bebado:98
 bebam:40
 bebas:42
 bebe:32
@@ -3054,6 +3074,7 @@ bege:44
 beija:40
 beijada:44
 beijado:42
+beijamos:98
 beijar:35
 beijas:43
 beijaste:41
@@ -3099,6 +3120,7 @@ bendito:42
 benedict:41
 beneficia:44
 beneficiar:42
+beneficio:98
 beneficência:42
 benefício:38
 benefícios:38
@@ -3176,6 +3198,7 @@ bezerro:43
 bi:41
 bianca:40
 biberão:43
+biblia:98
 biblioteca:34
 bibliotecas:44
 bibliotecária:43
@@ -3227,6 +3250,7 @@ biopsia:42
 bioquímica:43
 bip:42
 bipolar:43
+biquini:98
 biquíni:42
 birch:43
 bird:41
@@ -3385,6 +3409,7 @@ bond:38
 bondade:37
 bondosa:43
 bondoso:41
+bone:98
 boneca:35
 bonecas:38
 boneco:37
@@ -3402,6 +3427,7 @@ bonjour:42
 bonnie:35
 bono:42
 bons:29
+bonus:98
 bonzinho:40
 bonzinhos:44
 boné:39
@@ -3753,11 +3779,11 @@ bônus:44
 búfalo:41
 búfalos:42
 bússola:40
-ca:41
+ca:98
 cabana:35
 cabanas:43
 cabe:37
-cabeca:42
+cabeca:98
 cabeceira:42
 cabecilha:44
 cabecinha:43
@@ -3822,7 +3848,7 @@ cadáveres:36
 cadê:40
 caem:39
 caesar:41
-cafe:44
+cafe:98
 cafetaria:41
 cafeteira:43
 cafeína:41
@@ -3839,6 +3865,7 @@ cai:35
 caia:39
 caiam:43
 caias:42
+caido:98
 caim:43
 caimão:43
 cain:41
@@ -3846,11 +3873,13 @@ caindo:40
 caine:40
 caio:41
 cair:29
+cairam:98
 cairia:44
 cairo:40
 cairá:41
 cairão:44
 cais:38
+caiste:98
 caitlin:40
 caitlyn:44
 caiu:31
@@ -3876,6 +3905,7 @@ calares:42
 calas:41
 calcanhar:43
 calcanhares:42
+calcas:98
 calcinhas:43
 calcula:44
 calculado:42
@@ -3941,10 +3971,11 @@ cama:27
 camada:39
 camadas:40
 camaleão:43
-camara:43
+camara:98
 camarada:36
 camaradagem:44
 camaradas:38
+camaras:98
 camareiro:43
 camarim:41
 camaro:44
@@ -3961,6 +3992,7 @@ camelo:40
 camelos:43
 camelot:39
 camera:41
+cameras:98
 cameron:36
 cami:44
 camila:44
@@ -4110,7 +4142,7 @@ canyon:39
 canário:42
 canção:32
 canções:36
-cao:43
+cao:98
 caos:35
 cap:40
 capa:35
@@ -4130,13 +4162,14 @@ capitais:44
 capital:35
 capitalismo:42
 capitalista:43
-capitao:41
+capitao:98
 capitulo:44
 capitã:35
 capitães:42
 capitão:26
 capitäo:43
 capitólio:41
+capo:98
 capone:42
 capota:43
 cappuccino:42
@@ -4162,8 +4195,9 @@ capítulos:43
 capô:42
 car:43
 cara:25
-caracas:43
+caracas:98
 caracol:42
+caracter:98
 característica:41
 características:39
 caracóis:41
@@ -4190,6 +4224,7 @@ cardassiano:43
 cardassianos:42
 cardeais:44
 cardeal:38
+cardiaco:98
 cardiff:43
 cardiologia:44
 cardiologista:44
@@ -4559,6 +4594,7 @@ centeio:44
 centena:41
 centenas:33
 center:40
+centimos:98
 cento:35
 centrais:41
 central:32
@@ -4583,8 +4619,10 @@ cereais:37
 cereal:43
 cerebrais:39
 cerebral:35
+cerebro:98
 cereja:39
 cerejas:43
+cerimonia:98
 cerimónia:35
 cerimónias:42
 cerimônia:42
@@ -4615,7 +4653,7 @@ cesta:42
 cesto:38
 cestos:43
 cetim:44
-cha:42
+cha:98
 chacal:44
 chacina:44
 chad:38
@@ -4679,7 +4717,7 @@ chantagear:42
 chantagem:38
 chantagista:44
 chantilly:44
-chao:44
+chao:98
 chapa:42
 chapada:42
 chapado:43
@@ -4759,6 +4797,7 @@ chegam:35
 chegamos:34
 chegando:38
 chegar:24
+chegara:98
 chegaram:32
 chegarei:42
 chegarem:36
@@ -4820,6 +4859,7 @@ chffffff:35
 chi:39
 chiana:42
 chibo:44
+chica:98
 chicago:33
 chichi:39
 chick:44
@@ -4955,6 +4995,7 @@ ciente:37
 cientes:42
 cientifica:43
 cientificamente:43
+cientifico:98
 cientista:35
 cientistas:35
 cientologia:44
@@ -5009,6 +5050,7 @@ circulo:42
 circuncisão:44
 circunstanciais:44
 circunstancial:43
+circunstancias:98
 circunstância:40
 circunstâncias:34
 circus:44
@@ -5030,6 +5072,7 @@ cito:43
 city:33
 ciumenta:42
 ciumento:40
+ciumes:98
 civil:34
 civilizada:42
 civilizado:41
@@ -5079,6 +5122,7 @@ claud:42
 claude:40
 claudette:44
 claudia:37
+claudio:98
 clave:43
 clavícula:42
 clay:36
@@ -5102,7 +5146,7 @@ clifford:42
 clifton:44
 clima:37
 climáticas:43
-clinica:44
+clinica:98
 clinicamente:44
 clint:41
 clinton:39
@@ -5184,6 +5228,7 @@ cod:44
 codificada:43
 codificado:43
 codificação:44
+codigo:98
 codis:44
 cody:37
 coelhinha:43
@@ -5355,17 +5400,20 @@ combinou:44
 combinámos:40
 comboio:31
 comboios:37
+combustivel:98
 combustão:42
 combustíveis:43
 combustível:35
 combóio:43
 come:32
-comecar:44
+comeca:98
+comecar:98
 comece:35
 comecei:31
 comecem:36
 comecemos:39
 comeces:37
+comecou:98
 comediante:40
 comediantes:44
 comedor:43
@@ -5748,6 +5796,7 @@ coney:43
 confederados:44
 confederação:43
 confere:40
+conferencia:98
 conferir:42
 conferência:35
 conferências:40
@@ -5851,6 +5900,7 @@ conhecem:33
 conhecemos:31
 conhecendo:42
 conhecer:29
+conhecera:98
 conheceram:38
 conhecerem:41
 conheceres:40
@@ -5872,7 +5922,7 @@ conhecido:31
 conhecidos:37
 conhecimento:32
 conhecimentos:38
-conheco:44
+conheco:98
 conhecíamos:41
 conheça:36
 conheçam:40
@@ -6024,8 +6074,11 @@ constituir:44
 constituição:38
 constrangedor:41
 constroem:43
+construi:98
+construimos:98
 construindo:43
 construir:32
+construiram:98
 construiu:37
 construtor:42
 construtores:43
@@ -6178,7 +6231,7 @@ contrair:44
 contramestre:44
 contrapartida:44
 contrariar:43
-contrario:44
+contrario:98
 contras:42
 contraste:42
 contrata:41
@@ -6323,7 +6376,7 @@ cooter:43
 copa:42
 copas:42
 copenhaga:43
-copia:44
+copia:98
 copiado:44
 copiar:40
 copiei:44
@@ -6504,6 +6557,7 @@ costumamos:41
 costumas:39
 costumava:31
 costumavam:39
+costumavamos:98
 costumavas:39
 costume:35
 costumes:39
@@ -6575,11 +6629,13 @@ crazy:42
 creche:41
 credenciais:41
 credibilidade:40
+credito:98
 credo:33
 credores:44
 credível:41
 creed:43
 creek:39
+creem:98
 creio:29
 cremado:44
 crematório:44
@@ -6627,6 +6683,8 @@ criadores:42
 criados:37
 criam:40
 criamos:40
+crianca:98
+criancas:98
 criancinhas:44
 criando:40
 criança:27
@@ -6678,6 +6736,8 @@ cristãos:39
 cristóvão:44
 critica:44
 criticar:40
+criticas:98
+critico:98
 critério:42
 critérios:43
 crixus:43
@@ -6890,6 +6950,7 @@ custava:43
 custe:39
 custer:42
 custo:36
+custodia:98
 custos:39
 custou:37
 custódia:35
@@ -6971,7 +7032,7 @@ dadores:44
 dados:30
 daedalus:43
 dahlia:43
-dai:39
+dai:98
 daily:40
 daisy:36
 dakota:40
@@ -6993,6 +7054,7 @@ dan:32
 dana:36
 danada:43
 danado:42
+dancar:98
 dance:40
 dancei:43
 dancem:43
@@ -7029,6 +7091,7 @@ danças:39
 dançava:43
 danço:40
 dançou:43
+dao:98
 daphne:39
 daquela:31
 daquelas:34
@@ -7037,6 +7100,7 @@ daqueles:32
 daqui:22
 daquilo:33
 dar:23
+dara:98
 darby:42
 darcy:40
 dardo:42
@@ -7144,6 +7208,7 @@ decidiste:38
 decidiu:33
 decido:39
 decifrar:40
+decima:98
 decisiva:43
 decisivo:42
 decisão:29
@@ -7264,6 +7329,7 @@ deixam:34
 deixamos:36
 deixando:37
 deixar:24
+deixara:98
 deixaram:34
 deixarei:36
 deixarem:38
@@ -7362,6 +7428,8 @@ democrática:43
 democrático:43
 demolir:43
 demolição:42
+demonio:98
+demonios:98
 demonstra:40
 demonstrado:44
 demonstram:44
@@ -7440,6 +7508,7 @@ depois:20
 depor:39
 deportado:44
 depositar:42
+deposito:98
 depravado:43
 depressa:27
 depressivo:44
@@ -7508,6 +7577,7 @@ desanuviar:44
 desaparece:33
 desaparecem:39
 desaparecer:32
+desaparecera:98
 desapareceram:35
 desaparecerem:42
 desapareceres:44
@@ -7865,6 +7935,7 @@ despercebido:42
 desperdice:44
 desperdicei:43
 desperdices:42
+desperdicio:98
 desperdiçada:44
 desperdiçado:42
 desperdiçar:36
@@ -7926,13 +7997,18 @@ destroçar:43
 destroços:39
 destrua:41
 destruam:42
+destrui:98
+destruida:98
+destruido:98
 destruidor:41
 destruidora:43
 destruindo:42
 destruir:31
+destruiram:98
 destruiria:43
 destruirmos:44
 destruirá:42
+destruiste:98
 destruiu:36
 destruição:35
 destrutiva:44
@@ -8062,7 +8138,7 @@ devessemos:43
 devesses:37
 devia:24
 deviam:31
-deviamos:38
+deviamos:98
 devias:26
 devida:42
 devidamente:40
@@ -8153,14 +8229,15 @@ dietas:44
 dieter:44
 dietrich:43
 difamação:43
+diferenca:98
 diferencial:44
 diferenciar:44
 diferente:27
 diferentes:30
 diferença:30
 diferenças:38
-dificeis:44
-dificil:37
+dificeis:98
+dificil:98
 dificilmente:39
 dificuldade:36
 dificuldades:36
@@ -8356,6 +8433,7 @@ dispersar:42
 dispersem:44
 dispersão:44
 disponibilidade:43
+disponivel:98
 disponíveis:38
 disponível:35
 dispor:40
@@ -8385,7 +8463,7 @@ disseste:25
 dissestes:41
 disso:22
 dissolver:43
-distancia:43
+distancia:98
 distante:36
 distantes:40
 distingue:43
@@ -8474,6 +8552,7 @@ divorciada:42
 divorciado:41
 divorciados:42
 divorciar:41
+divorcio:98
 divulgado:43
 divulgar:40
 divulgação:43
@@ -8556,7 +8635,7 @@ doeu:38
 dog:40
 doggett:43
 dogs:44
-doi:43
+doi:98
 doida:35
 doidas:42
 doido:32
@@ -8564,7 +8643,7 @@ doidos:36
 dois:21
 dojo:43
 dolan:42
-dolares:41
+dolares:98
 dolittle:44
 dolly:41
 dolores:41
@@ -8826,7 +8905,7 @@ dustin:42
 dusty:42
 dutch:40
 duval:44
-duvida:41
+duvida:98
 duvidado:44
 duvidar:39
 duvidas:42
@@ -8908,7 +8987,7 @@ eden:42
 edgar:38
 edge:44
 edie:40
-edificio:42
+edificio:98
 edifício:31
 edifícios:37
 edimburgo:42
@@ -8953,6 +9032,7 @@ egipto:38
 egito:41
 ego:38
 egocêntrico:43
+egoista:98
 egoísmo:42
 egoísta:35
 egoístas:41
@@ -9113,6 +9193,7 @@ embuste:43
 emenda:39
 emendar:43
 ementa:40
+emergencia:98
 emergir:42
 emergência:31
 emergências:40
@@ -9267,6 +9348,7 @@ encontram:37
 encontramos:31
 encontrando:43
 encontrar:24
+encontrara:98
 encontraram:31
 encontrarei:40
 encontrarem:37
@@ -9458,7 +9540,7 @@ ensinou:36
 ensopado:43
 entalado:43
 entanto:32
-entao:39
+entao:98
 ente:43
 enteado:44
 entediada:44
@@ -9651,6 +9733,7 @@ equações:42
 equilibrada:43
 equilibrado:43
 equilibrar:41
+equilibrio:98
 equilíbrio:37
 equipa:26
 equipada:43
@@ -9709,7 +9792,7 @@ ervilha:44
 ervilhas:41
 erótica:43
 erótico:43
-es:38
+es:98
 esboço:41
 esboços:43
 escada:36
@@ -9847,6 +9930,7 @@ escrito:33
 escritor:36
 escritora:40
 escritores:39
+escritorio:98
 escritos:40
 escritura:41
 escrituras:41
@@ -9979,10 +10063,14 @@ especialização:44
 especialmente:31
 especiaria:44
 especiarias:42
+especie:98
+especifica:98
 especificamente:37
 especificações:42
+especifico:98
 espectacular:35
 espectaculares:42
+espectaculo:98
 espectador:43
 espectadores:41
 espectro:40
@@ -10061,7 +10149,8 @@ espinho:43
 espinhos:41
 espionagem:39
 espiral:41
-espirito:41
+espirito:98
+espiritos:98
 espirituais:42
 espiritual:37
 espirrar:43
@@ -10189,7 +10278,7 @@ estamos:20
 estancar:44
 estando:38
 estante:42
-estao:39
+estao:98
 estar:21
 estarei:30
 estarem:35
@@ -10197,6 +10286,7 @@ estaremos:33
 estares:33
 estaria:30
 estariam:37
+estariamos:98
 estarias:36
 estarmos:35
 estará:30
@@ -10215,7 +10305,7 @@ estatística:42
 estatísticas:40
 estava:18
 estavam:26
-estavamos:39
+estavamos:98
 estavas:26
 estação:31
 estações:38
@@ -10235,6 +10325,7 @@ estendido:43
 esterco:42
 estereótipo:44
 esterno:44
+esteroides:98
 esteróides:40
 estes:25
 esteve:27
@@ -10267,6 +10358,7 @@ estiveres:33
 estivermos:36
 estivesse:29
 estivessem:36
+estivessemos:98
 estivesses:35
 estiveste:30
 estivestes:44
@@ -10274,6 +10366,7 @@ estivéssemos:38
 estocolmo:42
 estoirar:44
 estojo:41
+estomago:98
 estou:15
 estourar:42
 estouro:44
@@ -10343,6 +10436,7 @@ estudas:43
 estudaste:42
 estudava:42
 estudei:38
+estudio:98
 estudioso:44
 estudo:34
 estudos:35
@@ -10352,10 +10446,10 @@ estufa:40
 estufado:44
 estupenda:44
 estupendo:40
-estupida:44
+estupida:98
 estupidamente:44
 estupidez:35
-estupido:41
+estupido:98
 estupor:39
 estupores:43
 estupro:44
@@ -10442,6 +10536,8 @@ everest:44
 evereste:44
 everett:41
 everglades:44
+evidencia:98
+evidencias:98
 evidente:38
 evidentemente:40
 evidência:38
@@ -10542,8 +10638,9 @@ exemplares:43
 exemplo:30
 exemplos:41
 exercer:40
+exercicio:98
 exercitar:43
-exercito:41
+exercito:98
 exercício:35
 exercícios:39
 exibicionista:43
@@ -10592,7 +10689,7 @@ expectativas:38
 expediente:42
 expedição:38
 expedições:44
-experiencia:43
+experiencia:98
 experiente:40
 experientes:42
 experimenta:36
@@ -10722,11 +10819,11 @@ eye:44
 eyes:43
 ezekiel:43
 ezra:39
-fa:44
+fa:98
 faa:44
 faber:44
 fabian:44
-fabrica:43
+fabrica:98
 fabricado:43
 fabricante:40
 fabricantes:42
@@ -10739,7 +10836,7 @@ fabulosos:43
 faca:31
 facada:41
 facadas:42
-facas:38
+facas:98
 face:35
 facebook:38
 faces:42
@@ -10747,12 +10844,12 @@ faceta:44
 fachada:39
 faciais:42
 facial:38
-facil:43
+facil:98
 facilidade:40
 facilita:42
 facilitar:39
 facilmente:34
-faco:43
+faco:98
 facto:28
 factor:39
 factores:42
@@ -10873,12 +10970,12 @@ falássemos:44
 falávamos:40
 falência:39
 fama:37
-familia:35
+familia:98
 familiar:32
 familiares:36
 familiarizada:44
 familiarizado:41
-familias:44
+familias:98
 family:41
 faminta:42
 faminto:40
@@ -10898,6 +10995,7 @@ fantasiar:44
 fantasias:38
 fantasma:32
 fantasmas:35
+fantastico:98
 fantoche:41
 fantoches:43
 fantástica:33
@@ -10998,6 +11096,7 @@ fazermos:36
 fazes:26
 fazia:29
 faziam:35
+faziamos:98
 fazias:36
 fazio:42
 fazíamos:37
@@ -11011,7 +11110,7 @@ faísca:41
 faíscas:43
 fbi:29
 fda:41
-fe:44
+fe:98
 febre:35
 fecha:33
 fechada:34
@@ -11107,6 +11206,7 @@ ferguson:41
 feri:44
 feriado:39
 feriados:42
+ferias:98
 ferida:33
 feridas:35
 ferido:33
@@ -11166,6 +11266,7 @@ ficam:31
 ficamos:32
 ficando:37
 ficar:21
+ficara:98
 ficaram:33
 ficarei:34
 ficarem:36
@@ -11200,12 +11301,14 @@ ficávamos:41
 ficção:37
 fidel:43
 fidelidade:40
+fieis:98
 fiel:37
 field:42
 fielding:43
 fields:42
 fielmente:44
 figa:44
+figado:98
 figas:43
 figos:44
 figura:35
@@ -11311,6 +11414,7 @@ fischer:41
 fish:41
 fisher:37
 fishlegs:44
+fisica:98
 fisicamente:37
 fisiologia:43
 fisioterapia:43
@@ -11471,7 +11575,7 @@ foram:24
 forasteiro:42
 forasteiros:42
 forbes:42
-forca:40
+forca:98
 force:41
 forcei:44
 ford:36
@@ -11514,6 +11618,7 @@ formigueiro:43
 formos:35
 formosa:42
 formou:41
+formula:98
 formulário:39
 formulários:41
 fornalha:43
@@ -11541,6 +11646,7 @@ fortes:33
 fortuna:34
 fortunas:43
 fortune:44
+forum:98
 força:26
 forçada:39
 forçadas:44
@@ -11563,9 +11669,11 @@ fostes:41
 foto:30
 fotocopiadora:43
 fotocópias:44
+fotografa:98
 fotografar:40
 fotografia:31
 fotografias:32
+fotografo:98
 fotográfica:40
 fotográfico:44
 fotos:31
@@ -11611,6 +11719,7 @@ francine:40
 francis:36
 francisco:34
 franco:37
+francois:98
 francos:39
 francês:33
 frango:35
@@ -12035,6 +12144,7 @@ garvey:44
 gary:34
 garza:42
 garçom:43
+gas:98
 gases:39
 gasolina:34
 gasosa:42
@@ -12101,6 +12211,7 @@ genealógica:44
 genebra:40
 generais:40
 general:29
+genero:98
 generosa:39
 generosamente:44
 generosidade:39
@@ -12332,6 +12443,7 @@ gostarem:42
 gostares:40
 gostaria:27
 gostariam:39
+gostariamos:98
 gostarias:36
 gostará:43
 gostaríamos:37
@@ -12342,6 +12454,7 @@ gostasses:40
 gostaste:36
 gostava:27
 gostavam:39
+gostavamos:98
 gostavas:35
 goste:35
 gostei:31
@@ -12383,6 +12496,7 @@ gozo:39
 gozou:44
 gps:37
 graal:41
+gracas:98
 grace:33
 gracias:42
 gracie:40
@@ -12552,6 +12666,7 @@ guarde:38
 guardei:40
 guardem:41
 guardes:44
+guardia:98
 guardiã:42
 guardiães:44
 guardião:38
@@ -12621,7 +12736,7 @@ gêmeas:44
 gêmeos:42
 gênero:44
 gênio:41
-ha:35
+ha:98
 haas:44
 habib:44
 habilidade:36
@@ -12632,6 +12747,7 @@ habitante:44
 habitantes:38
 habitat:41
 habitação:41
+habito:98
 habituada:39
 habituado:38
 habituados:41
@@ -12729,6 +12845,7 @@ hartman:44
 harvard:37
 harvey:34
 harém:44
+has:98
 hasan:44
 haskell:43
 hassan:40
@@ -12804,6 +12921,7 @@ helen:35
 helena:37
 helene:44
 helga:41
+helicoptero:98
 helicóptero:34
 helicópteros:39
 hell:42
@@ -12854,7 +12972,8 @@ hermes:44
 hermione:44
 hernandez:43
 herodes:44
-heroi:44
+heroi:98
+heroina:98
 heroína:35
 heroísmo:43
 herpes:41
@@ -12920,7 +13039,8 @@ hipopótamo:44
 hipoteca:39
 hipotecas:43
 hipotermia:43
-hipotese:44
+hipotese:98
+hipoteses:98
 hipoteticamente:42
 hipotético:44
 hippie:41
@@ -12934,10 +13054,11 @@ hiroshima:44
 hirsch:44
 his:44
 histeria:42
-historia:39
+historia:98
 historiador:42
 historiadores:44
 historial:38
+historias:98
 historicamente:44
 histérica:41
 histérico:43
@@ -12996,7 +13117,8 @@ homenzinho:39
 homer:34
 homicida:40
 homicidas:44
-homicidio:42
+homicidio:98
+homicidios:98
 homicídio:30
 homicídios:34
 homie:41
@@ -13049,7 +13171,8 @@ horn:42
 horrenda:44
 horrendo:43
 horripilante:44
-horrivel:41
+horriveis:98
+horrivel:98
 horrivelmente:42
 horror:37
 horrores:41
@@ -13069,6 +13192,7 @@ hospedada:44
 hospedado:42
 hospedeira:41
 hospedeiro:40
+hospedes:98
 hospitais:37
 hospital:27
 hospitalar:43
@@ -13285,6 +13409,7 @@ iluminação:40
 ilustre:42
 ilusão:37
 ilusões:40
+ima:98
 imaculada:43
 imaculado:44
 imagem:31
@@ -13414,7 +13539,7 @@ importes:40
 importo:32
 importou:41
 importância:33
-impossivel:41
+impossivel:98
 impossíveis:41
 impossível:29
 imposto:40
@@ -13513,6 +13638,7 @@ inclinar:44
 inclinação:42
 incluem:42
 inclui:38
+incluido:98
 incluindo:33
 incluir:39
 inclusive:38
@@ -13553,7 +13679,7 @@ incorrecto:43
 incriminado:43
 incriminar:40
 incriminou:44
-incrivel:42
+incrivel:98
 incrivelmente:36
 incríveis:37
 incrível:29
@@ -13602,6 +13728,7 @@ indiferença:43
 indigestão:44
 indignação:43
 indigno:44
+indio:98
 indios:44
 indique:42
 indispensável:43
@@ -13619,6 +13746,7 @@ indonésia:43
 industria:44
 industriais:42
 industrial:38
+industrias:98
 industries:43
 induzido:44
 induzir:43
@@ -13720,6 +13848,7 @@ ingalls:44
 ingenuidade:44
 ingerir:44
 inglaterra:32
+ingles:98
 inglesa:37
 inglesas:43
 ingleses:36
@@ -13992,6 +14121,7 @@ intervir:40
 intestinal:43
 intestino:40
 intestinos:41
+intima:98
 intimamente:43
 intimação:42
 intimidade:40
@@ -13999,6 +14129,7 @@ intimidado:43
 intimidante:44
 intimidar:41
 intimidação:43
+intimo:98
 intocável:42
 intolerante:44
 intolerável:43
@@ -14088,6 +14219,7 @@ investimentos:40
 investir:38
 investiu:43
 invisibilidade:43
+invisivel:98
 invisíveis:41
 invisível:36
 invocar:41
@@ -14138,8 +14270,9 @@ irlanda:38
 irlandesa:41
 irlandeses:40
 irlandês:38
-irma:42
+irma:98
 irmandade:38
+irmao:98
 irmos:33
 irmã:26
 irmão:24
@@ -14209,6 +14342,7 @@ isso:13
 istambul:41
 isto:15
 it:36
+italia:98
 italian:42
 italiana:39
 italianas:44
@@ -14228,7 +14362,7 @@ izzy:40
 iá:39
 içar:44
 iémen:43
-ja:36
+ja:98
 jacaré:43
 jacarés:44
 jace:41
@@ -14367,6 +14501,7 @@ jericho:42
 jerome:40
 jerry:32
 jersey:37
+jerusalem:98
 jerusalém:38
 jess:35
 jesse:33
@@ -14514,6 +14649,8 @@ judy:37
 jugular:43
 juice:42
 juiz:31
+juizes:98
+juizo:98
 jukebox:44
 jule:44
 jules:37
@@ -14571,6 +14708,7 @@ junto:31
 juntos:25
 juntou:40
 junção:43
+jupiter:98
 jura:38
 jurado:41
 jurados:40
@@ -14581,6 +14719,7 @@ juraram:44
 juras:42
 juraste:43
 jurei:39
+juri:98
 jurisdição:38
 juro:29
 juros:39
@@ -14731,6 +14870,7 @@ kiki:41
 kill:44
 killer:41
 killian:42
+kilometros:98
 kilos:44
 kilómetros:44
 kim:34
@@ -14808,7 +14948,7 @@ kwon:44
 kyle:33
 kylie:43
 kyoto:44
-la:31
+la:98
 lab:42
 labirinto:39
 laboratório:31
@@ -15013,6 +15153,7 @@ lecter:42
 lee:32
 leeds:42
 leela:41
+leem:98
 legado:37
 legais:38
 legal:32
@@ -15024,7 +15165,9 @@ legendas:33
 legendasproject:42
 legislação:42
 legista:38
+legitima:98
 legitimidade:44
+legitimo:98
 legião:40
 legiões:43
 legumes:40
@@ -15231,7 +15374,7 @@ libertou:40
 liberty:41
 libra:42
 libras:35
-licenca:44
+licenca:98
 licenciado:43
 licenciatura:42
 licença:27
@@ -15249,7 +15392,7 @@ lidar:30
 lidas:42
 lidaste:44
 lidei:42
-lider:42
+lider:98
 lidera:41
 liderada:44
 liderado:44
@@ -15477,6 +15620,7 @@ loft:44
 logan:35
 logicamente:44
 logo:26
+logotipo:98
 logística:43
 logótipo:43
 loira:37
@@ -15722,6 +15866,7 @@ macacão:44
 macaquinho:43
 macarrão:40
 macarthur:43
+macas:98
 macau:43
 macbeth:43
 macdonald:43
@@ -15778,7 +15923,7 @@ madrugada:38
 madura:41
 maduro:41
 maduros:44
-mae:39
+mae:98
 maestro:40
 mafia:42
 mafioso:41
@@ -15792,6 +15937,7 @@ magic:42
 magistrado:41
 magnata:43
 magnetismo:44
+magnifica:98
 magnifico:43
 magnitude:42
 magnum:42
@@ -15901,6 +16047,7 @@ maléfica:43
 maléfico:42
 mama:37
 mamada:43
+mamae:98
 mamar:42
 mamas:34
 mambo:44
@@ -15970,7 +16117,8 @@ manga:38
 mangas:40
 mangueira:39
 mangueiras:44
-manha:42
+manha:98
+manhas:98
 manhattan:36
 manhoso:42
 manhã:25
@@ -16053,15 +16201,17 @@ manuela:44
 manuscrito:40
 manutenção:37
 maníaco:39
-mao:42
+mao:98
 maomé:43
+maos:98
 mapa:32
 mapas:38
 maple:44
 maquiagem:43
 maquilhagem:37
-maquina:43
+maquina:98
 maquinaria:43
+maquinas:98
 maquinista:43
 maquis:43
 mar:30
@@ -16109,6 +16259,7 @@ marcos:39
 marcou:38
 marcus:34
 marcy:39
+mare:98
 marechal:41
 marek:44
 mares:40
@@ -16183,6 +16334,7 @@ marple:43
 marque:41
 marquei:39
 marquem:44
+marques:98
 marquesa:42
 marquez:44
 marquês:41
@@ -16226,6 +16378,7 @@ marítima:43
 marítimo:44
 mas:12
 mascar:44
+mascara:98
 mascarado:41
 mascarados:43
 mascote:41
@@ -16269,6 +16422,7 @@ matamos:38
 matando:38
 matança:39
 matar:25
+matara:98
 mataram:33
 matarei:41
 matarem:39
@@ -16313,6 +16467,7 @@ matou:27
 matraca:41
 matreiro:44
 matricula:42
+matriculas:98
 matrimonial:42
 matrimónio:41
 matrimônio:44
@@ -16349,6 +16504,7 @@ max:29
 maxie:43
 maxilar:41
 maxim:43
+maximo:98
 maxine:42
 maxwell:40
 may:37
@@ -16418,6 +16574,7 @@ mede:41
 medellín:44
 media:37
 mediador:44
+medica:98
 medicamento:37
 medicamentos:34
 medicação:36
@@ -16425,7 +16582,7 @@ medici:44
 medicina:34
 medicinais:44
 medicinal:43
-medico:43
+medico:98
 medida:34
 medidas:36
 medidor:43
@@ -16488,8 +16645,9 @@ membro:33
 membros:33
 memo:44
 memorando:40
-memoria:44
+memoria:98
 memorial:39
+memorias:98
 memorizar:43
 memorável:42
 memphis:41
@@ -16614,7 +16772,7 @@ meros:42
 merrick:44
 merrill:43
 meryl:44
-mes:44
+mes:98
 mesa:28
 mesada:42
 mesas:38
@@ -16707,7 +16865,7 @@ mexia:43
 mexicana:39
 mexicano:38
 mexicanos:39
-mexico:43
+mexico:98
 mexido:42
 mexidos:42
 mexo:43
@@ -16822,9 +16980,10 @@ minhoca:41
 minhocas:42
 mini:40
 miniatura:42
+minima:98
 minimamente:42
 minimizar:43
-minimo:44
+minimo:98
 ministra:44
 ministro:34
 ministros:41
@@ -16859,6 +17018,8 @@ miseráveis:40
 miserável:36
 miss:30
 missa:38
+missao:98
+misseis:98
 missionário:43
 missionários:43
 mississipi:43
@@ -16894,11 +17055,11 @@ mito:38
 mitologia:42
 mitos:42
 mitzvah:42
-miuda:41
-miudas:43
+miuda:98
+miudas:98
 miudinha:43
-miudo:41
-miudos:42
+miudo:98
+miudos:98
 miúda:28
 miúdas:31
 miúdo:28
@@ -16918,6 +17079,7 @@ mobiliário:44
 moby:43
 mobília:38
 moca:42
+mocas:98
 mochila:36
 mochilas:43
 mocinha:44
@@ -17250,6 +17412,7 @@ mudando:40
 mudança:32
 mudanças:35
 mudar:27
+mudara:98
 mudaram:35
 mudarem:42
 mudares:40
@@ -17327,9 +17490,10 @@ museu:34
 museus:42
 musgo:43
 music:43
-musica:39
+musica:98
 musicais:41
 musical:37
+musicas:98
 mussolini:43
 mustafa:44
 mustang:41
@@ -17468,7 +17632,7 @@ nana:43
 nance:43
 nancy:35
 nano:44
-nao:29
+nao:98
 naomi:37
 napa:43
 napalm:44
@@ -17602,7 +17766,8 @@ negociantes:44
 negociar:34
 negociação:39
 negociações:38
-negocio:42
+negocio:98
+negocios:98
 negociável:43
 negou:41
 negra:33
@@ -17727,7 +17892,7 @@ nilo:42
 nim:43
 nina:35
 nine:42
-ninguem:39
+ninguem:98
 ninguém:22
 ninhada:44
 ninho:36
@@ -17743,7 +17908,7 @@ nitrato:43
 nitro:44
 nitroglicerina:44
 nitrogénio:43
-nivel:43
+nivel:98
 nixon:39
 no:14
 noah:37
@@ -17883,7 +18048,8 @@ nudez:42
 num:22
 numa:23
 numas:40
-numero:39
+numero:98
+numeros:98
 numerosos:44
 numérica:44
 nunca:19
@@ -17930,6 +18096,7 @@ năo:41
 oak:43
 oakland:41
 oaks:43
+oasis:98
 obama:40
 obcecada:39
 obcecado:37
@@ -17940,6 +18107,7 @@ obedeça:44
 obedeçam:44
 obediente:42
 obediência:41
+obelix:98
 obesidade:43
 obituário:43
 objectiva:44
@@ -18146,9 +18314,10 @@ ok:24
 okay:35
 okinawa:44
 oklahoma:40
-ola:40
+ola:98
 olaf:42
 old:40
+ole:98
 oleg:41
 oleoduto:43
 olfacto:43
@@ -18266,7 +18435,7 @@ optar:42
 optimismo:43
 optimista:40
 optimistas:44
-optimo:42
+optimo:98
 optimus:42
 optou:44
 opção:33
@@ -18280,6 +18449,7 @@ orange:42
 orar:42
 oração:37
 orações:38
+orbita:98
 orbital:44
 orbitar:44
 ordem:28
@@ -18369,6 +18539,7 @@ oswald:40
 osíris:44
 otez:44
 otimista:43
+otimo:98
 otis:39
 otto:39
 otário:37
@@ -18406,6 +18577,7 @@ ouvindo:38
 ouvinte:41
 ouvintes:43
 ouvir:25
+ouvira:98
 ouviram:33
 ouvirem:40
 ouvires:38
@@ -18452,6 +18624,7 @@ paciente:31
 pacientemente:44
 pacientes:33
 pacific:41
+pacifica:98
 pacificamente:42
 pacifico:44
 pacino:44
@@ -18583,7 +18756,7 @@ panteras:42
 panthers:43
 panthro:43
 pança:44
-pao:44
+pao:98
 paolo:41
 papa:35
 papagaio:39
@@ -18607,6 +18780,7 @@ paquistanês:44
 paquistão:39
 par:31
 para:09
+parabens:98
 parabéns:29
 parada:36
 paradas:42
@@ -18620,6 +18794,7 @@ parafusos:41
 paragem:35
 paragens:41
 parai:43
+paraiso:98
 paralela:44
 paralelo:41
 paralelos:44
@@ -18631,6 +18806,8 @@ paramos:38
 paramédico:41
 paramédicos:38
 parando:44
+paranoia:98
+paranoica:98
 paranoico:43
 paranormais:44
 paranormal:41
@@ -18773,6 +18950,7 @@ parvalhão:36
 parvalhões:42
 parvas:42
 parvo:33
+parvoice:98
 parvos:39
 parvoíce:39
 parvoíces:41
@@ -18806,6 +18984,7 @@ passando:37
 passaporte:36
 passaportes:39
 passar:24
+passara:98
 passaram:33
 passarei:42
 passarem:39
@@ -18931,7 +19110,7 @@ país:27
 países:35
 pc:42
 pda:44
-pe:44
+pe:98
 peabody:43
 peach:44
 peaches:43
@@ -19089,6 +19268,7 @@ pensasses:42
 pensaste:33
 pensava:28
 pensavam:38
+pensavamos:98
 pensavas:37
 pense:32
 pensei:23
@@ -19130,6 +19310,7 @@ pequenos:32
 pequenote:40
 pequim:41
 per:42
+pera:98
 peralta:43
 perante:34
 peras:41
@@ -19176,6 +19357,7 @@ perdem:38
 perdemos:32
 perdendo:39
 perder:26
+perdera:98
 perderam:36
 perderei:43
 perderem:42
@@ -19262,6 +19444,7 @@ perigosamente:42
 perigosas:38
 perigoso:30
 perigosos:37
+periodo:98
 periscópio:44
 perita:42
 perito:37
@@ -19373,6 +19556,7 @@ perímetro:36
 período:34
 períodos:42
 perú:43
+pes:98
 pesa:39
 pesada:36
 pesadas:40
@@ -19672,6 +19856,7 @@ pobreza:38
 pobrezinha:42
 pobrezinho:42
 pocilga:42
+poco:98
 pode:18
 podeis:38
 podem:24
@@ -19704,7 +19889,7 @@ podido:41
 podre:38
 podres:40
 podíamos:30
-poe:41
+poe:98
 poeira:38
 poema:37
 poemas:40
@@ -19714,6 +19899,7 @@ poetas:42
 point:39
 poirot:37
 pois:22
+pokemon:98
 poker:40
 pokémon:44
 pol:41
@@ -19734,6 +19920,8 @@ policía:44
 polir:42
 politica:41
 politicamente:41
+politicas:98
+politico:98
 polk:44
 pollock:44
 polly:39
@@ -19861,7 +20049,7 @@ porá:44
 porão:38
 porção:41
 porém:35
-pos:43
+pos:98
 posar:43
 pose:41
 poseidon:43
@@ -19881,7 +20069,8 @@ posses:42
 possessão:42
 possibilidade:33
 possibilidades:37
-possivel:39
+possiveis:98
+possivel:98
 possivelmente:35
 posso:19
 possuem:39
@@ -19979,6 +20168,7 @@ praticam:44
 praticamente:34
 praticando:44
 praticar:36
+praticas:98
 pratico:43
 prato:34
 pratos:36
@@ -19988,6 +20178,7 @@ prazeres:40
 prazo:35
 prazos:43
 praça:37
+pre:98
 precaução:38
 precauções:40
 prece:43
@@ -20027,6 +20218,7 @@ precisasses:43
 precisaste:42
 precisava:30
 precisavam:38
+precisavamos:98
 precisavas:36
 precise:36
 precisei:38
@@ -20095,6 +20287,7 @@ prematura:43
 prematuro:42
 premeditado:42
 premiado:43
+premio:98
 premir:42
 premonição:43
 prenda:35
@@ -20285,7 +20478,7 @@ princeton:40
 principais:37
 principal:31
 principalmente:35
-principe:43
+principe:98
 principiante:42
 principiantes:44
 principio:40
@@ -20499,12 +20692,14 @@ proporções:42
 propositadamente:44
 proposta:33
 propostas:41
+propria:98
 propriamente:36
 propriedade:32
 propriedades:37
 proprietária:42
 proprietário:37
 proprietários:40
+proprio:98
 propulsor:43
 propulsores:42
 propulsão:41
@@ -20513,8 +20708,11 @@ propósitos:42
 propôs:42
 propõe:42
 propões:43
+pros:98
+prospera:98
 prosperar:42
 prosperidade:41
+prospero:98
 prossegue:43
 prosseguir:38
 prossiga:38
@@ -20580,6 +20778,7 @@ provem:43
 proveniente:43
 provenza:44
 providence:43
+providencia:98
 providenciar:41
 providência:42
 provisório:44
@@ -20605,9 +20804,10 @@ provém:43
 provérbio:43
 província:39
 províncias:44
-proxima:43
+proxima:98
 proximidade:41
 proximidades:42
+proximo:98
 prozac:44
 proíbe:42
 prudence:44
@@ -20682,12 +20882,13 @@ publicado:40
 publicamente:40
 publicar:38
 publicaram:44
+publicas:98
 publicação:42
 publicações:43
 publicidade:35
 publicitária:44
 publicitário:43
-publico:42
+publico:98
 publicou:41
 puck:44
 pude:32
@@ -20987,6 +21188,7 @@ quero:18
 querosene:44
 quería:44
 queríamos:34
+questao:98
 questiona:43
 questionado:44
 questionar:37
@@ -21083,7 +21285,7 @@ radiações:44
 radicais:40
 radical:38
 radicalmente:44
-radio:41
+radio:98
 radioactiva:44
 radioactivo:42
 radiografia:43
@@ -21118,6 +21320,7 @@ raju:42
 rala:43
 ralado:44
 ralar:44
+rale:98
 raleigh:44
 rales:42
 ralo:42
@@ -21135,6 +21338,7 @@ ramon:40
 ramona:42
 ramos:39
 rampa:40
+ramses:98
 ramsey:41
 ramsés:44
 ramón:42
@@ -21167,7 +21371,7 @@ rapidamente:32
 rapidez:40
 rapidinha:43
 rapidinho:44
-rapido:42
+rapido:98
 raposa:38
 raposas:43
 rapper:43
@@ -21232,7 +21436,7 @@ ray:30
 rayburn:42
 raylan:40
 raymond:35
-razao:43
+razao:98
 razoavelmente:43
 razoáveis:42
 razoável:36
@@ -21561,6 +21765,7 @@ refrigeração:43
 refrão:44
 refugiado:44
 refugiados:39
+refugio:98
 refém:36
 reféns:35
 refúgio:38
@@ -21752,6 +21957,7 @@ renome:43
 renovar:41
 renovação:42
 rentável:44
+renuncia:98
 renunciar:40
 renuncio:44
 rené:38
@@ -21796,6 +22002,7 @@ repolho:43
 repor:43
 reportagem:39
 reportar:40
+reporter:98
 reportou:43
 repousar:43
 repouso:40
@@ -21819,6 +22026,7 @@ reprimir:44
 reproduzir:42
 reprodução:41
 reprogramar:44
+republica:98
 republicana:43
 republicano:40
 republicanos:40
@@ -21943,6 +22151,7 @@ responsabilidade:32
 responsabilidades:37
 responsabilizado:43
 responsabilizar:44
+responsavel:98
 responsáveis:37
 responsável:30
 resposta:28
@@ -22148,7 +22357,7 @@ ricos:34
 riddick:44
 rider:44
 ridge:41
-ridiculo:42
+ridiculo:98
 ridley:43
 ridícula:37
 ridículas:42
@@ -22524,7 +22733,7 @@ sabes:20
 sabia:24
 sabiam:33
 sabiamente:44
-sabiamos:44
+sabiamos:98
 sabias:29
 sabichão:44
 sabido:39
@@ -22557,6 +22766,8 @@ sacou:42
 sacramento:40
 sacrificado:43
 sacrificar:38
+sacrificio:98
+sacrificios:98
 sacrificou:43
 sacrifiquei:44
 sacrifício:35
@@ -22592,8 +22803,8 @@ saibam:35
 saibamos:40
 saibas:33
 said:42
-saida:42
-saido:44
+saida:98
+saido:98
 saiem:44
 saigão:44
 saimos:43
@@ -22716,6 +22927,7 @@ sandes:36
 sandoval:42
 sandra:38
 sands:42
+sanduiche:98
 sanduíche:37
 sanduíches:40
 sandy:36
@@ -22753,7 +22965,7 @@ santos:37
 santuário:38
 santíssima:44
 sanções:43
-sao:39
+sao:98
 sapateado:43
 sapateiro:44
 sapatilhas:41
@@ -22808,6 +23020,7 @@ saudades:31
 saudar:42
 saudação:41
 saudações:38
+saude:98
 saudita:41
 saudáveis:39
 saudável:34
@@ -22894,7 +23107,7 @@ secou:43
 secret:43
 secreta:34
 secretamente:39
-secretaria:42
+secretaria:98
 secretary:44
 secretas:38
 secretismo:43
@@ -23032,6 +23245,7 @@ senado:37
 senador:33
 senadora:39
 senadores:42
+senao:98
 sendo:31
 senha:38
 senhas:43
@@ -23044,6 +23258,7 @@ senhorio:39
 senhorita:34
 senhoritas:42
 senil:43
+senior:98
 seniores:44
 sensacional:40
 sensata:41
@@ -23052,6 +23267,7 @@ sensação:32
 sensações:43
 sensei:41
 sensibilidade:39
+sensivel:98
 senso:37
 sensor:40
 sensores:36
@@ -23146,7 +23362,8 @@ sequestrou:43
 sequência:37
 sequências:44
 ser:16
-sera:42
+sera:98
+serao:98
 serei:31
 sereia:40
 sereias:43
@@ -23164,13 +23381,14 @@ seria:24
 serial:41
 seriam:35
 seriamente:38
+seriamos:98
 serias:37
-serie:42
+serie:98
 seriedade:43
 series:44
 seringa:40
 seringas:43
-serio:39
+serio:98
 sermos:34
 sermão:38
 sermões:41
@@ -23186,6 +23404,7 @@ serves:41
 servi:41
 servia:40
 serviam:44
+servico:98
 servida:43
 servido:39
 servidor:38
@@ -23351,7 +23570,7 @@ sigo:39
 silas:39
 silenciador:43
 silenciar:43
-silencio:43
+silencio:98
 silenciosa:41
 silenciosamente:42
 silencioso:38
@@ -23365,6 +23584,7 @@ silvia:44
 silêncio:31
 sim:13
 simboliza:43
+simbolo:98
 simbólico:43
 simetria:44
 similar:41
@@ -23509,7 +23729,7 @@ snotlout:43
 snow:41
 snowboard:44
 snyder:42
-so:37
+so:98
 soa:34
 soalho:43
 soam:43
@@ -24003,7 +24223,7 @@ suicida:38
 suicidado:43
 suicidar:41
 suicidas:41
-suicidio:44
+suicidio:98
 suicidou:41
 suicídio:33
 suicídios:42
@@ -24049,6 +24269,7 @@ superar:36
 superei:43
 superficiais:42
 superficial:40
+superficie:98
 superfície:34
 supergirl:41
 superintendente:41
@@ -24324,7 +24545,7 @@ tamanha:41
 tamanho:31
 tamanhos:42
 tamara:42
-tambem:38
+tambem:98
 tambor:40
 tambores:41
 também:20
@@ -24353,7 +24574,7 @@ tantas:32
 tanto:24
 tantos:32
 tanya:39
-tao:38
+tao:98
 tapa:41
 tapado:44
 tapar:40
@@ -24425,6 +24646,7 @@ tecto:37
 ted:33
 teddy:36
 teeger:44
+teem:98
 teen:43
 teerão:44
 teia:41
@@ -24460,7 +24682,7 @@ telefónicos:40
 telegrama:38
 telegramas:44
 telemetria:43
-telemovel:44
+telemovel:98
 telemóveis:36
 telemóvel:29
 telepatia:43
@@ -24594,6 +24816,7 @@ teorias:38
 teoricamente:41
 tequila:39
 ter:17
+tera:98
 terapeuta:37
 terapeutas:44
 terapia:35
@@ -24657,7 +24880,8 @@ terri:42
 territorial:44
 território:34
 territórios:41
-terrivel:41
+terriveis:98
+terrivel:98
 terrivelmente:39
 terror:36
 terrorismo:38
@@ -24797,6 +25021,7 @@ tip:44
 tipa:40
 tipas:44
 tipicamente:43
+tipico:98
 tipo:21
 tipos:28
 tique:43
@@ -24986,6 +25211,7 @@ tornam:39
 tornamos:42
 tornando:41
 tornar:31
+tornara:98
 tornaram:39
 tornarem:42
 tornares:41
@@ -25165,6 +25391,7 @@ trancadas:42
 trancado:38
 trancados:42
 trancar:39
+trancas:98
 trance:42
 trancou:42
 tranque:43
@@ -25249,6 +25476,7 @@ traqueia:43
 trarei:42
 traria:41
 trará:39
+tras:98
 traseira:38
 traseiras:34
 traseiro:35
@@ -25365,7 +25593,7 @@ trent:40
 trenton:44
 trenó:40
 trepar:41
-tres:41
+tres:98
 tresanda:42
 treta:32
 tretas:33
@@ -25517,8 +25745,10 @@ tulsa:43
 tumba:41
 tumor:36
 tumores:42
+tumulo:98
 tumulto:42
 tumultos:44
+tunel:98
 tunísia:44
 tupac:43
 turbante:44
@@ -25638,17 +25868,18 @@ uid:38
 uivar:44
 ulisses:43
 ulrich:44
-ultima:38
+ultima:98
 ultimamente:33
-ultimas:44
+ultimas:98
 ultimato:43
-ultimo:40
-ultimos:44
+ultimo:98
+ultimos:98
 ultra:40
 ultrajante:43
 ultraje:43
 ultrapassa:41
 ultrapassado:41
+ultrapassamos:98
 ultrapassar:35
 ultrapassei:42
 ultrapassou:41
@@ -25667,9 +25898,9 @@ une:42
 unem:44
 unha:40
 unhas:36
-unica:41
+unica:98
 unicamente:43
-unico:43
+unico:98
 unicórnio:42
 unicórnios:44
 unida:40
@@ -25777,7 +26008,7 @@ utopia:43
 uva:41
 uvas:40
 uísque:35
-va:40
+va:98
 vaca:34
 vacas:37
 vacina:38
@@ -25818,6 +26049,7 @@ valentine:39
 valentino:44
 valentão:42
 valer:36
+valera:98
 valeria:42
 valerie:38
 valerá:42
@@ -25856,7 +26088,7 @@ vanessa:36
 vanguarda:43
 vantagem:34
 vantagens:39
-vao:42
+vao:98
 vapor:38
 vapores:44
 vaqueiro:42
@@ -25867,7 +26099,7 @@ varas:44
 vargas:40
 varia:44
 variar:38
-varias:44
+varias:98
 variação:42
 variações:43
 varicela:44
@@ -25882,6 +26114,7 @@ varrido:43
 varsóvia:42
 varão:43
 varíola:42
+vas:98
 vascular:43
 vasculhar:39
 vasectomia:44
@@ -25902,7 +26135,7 @@ vazias:38
 vazio:33
 vazios:39
 vc:40
-ve:40
+ve:98
 veado:38
 veados:42
 vector:43
@@ -25925,7 +26158,7 @@ vegetarianos:44
 vegetação:42
 veia:40
 veias:38
-veiculo:44
+veiculo:98
 veio:26
 veja:29
 vejam:30
@@ -26096,6 +26329,7 @@ veríamos:43
 verídica:43
 verónica:42
 verões:42
+ves:98
 vespa:42
 vespas:42
 veste:37
@@ -26163,6 +26397,7 @@ viciada:39
 viciado:37
 viciados:40
 viciante:44
+vicio:98
 vicioso:44
 vicki:41
 vickie:44
@@ -26177,6 +26412,7 @@ vidas:29
 vidente:39
 video:40
 videojogos:43
+videos:98
 videovigilância:44
 vidro:34
 vidros:40
@@ -26269,6 +26505,7 @@ violaste:43
 violação:35
 violações:41
 violei:43
+violencia:98
 violenta:39
 violentamente:42
 violentas:42
@@ -26321,7 +26558,7 @@ virtual:40
 virtualmente:42
 virtude:39
 virtudes:42
-virus:44
+virus:98
 virá:34
 virás:43
 virão:37
@@ -26365,9 +26602,10 @@ vital:38
 vitamina:42
 vitaminas:40
 vitela:42
-vitima:40
-vitimas:41
+vitima:98
+vitimas:98
 vito:41
+vitoria:98
 vitorioso:43
 vitória:33
 vitórias:40
@@ -26418,6 +26656,7 @@ viúvas:42
 viúvo:43
 vlad:42
 vladimir:41
+vo:98
 voa:37
 voador:40
 voadora:42
@@ -26436,8 +26675,8 @@ vocais:43
 vocal:43
 vocalista:42
 vocação:41
-voce:33
-voces:39
+voce:98
+voces:98
 vocãª:42
 vocé:44
 você:17
@@ -26465,6 +26704,7 @@ voltam:36
 voltamos:33
 voltando:39
 voltar:23
+voltara:98
 voltaram:35
 voltarei:35
 voltarem:38
@@ -26886,6 +27126,7 @@ zimmerman:44
 ziva:40
 zo:42
 zod:43
+zodiaco:98
 zodíaco:42
 zoe:36
 zoey:39

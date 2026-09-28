@@ -16,8 +16,8 @@ import java.io.InputStream
  *
  * The words are SCOWL, cut to US English at its "size 40" band. The scores are the OpenSubtitles frequency list,
  * log-scaled, because SCOWL's own bands are tiers rather than frequencies - its top tier holds four thousand words,
- * so inside it "the" ties with "tea", and a keyboard that cannot tell those apart suggests the wrong one. Both
- * licences are permissive and both notices ship beside the list in the assets.
+ * so inside it "the" ties with "tea", and a keyboard that cannot tell those apart suggests the wrong one. SCOWL is
+ * permissive; the frequency data is CC BY-SA 4.0, so the lists are too. Both notices ship beside them in the assets.
  */
 class Dictionary private constructor(
     private val bytes: ByteArray,
@@ -137,6 +137,12 @@ class Dictionary private constructor(
     companion object {
 
         private val EMPTY = IntArray(0)
+
+        /**
+         * A word to know but never offer: most often a word typed without its accent ("accion" for "acción"), which
+         * may also be a real word ("papa", "cote"), so it is never corrected either. See tools/build-dictionary.py.
+         */
+        const val KNOWN_ONLY = 98
 
         /** Common enough that a word one edit away from it is probably a slip. */
         const val COMMON = 35

@@ -63,6 +63,9 @@ class KeyboardViewTest {
             override fun onSuggestion(word: String) { toolbar += "suggestion:$word" }
             override fun onVoice() { toolbar += "voice" }
             override fun onCursorPad() { toolbar += "cursorPad" }
+            override fun onOffer(offer: Insights.Offer, accepted: Boolean) {
+                toolbar += (if (accepted) "yes:" else "no:") + offer.typed
+            }
         }
         show(FieldRules())
     }
@@ -277,15 +280,15 @@ class KeyboardViewTest {
 
     @Test
     fun `with nothing to suggest the toolbar is what shows`() {
-        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
-    /** With the cursor pad key switched off, Select all comes back rather than going missing. */
+    /** Select all can take the cursor pad's place, which is what switching the pad key off used to do. */
     @Test
-    fun `without the cursor pad key the toolbar has select all`() {
-        view.settings = Settings(cursorPadKey = false)
+    fun `with select all in place of the cursor pad the toolbar has select all`() {
+        view.settings = Settings(toolbar = Settings.DEFAULT_TOOLBAR.map { if (it == ToolKey.CURSOR_PAD) ToolKey.SELECT_ALL else it })
         view.layout(0, 0, view.width, view.height)
-        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test
@@ -302,7 +305,7 @@ class KeyboardViewTest {
 
     @Test
     fun `the mic can be switched off`() {
-        view.settings = Settings(voiceKey = false)
+        view.settings = Settings(toolbar = Settings.DEFAULT_TOOLBAR - ToolKey.VOICE)
         view.voiceAvailable = true
         view.layout(0, 0, view.width, view.height)
         assertTrue("Voice" !in stripLabels())
@@ -347,7 +350,7 @@ class KeyboardViewTest {
     fun `the toolbar comes back when the word is finished`() {
         view.suggestions = listOf("teh", "the")
         view.suggestions = emptyList()
-        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     /** The strip is the same height as the toolbar, so nothing below it moves as words start and finish. */
@@ -365,7 +368,7 @@ class KeyboardViewTest {
     fun `a password field shows the toolbar, never suggestions`() {
         show(FieldRules(password = true))
         view.suggestions = listOf("hunter2", "hunter")
-        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test
@@ -918,4 +921,151 @@ class KeyboardViewTest {
         val description = provider.createAccessibilityNodeInfo(backspace)?.contentDescription.toString()
         assertTrue("backspace reads as $description", description.startsWith("Backspace"))
     }
+
+    // ---- the strip asking to keep a word or add a rule -----------------------------------------------------------
+
+    private val keepFolio = Insights.Offer("Folio", null)
+    private val alwaysThe = Insights.Offer("teh", "the")
+
+    private fun tapStrip(label: String) {
+        val box = view.toolbarPlacements.first { it.key.label == label }.box
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_UP, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+    }
+
+    @Test
+    fun `an offer to keep a word takes the toolbar's row`() {
+        view.offer = keepFolio
+        assertEquals(listOf("Keep “Folio” as a word?", "Keep", "No"), stripLabels())
+        assertTrue(view.offerShowing)
+    }
+
+    @Test
+    fun `an offer to always fix asks with both words`() {
+        view.offer = alwaysThe
+        assertEquals(listOf("Always fix “teh” to “the”?", "Always", "No"), stripLabels())
+    }
+
+    @Test
+    fun `a narrow keyboard asks in fewer words`() {
+        val width = (360 * density).toInt()
+        view.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        view.offer = keepFolio
+        assertEquals("Keep “Folio”?", stripLabels().first())
+        view.offer = alwaysThe
+        assertEquals("Fix “teh” to “the”?", stripLabels().first())
+    }
+
+    @Test
+    fun `keep and always report yes, and the offer goes`() {
+        view.offer = keepFolio
+        tapStrip("Keep")
+        view.offer = alwaysThe
+        tapStrip("Always")
+        assertEquals(listOf("yes:Folio", "yes:teh"), toolbar)
+        assertEquals(null, view.offer)
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+    }
+
+    @Test
+    fun `no reports no`() {
+        view.offer = alwaysThe
+        tapStrip("No")
+        assertEquals(listOf("no:teh"), toolbar)
+        assertEquals(null, view.offer)
+    }
+
+    @Test
+    fun `typing the next letter puts the offer away, and the letter is still typed`() {
+        view.offer = keepFolio
+        tap("c")
+        assertEquals("c", typed.toString())
+        assertEquals(null, view.offer)
+        assertEquals(emptyList<String>(), toolbar)
+    }
+
+    /** While a word is being typed the strip is showing words; the question waits for them to go. */
+    @Test
+    fun `an offer waits behind the words being suggested`() {
+        view.suggestions = listOf("wor", "word", "work")
+        view.offer = alwaysThe
+        assertEquals(listOf("wor", "word", "work"), stripLabels())
+        tap("d")
+        assertEquals(alwaysThe, view.offer)
+        view.suggestions = emptyList()
+        assertEquals("Always", stripLabels()[1])
+    }
+
+    @Test
+    fun `no offer in a password field`() {
+        show(FieldRules(password = true))
+        view.offer = keepFolio
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+    }
+
+    @Test
+    fun `the answers are a full 48dp to hit`() {
+        view.offer = alwaysThe
+        for (placement in view.toolbarPlacements.drop(1)) {
+            val box = placement.box
+            assertTrue("${placement.key.label} is ${box.width / density} dp wide", box.width / density >= 48f - 0.01f)
+            assertTrue("${placement.key.label} is ${box.height / density} dp tall", box.height / density >= 48f - 0.01f)
+            // And the keys below still get their own taps.
+            assertTrue(box.bottom <= view.placements.minOf { it.box.top })
+        }
+    }
+
+    @Test
+    fun `a screen reader reads the question and names the answers`() {
+        view.offer = keepFolio
+        val provider = view.accessibilityNodeProvider!!
+        val first = view.placements.size
+        val question = provider.createAccessibilityNodeInfo(first)!!
+        assertEquals("Keep “Folio” as a word?", question.contentDescription)
+        assertTrue(question.actionList.none { it.id == AccessibilityNodeInfo.ACTION_CLICK })
+        assertEquals("Keep", provider.createAccessibilityNodeInfo(first + 1)!!.contentDescription)
+        assertEquals("No", provider.createAccessibilityNodeInfo(first + 2)!!.contentDescription)
+        provider.performAction(first + 1, AccessibilityNodeInfo.ACTION_CLICK, null)
+        assertEquals(listOf("yes:Folio"), toolbar)
+        view.offer = alwaysThe
+        assertEquals("Always", provider.createAccessibilityNodeInfo(first + 1)!!.contentDescription)
+    }
+
+    // ---- the return key and a rolling thumb ---------------------------------------------------------------------
+
+    private fun returnKey() = view.placements.single { it.key.kind == KeyKind.ACTION }.box
+
+    /** Return is in the bottom corner, and a thumb that lifts just past the panel's edge still meant to press it. */
+    @Test
+    fun `lifting past the bottom corner still presses return`() {
+        val box = returnKey()
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_UP, box.right + 30 * density, box.bottom + 30 * density)
+        assertEquals(1, actions)
+    }
+
+    @Test
+    fun `sliding onto another key takes return back`() {
+        val box = returnKey()
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        val (x, y) = centre("m")
+        send(MotionEvent.ACTION_MOVE, x, y)
+        send(MotionEvent.ACTION_UP, x, y)
+        assertEquals(0, actions)
+    }
+
+    /** Up and off the keys, toward the app, is the escape route, and it still works. */
+    @Test
+    fun `sliding up off the keyboard takes return back`() {
+        val box = returnKey()
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_MOVE, box.left, -200 * density)
+        send(MotionEvent.ACTION_UP, box.left, -200 * density)
+        assertEquals(0, actions)
+    }
 }
+

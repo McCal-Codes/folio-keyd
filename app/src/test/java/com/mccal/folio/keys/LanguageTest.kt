@@ -3,6 +3,7 @@ package com.mccal.folio.keys
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -237,5 +238,125 @@ class LanguageTest {
     fun `every language names itself in its own language`() {
         for (language in Language.entries) assertNotNull(language.ownName.ifEmpty { null })
         assertEquals("Français", Language.FRENCH.ownName)
+    }
+
+    private fun proximity(language: Language): Suggestions.Proximity {
+        val rows = Layouts.rows(Layer.LETTERS, false, FieldRules(), language = language)
+        return Suggestions.Proximity(Geometry.place(rows, 1080, 700, 3f))
+    }
+
+    /** The accent is a long press away, so it is the thing left out most, and the letter under it is still right. */
+    @Test
+    fun `a word typed without its accent is given it back, in the strip at least`() {
+        val offered = mapOf(
+            Language.SPANISH to mapOf("accion" to "acción", "corazon" to "corazón"),
+            Language.FRENCH to mapOf("deja" to "déjà", "ecole" to "école", "apres" to "après"),
+            Language.GERMAN to mapOf("fur" to "für", "naturlich" to "natürlich", "mussen" to "müssen"),
+            Language.PORTUGUESE to mapOf("entao" to "então", "familia" to "família"),
+        )
+        for ((language, pairs) in offered) {
+            val words = dictionary(language)
+            val near = proximity(language)
+            for ((typed, wanted) in pairs) {
+                val found = Suggestions.forWord(typed, words, near)
+                assertEquals("$language $typed: $found", wanted, found.firstOrNull())
+            }
+        }
+    }
+
+    /**
+     * Found in review: each of these is a real word as well as an accented word typed without its accent, and each
+     * one used to be replaced. None may be, whatever the accented one's commonness.
+     */
+    @Test
+    fun `a real word is never replaced by its accented twin`() {
+        val real = mapOf(
+            Language.PORTUGUESE to listOf("facas", "Caracas", "fabrica", "duvida", "copia", "negocio", "secretaria"),
+            Language.SPANISH to listOf("cono", "papa", "mama", "sabia", "tenia", "ingles", "cayo", "publico", "medico", "numero"),
+            Language.GERMAN to listOf("Ware", "Horst", "Hort", "Losen"),
+            Language.FRENCH to listOf("cote", "sacre"),
+        )
+        for ((language, typed) in real) {
+            val words = dictionary(language)
+            val near = proximity(language)
+            val replaced = typed.associateWith { Suggestions.correction(it, words, near) }.filterValues { it != null }
+            assertEquals("$language", emptyMap<String, String?>(), replaced)
+        }
+    }
+
+    @Test
+    fun `a word typed without its accent is not offered as it was typed`() {
+        val found = Suggestions.forWord("acci", dictionary(Language.SPANISH), proximity(Language.SPANISH))
+        assertFalse(found.toString(), "accion" in found)
+    }
+
+    @Test
+    fun `a word typed without its accent is fixed when nobody has ever written it that way`() {
+        val expected = mapOf(
+            Language.GERMAN to mapOf("gefuhl" to "gefühl", "glucklich" to "glücklich", "fruher" to "früher"),
+            Language.PORTUGUESE to mapOf("coracao" to "coração", "situacao" to "situação"),
+        )
+        for ((language, pairs) in expected) {
+            val words = dictionary(language)
+            val near = proximity(language)
+            val wrong = pairs.filter { (typed, wanted) -> Suggestions.correction(typed, words, near) != wanted }
+                .mapValues { (typed, _) -> Suggestions.correction(typed, words, near) }
+            assertEquals("$language: $wrong", emptyMap<String, String?>(), wrong)
+        }
+    }
+
+    /** "acabo" is "I finish" and "acabó" is "it finished": both are words, so neither is changed into the other. */
+    @Test
+    fun `a word that is a word without its accent is only offered the accent`() {
+        val words = dictionary(Language.SPANISH)
+        val near = proximity(Language.SPANISH)
+        assertEquals(null, Suggestions.correction("acabo", words, near))
+        assertTrue(Suggestions.forWord("acabo", words, near).contains("acabó"))
+    }
+
+    @Test
+    fun `french and italian elisions are words`() {
+        val french = dictionary(Language.FRENCH)
+        assertTrue(Suggestions.known("l'homme", french))
+        assertTrue(Suggestions.known("qu'il", french))
+        assertFalse(Suggestions.known("l'hommz", french))
+        assertTrue(Suggestions.known("dell'anno", dictionary(Language.ITALIAN)))
+        // One-letter words after the apostrophe, which the lists do not hold on their own.
+        assertTrue(Suggestions.known("jusqu'à", french))
+        assertTrue(Suggestions.known("m'a", french))
+        assertTrue(Suggestions.known("qu'y", french))
+        val italian = dictionary(Language.ITALIAN)
+        for (word in listOf("com'è", "dov'è", "cos'è", "quest'è")) assertTrue(word, Suggestions.known(word, italian))
+    }
+
+    @Test
+    fun `german compounds are not taken apart`() {
+        val words = dictionary(Language.GERMAN)
+        val near = proximity(Language.GERMAN)
+        val fix = Suggestions.correction("hausboot", words, near, compounds = true)
+        assertTrue(fix, fix == null || ' ' !in fix)
+    }
+
+    @Test
+    fun `every language knows what starts a sentence and what follows its commonest words`() {
+        for (language in Language.entries) {
+            val next = NextWords.load(context, language)
+            assertTrue("${language.tag} has only ${next.size} words", next.size > 1_000)
+            assertEquals(language.tag, 3, Suggestions.predict(SENTENCE_START, next).size)
+            val words = dictionary(language)
+            val strangers = next.after(SENTENCE_START).filterNot { Suggestions.known(it.lowercase(), words) }
+            assertEquals(language.tag, emptyList<String>(), strangers)
+        }
+    }
+
+    @Test
+    fun `an elision with a one-letter word is not cut in half`() {
+        val french = dictionary(Language.FRENCH)
+        val near = proximity(Language.FRENCH)
+        for (typed in listOf("jusqu'à", "m'a")) assertEquals(typed, null, Suggestions.correction(typed, french, near))
+        val italian = dictionary(Language.ITALIAN)
+        for (typed in listOf("com'è", "dov'è", "cos'è", "quest'è")) {
+            assertEquals(typed, null, Suggestions.correction(typed, italian, proximity(Language.ITALIAN)))
+        }
     }
 }

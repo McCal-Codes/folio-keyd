@@ -24,6 +24,12 @@ enum class Size(val share: Float) { SMALL(0.86f), MEDIUM(1f), LARGE(1.14f) }
 enum class Split { AUTO, ALWAYS, NEVER }
 
 /**
+ * A narrower keyboard against one edge, for a thumb that can't reach across. Only on a window that would otherwise
+ * fill its width: a screen big enough to split or centre the keys has already solved the reach problem.
+ */
+enum class OneHanded { OFF, LEFT, RIGHT }
+
+/**
  * How the keys are drawn. [FOLIO] is rounded with a little depth, [MATERIAL] flat like Gboard, [SAMSUNG] squarer and
  * closer together. Only the shapes and colours change; where every key sits is the same in all three.
  */
@@ -31,6 +37,23 @@ enum class KeyStyle { FOLIO, MATERIAL, SAMSUNG }
 
 /** Light or dark. [SYSTEM] follows the phone, which is what almost everyone wants and nobody has to choose. */
 enum class Appearance { SYSTEM, DARK, LIGHT }
+
+/**
+ * How hard a key taps back. Every step is one of Android's own haptic effects, played through the view, so it needs
+ * no vibration permission and still follows the phone's own touch-feedback setting; [Haptics] says which is which.
+ */
+enum class Vibration { OFF, LIGHT, MEDIUM, STRONG }
+
+/**
+ * A button the toolbar can carry, besides Hide, which is always there and always first.
+ *
+ * Stored by name, in order, so a button added later cannot change what someone already arranged.
+ */
+enum class ToolKey(val kind: KeyKind) {
+    EMOJI(KeyKind.EMOJI), UNDO(KeyKind.UNDO), REDO(KeyKind.REDO), CURSOR_PAD(KeyKind.CURSOR_PAD),
+    SELECT_ALL(KeyKind.SELECT_ALL), CUT(KeyKind.CUT), COPY(KeyKind.COPY), PASTE(KeyKind.PASTE),
+    CLIPBOARD(KeyKind.CLIPBOARD), VOICE(KeyKind.VOICE),
+}
 
 data class Settings(
     /** The row above the keys that offers words. Off means no strip, and no autocorrect either. */
@@ -63,6 +86,7 @@ data class Settings(
     val swipeDownToHide: Boolean = true,
     val size: Size = Size.MEDIUM,
     val split: Split = Split.AUTO,
+    val oneHanded: OneHanded = OneHanded.OFF,
     val appearance: Appearance = Appearance.SYSTEM,
     /** Every key outlined and every label at full strength, for eyes the ordinary palette does not suit. */
     val highContrast: Boolean = false,
@@ -73,16 +97,30 @@ data class Settings(
     val clipboardHistory: Boolean = true,
     /** The click. Follows the phone's own touch-sound setting as well; this can only turn it further off. */
     val sound: Boolean = true,
-    /** The tap you feel. Follows the phone's own vibration setting as well. */
-    val vibrate: Boolean = true,
+    /** The tap you feel. Follows the phone's own vibration setting as well, so this can only make it quieter. */
+    val vibration: Vibration = Vibration.MEDIUM,
     /**
-     * The mic on the toolbar and at the end of the suggestion strip. It hands you to the phone's own voice keyboard,
-     * which is not Keyd and does use the Internet; with no voice keyboard on the phone the key is not drawn at all.
+     * No clicks while Bluetooth headphones or a speaker are connected. On by default: a click is for the person
+     * holding the phone, and in headphones it lands on top of whatever they were listening to.
      */
-    val voiceKey: Boolean = true,
-    /** The toolbar key that swaps the letters for arrows, word jumps and selection. */
-    val cursorPadKey: Boolean = true,
+    val muteWithBluetooth: Boolean = true,
+    /** A black board when dark is in effect, which an OLED screen draws by switching the pixels off. */
+    val pureBlack: Boolean = false,
+    /**
+     * The toolbar's buttons after Hide, in order, at most [MAX_TOOLS]. Voice is the mic on the toolbar and at the end
+     * of the suggestion strip; it hands you to the phone's own voice keyboard, which is not Keyd and does use the
+     * Internet, and with no voice keyboard on the phone it is not drawn at all.
+     */
+    val toolbar: List<ToolKey> = DEFAULT_TOOLBAR,
     val keyStyle: KeyStyle = KeyStyle.FOLIO,
+    /** After the same fix or undo three times, the strip asks once whether to make it permanent. */
+    val offerRules: Boolean = true,
+    /** A swipe up on Z, X, C, V and A undoes, cuts, copies, pastes or selects all, instead of typing a capital. */
+    val editSwipes: Boolean = true,
+    /** Slide sideways from shift to select, the way the space bar moves the cursor. A tap is still shift. */
+    val shiftSelect: Boolean = true,
+    /** With text selected, the toolbar counts it and offers styles. Never in a password field. */
+    val selectionTools: Boolean = true,
 ) {
 
     fun save(prefs: SharedPreferences) {
@@ -103,14 +141,25 @@ data class Settings(
             putBoolean(SWIPE_DOWN_HIDE, swipeDownToHide)
             putString(SIZE, size.name)
             putString(SPLIT, split.name)
+            putString(ONE_HANDED, oneHanded.name)
             putString(APPEARANCE, appearance.name)
             putBoolean(HIGH_CONTRAST, highContrast)
             putBoolean(CLIPBOARD, clipboardHistory)
             putBoolean(SOUND, sound)
-            putBoolean(VIBRATE, vibrate)
-            putBoolean(VOICE_KEY, voiceKey)
-            putBoolean(CURSOR_PAD_KEY, cursorPadKey)
+            putString(VIBRATION, vibration.name)
+            // The old switch goes once its answer has been carried over, so it can't disagree with the new one.
+            remove(VIBRATE)
+            putBoolean(MUTE_WITH_BLUETOOTH, muteWithBluetooth)
+            putBoolean(PURE_BLACK, pureBlack)
+            putString(TOOLBAR, toolbar.joinToString(",") { it.name })
+            // The two switches the list replaced go once their answers are in it, as the vibrate switch did.
+            remove(VOICE_KEY)
+            remove(CURSOR_PAD_KEY)
             putString(KEY_STYLE, keyStyle.name)
+            putBoolean(OFFER_RULES, offerRules)
+            putBoolean(EDIT_SWIPES, editSwipes)
+            putBoolean(SHIFT_SELECT, shiftSelect)
+            putBoolean(SELECTION_TOOLS, selectionTools)
         }.apply()
     }
 
@@ -131,14 +180,83 @@ data class Settings(
         const val SWIPE_DOWN_HIDE = "swipeDownHide"
         const val SIZE = "size"
         const val SPLIT = "split"
+        const val ONE_HANDED = "oneHanded"
         const val APPEARANCE = "appearance"
         const val HIGH_CONTRAST = "highContrast"
         const val CLIPBOARD = "clipboardHistory"
         const val SOUND = "sound"
+        /** Before there was a choice of strength, vibration was a switch. Read once, for anyone who set it then. */
         const val VIBRATE = "vibrate"
+        const val VIBRATION = "vibration"
+        const val MUTE_WITH_BLUETOOTH = "muteWithBluetooth"
+        const val PURE_BLACK = "pureBlack"
+        /** Before the toolbar could be arranged, the mic and the cursor pad key were switches. Read once, if set. */
         const val VOICE_KEY = "voiceKey"
         const val CURSOR_PAD_KEY = "cursorPadKey"
+        const val TOOLBAR = "toolbar"
         const val KEY_STYLE = "keyStyle"
+        const val OFFER_RULES = "offerRules"
+        const val EDIT_SWIPES = "editSwipes"
+        const val SHIFT_SELECT = "shiftSelect"
+        const val SELECTION_TOOLS = "selectionTools"
+
+        /** Buttons besides Hide. More than this and a narrow screen can't give each one a big enough target. */
+        const val MAX_TOOLS = 7
+
+        /** The toolbar someone gets without arranging it. */
+        val DEFAULT_TOOLBAR = listOf(
+            ToolKey.EMOJI, ToolKey.UNDO, ToolKey.CURSOR_PAD, ToolKey.COPY, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE,
+        )
+
+        /** What 0.2 showed after Hide, before the toolbar could be arranged and before Undo was on it. */
+        val TOOLBAR_BEFORE_UNDO = listOf(
+            ToolKey.EMOJI, ToolKey.CURSOR_PAD, ToolKey.COPY, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE,
+        )
+
+        /**
+         * Writes down the toolbar of someone who never arranged one, once, the first time Keyd runs without one.
+         *
+         * A fresh install gets the usual list, Undo and all. Someone coming from 0.2 keeps the six buttons they had:
+         * starting them from the new list added Undo, and on a 360 dp screen, where only seven fit beside Hide, that
+         * pushed the mic off the end. Anyone who changed a setting in 0.2 has its old switches stored, which says so
+         * by itself; [updated] covers someone who never did. Decided once and kept, so what counts as an update
+         * cannot change the toolbar under someone later.
+         */
+        fun settleToolbar(prefs: SharedPreferences, updated: Boolean) {
+            if (prefs.contains(TOOLBAR)) return
+            val list = toolbar(prefs, if (updated) TOOLBAR_BEFORE_UNDO else DEFAULT_TOOLBAR)
+            prefs.edit()
+                .putString(TOOLBAR, list.joinToString(",") { it.name })
+                .remove(VOICE_KEY)
+                .remove(CURSOR_PAD_KEY)
+                .apply()
+        }
+
+        /** Whether this install has been updated since it was first installed. False if Android will not say. */
+        fun updated(context: android.content.Context): Boolean = runCatching {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            info.lastUpdateTime > info.firstInstallTime
+        }.getOrDefault(false)
+
+        /** The stored list: names in order, anything unknown or repeated left out, and no more than [MAX_TOOLS]. */
+        fun parseToolbar(stored: String): List<ToolKey> =
+            stored.split(',').mapNotNull { name -> ToolKey.entries.firstOrNull { it.name == name.trim() } }
+                .distinct().take(MAX_TOOLS)
+
+        /**
+         * The toolbar, or what the two old switches said: the cursor pad key off put Select all in its place, which
+         * is where it went then, and the voice key off left the mic out. Anyone who never touched either gets the
+         * usual list.
+         */
+        private fun toolbar(prefs: SharedPreferences, fallback: List<ToolKey>): List<ToolKey> {
+            prefs.getString(TOOLBAR, null)?.let { return parseToolbar(it) }
+            fun old(key: String) = runCatching { prefs.getBoolean(key, true) }.getOrDefault(true)
+            // The old switches stored say this is 0.2's toolbar, which had no Undo.
+            val base = if (prefs.contains(VOICE_KEY) || prefs.contains(CURSOR_PAD_KEY)) TOOLBAR_BEFORE_UNDO else fallback
+            return base
+                .map { if (it == ToolKey.CURSOR_PAD && !old(CURSOR_PAD_KEY)) ToolKey.SELECT_ALL else it }
+                .filter { it != ToolKey.VOICE || old(VOICE_KEY) }
+        }
 
         fun load(prefs: SharedPreferences): Settings {
             val fallback = Settings()
@@ -160,14 +278,20 @@ data class Settings(
                 swipeDownToHide = read(SWIPE_DOWN_HIDE, fallback.swipeDownToHide),
                 size = choice(prefs, SIZE, fallback.size),
                 split = choice(prefs, SPLIT, fallback.split),
+                oneHanded = choice(prefs, ONE_HANDED, fallback.oneHanded),
                 appearance = choice(prefs, APPEARANCE, fallback.appearance),
                 highContrast = read(HIGH_CONTRAST, fallback.highContrast),
                 clipboardHistory = read(CLIPBOARD, fallback.clipboardHistory),
                 sound = read(SOUND, fallback.sound),
-                vibrate = read(VIBRATE, fallback.vibrate),
-                voiceKey = read(VOICE_KEY, fallback.voiceKey),
-                cursorPadKey = read(CURSOR_PAD_KEY, fallback.cursorPadKey),
+                vibration = vibration(prefs, fallback.vibration),
+                muteWithBluetooth = read(MUTE_WITH_BLUETOOTH, fallback.muteWithBluetooth),
+                pureBlack = read(PURE_BLACK, fallback.pureBlack),
+                toolbar = toolbar(prefs, fallback.toolbar),
                 keyStyle = choice(prefs, KEY_STYLE, fallback.keyStyle),
+                offerRules = read(OFFER_RULES, fallback.offerRules),
+                editSwipes = read(EDIT_SWIPES, fallback.editSwipes),
+                shiftSelect = read(SHIFT_SELECT, fallback.shiftSelect),
+                selectionTools = read(SELECTION_TOOLS, fallback.selectionTools),
             )
         }
 
@@ -180,8 +304,26 @@ data class Settings(
         private inline fun <reified T : Enum<T>> choice(prefs: SharedPreferences, key: String, fallback: T): T =
             runCatching { enumValueOf<T>(prefs.getString(key, null) ?: return fallback) }.getOrDefault(fallback)
 
-        /** Everything back to how it arrived. */
-        fun reset(prefs: SharedPreferences) = Settings().also { it.save(prefs) }
+        /**
+         * The strength, or what the old switch said: on was the tap every key made then, which is [Vibration.MEDIUM],
+         * and off stays off.
+         */
+        private fun vibration(prefs: SharedPreferences, fallback: Vibration): Vibration = when {
+            prefs.contains(VIBRATION) -> choice(prefs, VIBRATION, fallback)
+            prefs.contains(VIBRATE) ->
+                if (runCatching { prefs.getBoolean(VIBRATE, true) }.getOrDefault(true)) Vibration.MEDIUM else Vibration.OFF
+            else -> fallback
+        }
+
+        /**
+         * Everything back to how it arrived, per-app settings included: an app still set its own way after "every
+         * setting back to normal" would be a setting that wasn't. Which apps have been typed in is not a setting, so
+         * the list stays.
+         */
+        fun reset(prefs: SharedPreferences) = Settings().also {
+            it.save(prefs)
+            AppProfiles.load(prefs).apply { forgetChanges() }.save(prefs)
+        }
 
         /**
          * Turning the strip off turns autocorrect off with it.

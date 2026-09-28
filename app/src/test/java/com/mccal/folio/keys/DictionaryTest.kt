@@ -323,5 +323,56 @@ class DictionaryTest {
         assertEquals(2, gone)
         assertEquals(setOf("ghostlock", "keyd", "teh"), learned.all().toSet())
     }
-}
 
+    /** Found by measuring against thirty-odd abbreviations and brand names: every one of these used to be "fixed". */
+    @Test
+    fun `slang and abbreviations are left as typed`() {
+        val near = proximity()
+        val fixed = listOf("btw", "idk", "smh", "thx", "nvm", "ngl", "irl", "plz", "dms", "wifi", "bday", "covid")
+            .associateWith { Suggestions.correction(it, dictionary, near) }
+            .filterValues { it != null }
+        assertEquals(emptyMap<String, String?>(), fixed)
+    }
+
+    @Test
+    fun `a vowel missed or left out of a common word is still a slip`() {
+        val near = proximity()
+        assertEquals("bath", Suggestions.correction("bqth", dictionary, near))
+        assertEquals("back", Suggestions.correction("bck", dictionary, near))
+    }
+
+    @Test
+    fun `run-together words and scanning slips are not in the list`() {
+        for (junk in listOf("ofthe", "forthe", "ifyou", "couid", "iike", "ifl")) {
+            assertFalse(junk, dictionary.contains(junk))
+        }
+    }
+
+    @Test
+    fun `a possessive is not offered for a word typed without an apostrophe`() {
+        val near = proximity()
+        val found = Suggestions.forWord("wont", dictionary, near)
+        assertFalse(found.toString(), found.any { it.endsWith("'s") })
+        assertTrue(Suggestions.forWord("bib'", dictionary, near).any { it.endsWith("'s") })
+    }
+
+    @Test
+    fun `the strip never offers the same word twice in different case`() {
+        val near = proximity()
+        for (prefix in listOf("may", "bib", "doc")) {
+            val found = Suggestions.forWord(prefix, dictionary, near)
+            assertEquals(found.toString(), found.size, found.map { it.lowercase() }.toSet().size)
+        }
+    }
+
+    /** They used to become "thesis" and "tote". */
+    @Test
+    fun `a missed space between two common words is put back`() {
+        val near = proximity()
+        assertEquals("this is", Suggestions.correction("thisis", dictionary, near))
+        assertEquals("to the", Suggestions.correction("tothe", dictionary, near))
+        assertEquals("of the", Suggestions.forWord("ofthe", dictionary, near).first())
+        // A letter pressed twice is still the better reading.
+        assertEquals("also", Suggestions.correction("allso", dictionary, near))
+    }
+}

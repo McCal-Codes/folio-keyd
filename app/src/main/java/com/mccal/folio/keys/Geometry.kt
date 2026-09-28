@@ -70,6 +70,23 @@ object Geometry {
     const val SHARE = 0.46f
     const val MAX_HEIGHT_DP = 360f
 
+    const val ONE_HANDED_MAX_DP = 360f
+    const val ONE_HANDED_MIN_DP = 280f
+    const val RAIL_DP = 56f
+    const val RAIL_MIN_DP = 48f
+
+    /**
+     * How wide a one-handed keyboard is in a window [availableDp] across, or null when it does not fit.
+     *
+     * About a thumb's reach, and never so narrow the letters stop being letters. The rail beside it needs a
+     * fingertip of its own; a window too narrow for both gets the ordinary keyboard, which is already one-handed
+     * at that size.
+     */
+    fun oneHandedDp(availableDp: Float): Float? {
+        val keys = max(ONE_HANDED_MIN_DP, min(ONE_HANDED_MAX_DP, availableDp - RAIL_DP))
+        return if (availableDp - keys >= RAIL_MIN_DP) keys else null
+    }
+
     /** [maxRow] moves with the size someone chose; the floor never does, because it is what a finger needs. */
     fun rowHeight(
         cap: Float,
@@ -107,6 +124,8 @@ object Geometry {
          */
         evenKeys: Boolean = false,
         alignEnd: Boolean = false,
+        /** With [evenKeys]: a short row sits in the middle, the way the second row of a phone keyboard does. */
+        centre: Boolean = false,
     ): List<Placement> {
         if (rows.isEmpty() || width <= 0 || height <= 0) return emptyList()
         val gapX = GAP_X_DP * density
@@ -134,7 +153,12 @@ object Geometry {
             val otherUnit = if (tight && others > 0f) (usable - gapX * (row.size - 1) - shared * letters) / others else unit
             val spare = if (stretch || tight) 0f else usable - natural
             val spaces = row.count { it.kind == KeyKind.SPACE }
-            var x = left + if (spaces == 0 && alignEnd) spare else 0f
+            var x = left + when {
+                spaces > 0 -> 0f
+                alignEnd -> spare
+                centre -> spare / 2
+                else -> 0f
+            }
             for (key in row) {
                 var w = if (tight && key.kind != KeyKind.CHAR) otherUnit * key.weight else unit * key.weight
                 if (spaces > 0 && key.kind == KeyKind.SPACE) w += spare / spaces

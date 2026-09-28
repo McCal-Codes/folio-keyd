@@ -11,7 +11,31 @@ import android.view.inputmethod.EditorInfo
  */
 enum class KeyKind {
     CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, CLIPBOARD, EMOJI,
-    SUGGESTION, VOICE, CURSOR_PAD,
+    SUGGESTION, VOICE, CURSOR_PAD, UNDO, REDO, CUT,
+    /** The strip asking whether to keep a word or add a rule: the question, its Yes, and its No. */
+    OFFER, OFFER_YES, OFFER_NO,
+    /** The one-handed keyboard's rail: back to the full width, and over to the other edge. */
+    FULL_WIDTH, OTHER_SIDE,
+    /**
+     * The toolbar while text is selected: how much is selected (read, not pressed), the Style button, then the menu
+     * Style opens - one of its choices, and the note under them.
+     */
+    SELECTION, STYLE, STYLE_CHOICE, STYLE_NOTE,
+}
+
+/**
+ * What a swipe up on one of five letter keys does instead of typing its capital.
+ *
+ * The keys are the ones a desktop's Ctrl shortcuts sit on - Z, X, C, V and A - found by where they are rather than
+ * by what they say: the first four letters of the bottom row and the first of the home row. On AZERTY that is W X C V
+ * and Q, on QWERTZ Y X C V and A, which is where the fingers already go for Ctrl+Z on those keyboards.
+ */
+enum class EditSwipe(val label: String, val verb: String) {
+    UNDO("Undo", "undo"),
+    CUT("Cut", "cut"),
+    COPY("Copy", "copy"),
+    PASTE("Paste", "paste"),
+    SELECT_ALL("Select all", "select all"),
 }
 
 data class Key(
@@ -22,6 +46,8 @@ data class Key(
     val output: String = label,
     /** Printed small in the key's corner: the long-press alternate, the way AOSP and HeliBoard do it. */
     val hint: String? = null,
+    /** What a swipe up does on this key instead of its capital, for the five keys that have one. */
+    val edit: EditSwipe? = null,
 )
 
 typealias Row = List<Key>
@@ -42,9 +68,19 @@ data class FieldRules(
     /** The app asked for nothing to be remembered from this field (IME_FLAG_NO_PERSONALIZED_LEARNING). */
     val noLearning: Boolean = false,
     val multiline: Boolean = false,
+    /** The app asked for no suggestions (TYPE_TEXT_FLAG_NO_SUGGESTIONS): a code editor, a filter, a one-time code. */
+    val noSuggestions: Boolean = false,
+    /** The app asked for return to be a plain Enter, never its editor action (IME_FLAG_NO_ENTER_ACTION). */
+    val plainEnter: Boolean = false,
 ) {
     /** True when nothing typed here may be kept, whatever the user's own settings say. */
     val ephemeral: Boolean get() = password || noLearning
+
+    /**
+     * An address, not prose: a web address or an email. "keyd.dev" is not a sentence with a typo in it, so nothing
+     * is corrected, underlined or learned here, and two spaces never become a period.
+     */
+    val address: Boolean get() = kind == FieldKind.URL || kind == FieldKind.EMAIL
 }
 
 /**
@@ -103,13 +139,26 @@ object Layouts {
                 // The digit in the corner belongs to the position on the top row, not to the letter: on AZERTY
                 // the first key is "a" and still gives 1, because that is where 1 is.
                 val hint = if (letters && index == 0) CORNER_DIGITS.getOrNull(position) else null
-                Key(shown.toString(), hint = hint?.toString())
+                val edit = if (letters) editAt(index, position, source.lastIndex) else null
+                Key(shown.toString(), hint = hint?.toString(), edit = edit)
             }
             if (index < source.lastIndex) keys else bottomOfLetters(keys, layer)
         }
         val top = if (numberRow && letters) listOf(DIGITS) else emptyList()
         return top + rows + listOf(spaceRow(layer, rules))
     }
+
+    /**
+     * The swipe-up edit for the letter at [position] in row [index], by place rather than by letter: the home row's
+     * first key selects all, and the bottom row's first four undo, cut, copy and paste. See [EditSwipe].
+     */
+    private fun editAt(index: Int, position: Int, lastRow: Int): EditSwipe? = when (index) {
+        1 -> if (position == 0) EditSwipe.SELECT_ALL else null
+        lastRow -> BOTTOM_EDITS.getOrNull(position)
+        else -> null
+    }
+
+    private val BOTTOM_EDITS = listOf(EditSwipe.UNDO, EditSwipe.CUT, EditSwipe.COPY, EditSwipe.PASTE)
 
     /** The third row carries shift and backspace at its ends, wider than a letter so they're easy to hit. */
     private fun bottomOfLetters(keys: List<Key>, layer: Layer): Row {
@@ -150,6 +199,24 @@ object Layouts {
             listOf(Key("space", KeyKind.SPACE, weight = 4.2f, output = " ")) +
             extras.drop(1) + tail + Key(rules.actionLabel, KeyKind.ACTION, weight = 1.5f)
     }
+
+    /**
+     * The letters under the emoji search: the language's own rows, then back to the emoji, space and backspace.
+     *
+     * No shift, because search ignores case, and no digits in the corners, because nothing in the emoji names is
+     * found by a digit worth a long press. Backspace moves to the bottom row so the third row is only letters.
+     */
+    fun searchRows(language: Language): List<Row> =
+        language.rows.map { line -> line.map { Key(it.toString()) } } + listOf(
+            listOf(
+                Key(BACK_TO_EMOJI, KeyKind.EMOJI, weight = 1.5f),
+                Key("space", KeyKind.SPACE, weight = 5f, output = " "),
+                Key("⌫", KeyKind.BACKSPACE, weight = 1.5f),
+            ),
+        )
+
+    /** What the emoji key under the search letters is called, and what TalkBack reads for it. */
+    const val BACK_TO_EMOJI = "Back to emoji"
 
     /** A number field has no letters to offer, so the pad carries no key that would do nothing if pressed. */
     private fun numberPad(rules: FieldRules): List<Row> = listOf(
@@ -224,12 +291,19 @@ object Layouts {
             else -> FieldKind.TEXT
         }
         val multiline = klass == InputType.TYPE_CLASS_TEXT && inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
+        val plainEnter = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
         return FieldRules(
             kind = kind,
-            actionLabel = actionLabel?.takeIf { it.isNotBlank() } ?: actionFor(imeOptions, multiline),
+            // A key that sends Enter says return, whatever action the app also named: "Search" on a key that does
+            // not search is a promise the key cannot keep.
+            actionLabel = if (plainEnter) "return"
+                else actionLabel?.takeIf { it.isNotBlank() } ?: actionFor(imeOptions, multiline),
             password = password,
             noLearning = imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0,
             multiline = multiline,
+            noSuggestions = klass == InputType.TYPE_CLASS_TEXT &&
+                inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS != 0,
+            plainEnter = plainEnter,
         )
     }
 

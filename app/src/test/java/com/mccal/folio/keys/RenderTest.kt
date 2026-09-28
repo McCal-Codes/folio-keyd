@@ -96,6 +96,59 @@ class RenderTest {
         renderEmoji("emoji-empty-recents-dark", 411, 891, night = true, category = 0)
     }
 
+    /** The emoji search, with [query] typed on its own letters. */
+    private fun renderEmojiSearch(name: String, widthDp: Int, heightDp: Int, night: Boolean, query: String) {
+        val side = if (widthDp > heightDp) "-land" else ""
+        org.robolectric.RuntimeEnvironment.setQualifiers(
+            "w${widthDp}dp-h${heightDp}dp$side-" + (if (night) "night" else "notnight") + "-xhdpi",
+        )
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val panel = EmojiSearchPanel(context)
+        panel.search = EmojiSearch.load(context, Language.ENGLISH)
+        panel.opened(Settings(), Language.ENGLISH)
+        val density = context.resources.displayMetrics.density
+        panel.measure(
+            View.MeasureSpec.makeMeasureSpec((widthDp * density).toInt(), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        panel.layout(0, 0, panel.measuredWidth, panel.measuredHeight)
+        query.forEach { panel.keys.listener?.onText(it.toString()) }
+        val bitmap = Bitmap.createBitmap(panel.measuredWidth, panel.measuredHeight, Bitmap.Config.ARGB_8888)
+        Canvas(bitmap).also { canvas ->
+            canvas.drawColor(if (night) 0xFF101014.toInt() else 0xFFF2F2F7.toInt())
+            panel.draw(canvas)
+        }
+        val out = File("build/renders").apply { mkdirs() }.resolve("$name.png")
+        out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        println("rendered $name -> ${out.absolutePath}")
+    }
+
+    @Test
+    fun `the emoji search, as a phone would draw it`() {
+        renderEmojiSearch("emoji-search-empty-dark", 411, 891, night = true, query = "")
+        renderEmojiSearch("emoji-search-heart-dark", 411, 891, night = true, query = "heart")
+        renderEmojiSearch("emoji-search-heart-light", 411, 891, night = false, query = "heart")
+        renderEmojiSearch("emoji-search-nothing-dark", 411, 891, night = true, query = "qxqx")
+        renderEmojiSearch("emoji-search-cover-dark", 280, 640, night = true, query = "cat")
+        renderEmojiSearch("emoji-search-fold-dark", 932, 704, night = true, query = "face")
+    }
+
+    @Test
+    fun `the one-handed keyboard, as a phone would draw it`() {
+        render("one-handed-left-dark", 411, 891, night = true) {
+            it.settings = Settings(oneHanded = OneHanded.LEFT)
+            letters(it)
+        }
+        render("one-handed-right-light", 411, 891, night = false) {
+            it.settings = Settings(oneHanded = OneHanded.RIGHT)
+            letters(it)
+        }
+        render("one-handed-cover-dark", 475, 751, night = true) {
+            it.settings = Settings(oneHanded = OneHanded.RIGHT)
+            letters(it)
+        }
+    }
+
     @Test
     fun `the keyboard, as a phone would draw it`() {
         render("phone-dark", 411, 891, night = true) { letters(it) }

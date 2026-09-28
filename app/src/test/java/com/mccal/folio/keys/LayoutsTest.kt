@@ -171,4 +171,14 @@ class LayoutsTest {
             )
         }
     }
+
+    @Test
+    fun `a field that wants a plain Enter gets a key that says return`() {
+        val search = Layouts.rules(
+            InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_ENTER_ACTION, "Find",
+        )
+        assertTrue(search.plainEnter)
+        assertEquals("return", search.actionLabel)
+        assertEquals("Search", Layouts.rules(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH).actionLabel)
+    }
 }
