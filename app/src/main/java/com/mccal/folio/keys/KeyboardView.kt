@@ -907,7 +907,7 @@ class KeyboardView(context: Context) : View(context) {
         if (repeatingFor === press) stopRepeat()
         invalidate()
         if (press.swiping || press.handled) return false
-        if (takenBack(press.origin.key.kind) && keyAt(x, y) !== press.origin) return false
+        if (takenBack(press.origin.key.kind) && slidOff(press.origin, x, y)) return false
         dispatch(press.placement.key)
         return true
     }
@@ -925,6 +925,20 @@ class KeyboardView(context: Context) : View(context) {
      * key on the keyboard feel like it needed aiming at. Space and backspace now commit wherever the finger lifts,
      * the same as a letter does.
      */
+    /**
+     * Whether a finger that went down on [origin] and lifted at (x, y) meant to take the press back.
+     *
+     * Only two things count: ending on a different key, or sliding up off the keys toward the app, which is the
+     * escape route. Rolling off the bottom or the side does not. Return sits in the bottom corner, and a thumb that
+     * lifted a few millimetres past the panel's edge used to cancel the press, so Search and Go sometimes did nothing.
+     */
+    private fun slidOff(origin: Placement, x: Float, y: Float): Boolean {
+        val over = keyAt(x, y)
+        if (over != null) return over !== origin
+        val keysTop = placedKeys.minOfOrNull { it.box.top } ?: return true
+        return y < keysTop
+    }
+
     private fun takenBack(kind: KeyKind) = when (kind) {
         KeyKind.CHAR, KeyKind.SPACE, KeyKind.BACKSPACE -> false
         else -> true

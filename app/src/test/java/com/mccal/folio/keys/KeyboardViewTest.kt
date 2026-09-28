@@ -918,4 +918,38 @@ class KeyboardViewTest {
         val description = provider.createAccessibilityNodeInfo(backspace)?.contentDescription.toString()
         assertTrue("backspace reads as $description", description.startsWith("Backspace"))
     }
+
+    // ---- the return key and a rolling thumb ---------------------------------------------------------------------
+
+    private fun returnKey() = view.placements.single { it.key.kind == KeyKind.ACTION }.box
+
+    /** Return is in the bottom corner, and a thumb that lifts just past the panel's edge still meant to press it. */
+    @Test
+    fun `lifting past the bottom corner still presses return`() {
+        val box = returnKey()
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_UP, box.right + 30 * density, box.bottom + 30 * density)
+        assertEquals(1, actions)
+    }
+
+    @Test
+    fun `sliding onto another key takes return back`() {
+        val box = returnKey()
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        val (x, y) = centre("m")
+        send(MotionEvent.ACTION_MOVE, x, y)
+        send(MotionEvent.ACTION_UP, x, y)
+        assertEquals(0, actions)
+    }
+
+    /** Up and off the keys, toward the app, is the escape route, and it still works. */
+    @Test
+    fun `sliding up off the keyboard takes return back`() {
+        val box = returnKey()
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_MOVE, box.left, -200 * density)
+        send(MotionEvent.ACTION_UP, box.left, -200 * density)
+        assertEquals(0, actions)
+    }
 }
+

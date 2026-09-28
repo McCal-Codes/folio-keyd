@@ -121,7 +121,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     private fun wordChanged() =
-        ime.suggest(if (rules.password || !settings.suggestions) "" else word.toString())
+        ime.suggest(if (rules.password || rules.noSuggestions || !settings.suggestions) "" else word.toString())
 
     /**
      * Two spaces in a row become a full stop and a space.
@@ -131,7 +131,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * gives two spaces - which is what someone doing it deliberately wanted.
      */
     private fun doubleSpace(text: String): Boolean {
-        if (!settings.doubleSpaceFullStop || text != " " || !lastWasSpace) return false
+        if (!settings.doubleSpaceFullStop || text != " " || !lastWasSpace || rules.address) return false
         val connection = ime.connection ?: return false
         val before = connection.getTextBeforeCursor(2, 0)?.toString() ?: return false
         if (before.length != 2 || before[1] != ' ' || !before[0].isLetterOrDigit()) return false
@@ -155,11 +155,14 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val done = word.toString()
         word.setLength(0)
         if (done.isEmpty()) return
-        if (settings.learn && !rules.ephemeral) ime.learn(done)
+        if (settings.learn && !rules.ephemeral && !rules.address) ime.learn(done)
         // Only this word's verdict counts. A slower answer about the word before it is thrown away here rather
         // than applied to whatever happens to be under the cursor now.
         val answer = verdict?.takeIf { it.word == done }
         verdict = null
+        // An address is left exactly as typed: "keyd.dev" ends the word "keyd" at the period, and a keyboard that
+        // "fixed" it would be typing somewhere else.
+        if (rules.address) return
         when {
             Settings.correcting(settings) && answer?.correction != null -> autocorrect(done, answer.correction)
             settings.spellCheck && answer?.misspelled == true -> underline(done, answer.suggestions)
@@ -329,8 +332,12 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         wordChanged()
         when {
             rules.multiline -> connection.commitText("\n", 1)
+            // The app asked for Enter itself: some search boxes and web forms listen for the key, not the action.
+            rules.plainEnter -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
             action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED ->
-                connection.performEditorAction(action)
+                // An app that doesn't handle its own action (it returns false) still gets Enter, which is what a
+                // hardware keyboard would send, rather than a Search key that silently does nothing.
+                if (!connection.performEditorAction(action)) sendKey(connection, KeyEvent.KEYCODE_ENTER)
             else -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
         }
     }
