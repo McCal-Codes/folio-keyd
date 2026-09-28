@@ -45,6 +45,18 @@ class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
         return true
     }
 
+    /**
+     * Drops the words [slip] says were typos, unless they were typed often enough to mean it. Returns how many went.
+     *
+     * For words learned before a rule got stricter: without this they would sit in the strip for as long as the
+     * install lasts, which is the one thing the rules exist to prevent.
+     */
+    fun prune(slip: (String) -> Boolean): Int {
+        val gone = words.entries.filter { it.value < MEANT_IT && slip(it.key) }.map { it.key }
+        gone.forEach { words.remove(it) }
+        return gone.size
+    }
+
     /** Emptied, for the tap that says "forget what you have learned about me". */
     fun clear() = words.clear()
 
@@ -70,6 +82,9 @@ class Learned(private val words: MutableMap<String, Int> = LinkedHashMap()) {
         /** Enough for how anyone writes, small enough to read and scan on every keystroke. */
         const val LIMIT = 1200
         const val MAX_COUNT = 60
+
+        /** Typed this many times, a "typo" is how someone spells it, and pruning leaves it alone. */
+        const val MEANT_IT = 3
 
         /** Scores sit on the same scale the dictionary uses: 0 is the commonest word in the language. */
         const val FIRST_SIGHTING = 34
