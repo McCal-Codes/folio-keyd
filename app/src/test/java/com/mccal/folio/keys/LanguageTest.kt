@@ -288,4 +288,16 @@ class LanguageTest {
         val fix = Suggestions.correction("hausboot", words, near, compounds = true)
         assertTrue(fix, fix == null || ' ' !in fix)
     }
+
+    @Test
+    fun `every language knows what starts a sentence and what follows its commonest words`() {
+        for (language in Language.entries) {
+            val next = NextWords.load(context, language)
+            assertTrue("${language.tag} has only ${next.size} words", next.size > 1_000)
+            assertEquals(language.tag, 3, Suggestions.predict(SENTENCE_START, next).size)
+            val words = dictionary(language)
+            val strangers = next.after(SENTENCE_START).filterNot { Suggestions.known(it.lowercase(), words) }
+            assertEquals(language.tag, emptyList<String>(), strangers)
+        }
+    }
 }

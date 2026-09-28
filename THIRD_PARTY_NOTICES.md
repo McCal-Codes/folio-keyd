@@ -18,6 +18,18 @@ removed), merged with SCOWL for English, and re-ranked onto a 0-99 commonness sc
 `app/src/main/assets/` are shared under the same license, CC BY-SA 4.0. That covers the word list data only: Keyd's
 code stays under the MIT License.
 
+## Tatoeba: next-word lists
+
+The lists of which words usually follow which, in `app/src/main/assets/next-*.txt`, are counted from the example
+sentences of [Tatoeba](https://tatoeba.org), whose contributors release them under
+[Creative Commons Attribution 2.0 France (CC BY 2.0 FR)](https://creativecommons.org/licenses/by/2.0/fr/).
+
+Built by `scripts/bigrams.py` from Tatoeba's per-language sentence exports of 2026-09-26
+(`https://downloads.tatoeba.org/exports/per_language/<code>/<code>_sentences.tsv.bz2` for eng, deu, spa, fra, ita
+and por; the script pins each file's SHA-256). The sentences themselves are not shipped: only word pairs counted from
+nine in ten of them, kept to about twenty thousand per language, and limited to words in Keyd's own word lists. The
+changes made are exactly that counting and cutting, done by the script.
+
 ## Unicode CLDR: emoji names and search keywords
 
 Emoji names and search keywords from Unicode CLDR 48.2. Copyright © 1991-2026 Unicode, Inc. Licensed under the

@@ -230,4 +230,22 @@ class SuggestionsTest {
         val english = Contractions.of(Language.ENGLISH)
         assertEquals(null, Suggestions.correction("dont", withBareForms, proximity, learned, english))
     }
+
+    // ---- the word before ------------------------------------------------------------------------------------------
+
+    private val following = NextWords.read("i\twant was think\n.\tthe i\n".byteInputStream())
+
+    @Test
+    fun `after a space the strip offers what usually comes next`() {
+        assertEquals(listOf("want", "was", "think"), Suggestions.predict("i", following))
+        assertEquals(listOf("The", "I"), Suggestions.predict(SENTENCE_START, following, Shift.ONCE))
+        assertEquals(emptyList<String>(), Suggestions.predict("keyboard", following))
+        assertEquals(emptyList<String>(), Suggestions.predict("i", null))
+    }
+
+    @Test
+    fun `the word before decides between two equally close words`() {
+        val close = Small(listOf("want" to 20, "wait" to 20, "went" to 20))
+        assertEquals("want", Suggestions.forWord("wsnt", close, proximity, previous = "i", next = following).first())
+    }
 }

@@ -67,6 +67,7 @@ class KeysService : InputMethodService(), Ime {
     private val background by lazy { Handler(thinking.looper) }
     private val main = Handler(Looper.getMainLooper())
     private var dictionary: Dictionary? = null
+    private var nextWords: NextWords? = null
     private var loadedFor: Language? = null
     private var learned: Learned? = null
     private var shortcuts: Shortcuts? = null
@@ -152,6 +153,10 @@ class KeysService : InputMethodService(), Ime {
         DevLog.event(this, "dictionary", "ms" to android.os.SystemClock.elapsedRealtime() - started,
             "loaded" to if (dictionary != null) 1 else 0)
         loadedFor = if (dictionary != null) language else null
+        // Small beside the dictionary, and without it the strip is only empty after a space, so a failure is logged
+        // and nothing more.
+        nextWords = runCatching { NextWords.load(this, language) }
+            .onFailure { DevLog.error(this, "NextWords.load", it) }.getOrNull()
         // Which keys are where has changed, so what counts as a near miss has changed with it.
         proximity = null
         proximityFor = null
@@ -201,6 +206,25 @@ class KeysService : InputMethodService(), Ime {
     override fun suggest(word: String, previous: String) {
         background.removeCallbacksAndMessages(suggesting)
         val mine = ++asked
+        // Nothing typed yet, straight after a word: what might come next. Not while the strip has a question
+        // waiting, which only ever gets asked in a gap like this one.
+        if (word.isEmpty() && previous.isNotEmpty() && keyboard?.offer == null) {
+            actions.offered(Verdict(word, null, misspelled = false))
+            val shift = actions.shift
+            background.postDelayed(
+                {
+                    val found = runCatching { Suggestions.predict(previous, nextWords, shift) }.getOrDefault(emptyList())
+                    main.post {
+                        if (mine != asked) return@post
+                        keyboard?.typedFirst = false
+                        keyboard?.suggestions = found
+                    }
+                },
+                suggesting,
+                THINK_MS,
+            )
+            return
+        }
         if (word.length < 2) {
             actions.offered(Verdict(word, null, misspelled = false))
             keyboard?.suggestions = emptyList()
@@ -220,11 +244,12 @@ class KeysService : InputMethodService(), Ime {
                     proximityFor = keys
                 }
                 val found = runCatching {
-                    Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions)
+                    Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions, previous, nextWords)
                 }.getOrDefault(emptyList())
                 val fix = runCatching {
                     Suggestions.correction(
-                        word, words, proximity, learned, contractions, previous, compounds = language == Language.GERMAN,
+                        word, words, proximity, learned, contractions, previous,
+                        compounds = language == Language.GERMAN, next = nextWords,
                     )
                 }.getOrNull()
                 // "Never heard of it" is a different question from "here is what you probably meant", and a word
@@ -245,6 +270,7 @@ class KeysService : InputMethodService(), Ime {
                     // after a fast one for "teh" and the strip shows the wrong thing.
                     if (mine != asked) return@post
                     actions.offered(Verdict(word, fix, misspelled = unknown, suggestions = found))
+                    keyboard?.typedFirst = true
                     keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
                 }
             },

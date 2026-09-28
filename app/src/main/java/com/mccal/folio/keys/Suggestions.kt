@@ -88,6 +88,8 @@ object Suggestions {
         learned: Learned? = null,
         shortcuts: Shortcuts? = null,
         contractions: Contractions.Table? = null,
+        previous: String = "",
+        next: NextWords? = null,
     ): List<String> {
         if (typed.isEmpty()) return emptyList()
         val lower = typed.lowercase()
@@ -145,6 +147,11 @@ object Suggestions {
             }
         }
 
+        // The word before says which of these is likelier: after "I", "want" rather than "wait".
+        if (next != null && previous.isNotEmpty()) {
+            for (entry in scored.entries) entry.setValue(entry.value - context(next, previous, entry.key))
+        }
+
         // "dont" and "youre" are in the word list only because subtitles lost their apostrophes. With the table
         // there to put them back, the bare forms are never worth offering.
         if (contractions != null) scored.keys.removeAll { contractions.sure.containsKey(it.lowercase()) }
@@ -197,6 +204,7 @@ object Suggestions {
         contractions: Contractions.Table? = null,
         previous: String = "",
         compounds: Boolean = false,
+        next: NextWords? = null,
     ): String? {
         val lower = typed.lowercase()
         // Something kept on purpose is never argued with, apostrophe or not.
@@ -229,8 +237,10 @@ object Suggestions {
                     if (!possessive && isPossessive(candidate)) continue
                     val edits = cost(lower, candidate.lowercase(), 1, proximity)
                     if (edits > SCALE) continue
-                    // How likely the slip was comes first; how common the word is only settles the rest.
-                    val cost = edits * 100 + words.rank(index)
+                    // How likely the slip was comes first; how common the word is, and how often it follows the word
+                    // before, only settle the rest.
+                    val cost = edits * 100 + words.rank(index) -
+                        (if (next != null && previous.isNotEmpty()) context(next, previous, candidate) else 0)
                     if (cost < bestCost) {
                         runnerUp = bestCost
                         bestCost = cost
@@ -308,6 +318,32 @@ object Suggestions {
         }
         if (found == null || runnerUp - foundRank < MARGIN) return null
         return matchCase(typed, found)
+    }
+
+    /**
+     * What might come next, after a space: the words that most often follow [previous], in the case [shift] asks
+     * for. Empty when nothing is known about the word before.
+     */
+    fun predict(previous: String, next: NextWords?, shift: Shift = Shift.OFF): List<String> {
+        if (next == null || previous.isEmpty()) return emptyList()
+        return next.after(previous).take(LIMIT).map {
+            when (shift) {
+                Shift.OFF -> it
+                Shift.ONCE -> it.replaceFirstChar { first -> first.uppercaseChar() }
+                Shift.LOCKED -> it.uppercase()
+            }
+        }
+    }
+
+    /**
+     * How much likelier the word before makes [word]: nothing if it is not among what follows [previous], most for
+     * the commonest follower. Less than any one mistyped letter is worth - a neighbouring key costs 75 in the strip
+     * and 300 when correcting - so it chooses between words about as close to what was typed, and never makes a
+     * worse match into a better one.
+     */
+    private fun context(next: NextWords, previous: String, word: String): Int {
+        val place = next.place(previous, word) ?: return 0
+        return CONTEXT_BONUS - place
     }
 
     /** Two words where one was typed, and whether that is the only way to read it. */
@@ -562,6 +598,12 @@ object Suggestions {
 
     /** A word with none of these has no vowel to have mistyped, and is an abbreviation rather than a slip. */
     private const val VOWELS = "aeiouyàáâäãåèéêëìíîïòóôöõùúûüýÿœæ"
+
+    /**
+     * What following the word before is worth to the commonest follower; each place further down is worth one less.
+     * Set by measuring on sentences the lists were not built from: 16 moved little, and past 40 nothing improved.
+     */
+    private const val CONTEXT_BONUS = 40
 
     /** How much better the best candidate must be than the next one before it is worth acting on alone. */
     private const val MARGIN = 6

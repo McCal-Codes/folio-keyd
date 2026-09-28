@@ -10,9 +10,6 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.min
 
-/** What the word before is, at the start of a sentence: a full stop, since that is what usually put it there. */
-const val SENTENCE_START = "."
-
 /** What ends a sentence, as far as guessing its next word goes. */
 private val SENTENCE_ENDS = setOf('.', '!', '?', '\n')
 
@@ -141,6 +138,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     private var previous = ""
 
+    /**
+     * Whether the cursor is where a new word would begin: after a space, a new line, a taken suggestion, or at the
+     * start of a field. Only there does the strip offer what comes next - straight after a full stop, a tapped
+     * word would land with no space before it.
+     */
+    private var wordStart = false
+
     /** Everything the suggestion thread worked out about the word being typed. Null until it has. */
     private var verdict: Verdict? = null
 
@@ -168,7 +172,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     private fun wordChanged() {
         val quiet = rules.password || rules.noSuggestions || !settings.suggestions
-        ime.suggest(if (quiet) "" else word.toString(), if (quiet || rules.address) "" else previous)
+        val context = if (quiet || rules.address || (word.isEmpty() && !wordStart)) "" else previous
+        ime.suggest(if (quiet) "" else word.toString(), context)
     }
 
     /**
@@ -189,6 +194,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.endBatchEdit()
         lastWasSpace = false
         previous = SENTENCE_START
+        wordStart = true
         word.setLength(0)
         wordChanged()
         return true
@@ -254,7 +260,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         // The cursor went somewhere else: what is typed next is not the word after the correction.
         standing = null
         previous = ""
-        if (word.isEmpty()) return
+        wordStart = false
+        // Asked again even with no word, so a prediction for where the cursor used to be does not stay on screen.
         word.setLength(0)
         wordChanged()
     }
@@ -267,6 +274,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         shift = if (settings.autoCapitalise && capitals) Shift.ONCE else Shift.OFF
         // The field says whether the cursor is at the start of a sentence; that is all that is known about before it.
         previous = if (capitals) SENTENCE_START else ""
+        wordStart = capitals
         word.setLength(0)
         standing = null
         wordChanged()
@@ -303,6 +311,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
                 else -> ""
             }
         }
+        wordStart = text.lastOrNull()?.isWhitespace() == true
         lastWasSpace = text == " "
         wordChanged()
         if (shift == Shift.ONCE) {
@@ -358,11 +367,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
                 if (standing != null) ime.putBack(typed)
                 standing = null
                 previous = typed.lowercase()
+                wordStart = replaced.last().isWhitespace()
                 wordChanged()
                 return
             }
         }
         standing = null
+        wordStart = false
         // Deleting back into the text before: the word before is no longer the one that was finished.
         if (word.isEmpty()) previous = ""
         // Asking for the selection is a blocking call into the app. Worth it once, to delete a selection whole.
@@ -381,6 +392,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onBackspaceRepeat() {
         ime.connection?.deleteSurroundingText(1, 0) ?: return
         if (word.isNotEmpty()) word.setLength(word.length - 1) else previous = ""
+        wordStart = false
         wordChanged()
     }
 
@@ -414,6 +426,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         finished()
         // A new line, or a message sent: either way what comes next starts a sentence.
         previous = SENTENCE_START
+        wordStart = true
         wordChanged()
         when {
             rules.multiline -> connection.commitText("\n", 1)
@@ -445,7 +458,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         undo = null
         val connection = ime.connection ?: return
         val typed = word.toString()
-        if (typed.isEmpty()) return
+        if (typed.isEmpty()) {
+            if (wordStart) predicted(connection, chosen)
+            return
+        }
         // Checked before deleting, because this deletes by count. The word is tracked as it is typed, and if the
         // app has changed the text underneath us - a formatter, an autofill, a paste we did not see - that count
         // would take a bite out of something the person wrote. One call, on a tap, to never do that.
@@ -460,7 +476,29 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.commitText("$chosen ", 1)
         connection.endBatchEdit()
         previous = chosen.substringAfterLast(' ').lowercase()
+        lastWasSpace = false
+        wordStart = true
         word.setLength(0)
+        wordChanged()
+    }
+
+    /**
+     * A word the strip predicted, taken after a space: it goes in with a space after it, as a typed word would.
+     *
+     * The same as typing its first letter as far as everything else is concerned - a correction before it has
+     * stood, and a capital waiting for one letter has been used.
+     */
+    private fun predicted(connection: InputConnection, chosen: String) {
+        standing?.let { (typed, replacement) -> ime.fixStood(typed, replacement) }
+        standing = null
+        connection.commitText("$chosen ", 1)
+        previous = chosen.substringAfterLast(' ').lowercase()
+        lastWasSpace = false
+        wordStart = true
+        if (shift == Shift.ONCE) {
+            shift = Shift.OFF
+            refresh()
+        }
         wordChanged()
     }
 
