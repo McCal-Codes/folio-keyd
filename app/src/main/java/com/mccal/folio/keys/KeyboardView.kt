@@ -114,6 +114,17 @@ class KeyboardView(context: Context) : View(context) {
         }
 
     /**
+     * Whether the first of [suggestions] is what was typed, drawn quieter than the rest. After a space there is
+     * nothing typed, and the strip holds what might come next, all of them alike.
+     */
+    var typedFirst = true
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidate()
+        }
+
+    /**
      * A question for the strip: keep a word it keeps putting back, or make a fix it keeps making into a rule.
      *
      * It waits for a gap. While a word is being typed the strip is showing words, so the question sits behind them
@@ -911,7 +922,7 @@ class KeyboardView(context: Context) : View(context) {
             if (placement.key.kind == KeyKind.SUGGESTION) {
                 // The first is what was actually typed, and is drawn quieter than the alternatives so the eye goes
                 // to what is being offered rather than to what it already knows it wrote.
-                val literal = placement === tools.first()
+                val literal = typedFirst && placement === tools.first()
                 text.textSize = min(box.height * 0.40f, 17 * dp)
                 sizedAt = -1f
                 text.color = if (literal) theme.hint else theme.label

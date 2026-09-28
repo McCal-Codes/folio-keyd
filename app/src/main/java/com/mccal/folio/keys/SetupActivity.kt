@@ -104,7 +104,7 @@ class SetupActivity : Activity() {
         body(getString(R.string.setup_learning))
         forget = button(getString(R.string.setup_forget_none)) {
             // The fix counts go too: they are words typed on this phone as much as the learned ones are.
-            getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).remove(INSIGHTS).apply()
+            getSharedPreferences("keys", MODE_PRIVATE).edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).apply()
             forget.text = getString(R.string.setup_forgot)
             forget.isEnabled = false
         }
@@ -148,5 +148,6 @@ class SetupActivity : Activity() {
         /** The same place the service keeps them. */
         const val LEARNED = "learnedWords"
         const val INSIGHTS = "typingInsights"
+        const val SEEN = "seenWords"
     }
 }

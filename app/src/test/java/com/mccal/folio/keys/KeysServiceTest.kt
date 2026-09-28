@@ -8,6 +8,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -76,8 +77,20 @@ class KeysServiceTest {
             suggestedFor += word
         }
 
+        val previousFor = mutableListOf<String>()
+        override fun suggest(word: String, previous: String) {
+            previousFor += previous
+            suggest(word)
+        }
+
         override fun learn(word: String) {
             taught += word
+        }
+
+        val corrections = mutableListOf<Boolean>()
+        override fun learn(word: String, corrected: Boolean) {
+            corrections += corrected
+            learn(word)
         }
 
         val stood = mutableListOf<Pair<String, String>>()
@@ -308,6 +321,86 @@ class KeysServiceTest {
         actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("well the ", text)
+    }
+
+    @Test
+    fun `a word that was corrected is marked so, and one left alone is not`() {
+        type("teh")
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type(" wifi ")
+        assertEquals(listOf(true, false), ime.corrections)
+    }
+
+    @Test
+    fun `i on its own becomes I`() {
+        type("so i")
+        type(" ")
+        assertEquals("so I ", text)
+    }
+
+    @Test
+    fun `i as a numeral is left alone`() {
+        type("part i: ")
+        type("i) ")
+        type("i. ")
+        assertEquals("part i: i) i. ", text)
+    }
+
+    @Test
+    fun `an underlined word is only learned once the next word begins`() {
+        type("zorp")
+        actions.offered(Verdict("zorp", null, misspelled = true))
+        type(" ")
+        assertTrue(ime.taught.isEmpty())
+        type("a")
+        assertEquals(listOf("zorp"), ime.taught)
+    }
+
+    @Test
+    fun `an underlined word that is backspaced into is not learned`() {
+        type("zorp")
+        actions.offered(Verdict("zorp", null, misspelled = true))
+        type(" ")
+        actions.onBackspace()
+        type("s ")
+        assertFalse(ime.taught.contains("zorp"))
+    }
+
+    @Test
+    fun `a predicted word after text the app changed still gets its own space`() {
+        type("I want ")
+        field.editable!!.delete(field.editable!!.length - 1, field.editable!!.length)
+        actions.onSuggestion("to")
+        assertEquals("I want to ", text)
+    }
+
+    @Test
+    fun `i is left alone with capitals off`() {
+        actions.settings = Settings(autoCapitalise = false)
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("so i ")
+        assertEquals("so i ", text)
+    }
+
+    @Test
+    fun `i becomes I even with autocorrect off, and backspace puts it back`() {
+        actions.settings = Settings(autocorrect = false)
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("so i'm ")
+        assertEquals("so I'm ", text)
+        actions.onBackspace()
+        assertEquals("so i'm ", text)
+        assertTrue(ime.stood.isEmpty() && ime.putBack.isEmpty())
+    }
+
+    @Test
+    fun `the word before goes with every question to the strip`() {
+        type("hello wor")
+        assertEquals("hello", ime.previousFor.last())
+        type("ld. ")
+        assertEquals(SENTENCE_START, ime.previousFor.last())
+        type("a, ")
+        assertEquals("", ime.previousFor.last())
     }
 
     /** The one key that undoes it. Without this, correcting on its own would not be worth doing at all. */
@@ -568,9 +661,60 @@ class KeysServiceTest {
 
     @Test
     fun `there is nothing to replace when no word is being typed`() {
-        type("hello ")
+        type("hello.")
         actions.onSuggestion("hello")
-        assertEquals("a suggestion with no word must do nothing", "hello ", text)
+        assertEquals("a suggestion with no word, and nowhere a word begins, must do nothing", "hello.", text)
+    }
+
+    /** After a space the strip holds what might come next, and taking one is typing it. */
+    @Test
+    fun `a predicted word taken after a space goes in with its own space`() {
+        type("I want ")
+        actions.onSuggestion("to")
+        assertEquals("I want to ", text)
+        assertEquals("to", ime.previousFor.last())
+    }
+
+    @Test
+    fun `a predicted word uses up a capital waiting for one letter`() {
+        type("hi. ")
+        actions.onShift()
+        actions.onSuggestion("The")
+        assertEquals("hi. The ", text)
+        assertEquals(Shift.OFF, ime.shift)
+    }
+
+    @Test
+    fun `the strip is only asked what comes next where a word begins`() {
+        type("hello")
+        type(".")
+        assertEquals("", ime.previousFor.last())
+        type(" ")
+        assertEquals(SENTENCE_START, ime.previousFor.last())
+        actions.onBackspace()
+        assertEquals("", ime.previousFor.last())
+    }
+
+    @Test
+    fun `nothing is predicted where suggestions are off`() {
+        actions.settings = Settings(suggestions = false)
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("I want ")
+        assertEquals("", ime.previousFor.last())
+    }
+
+    @Test
+    fun `nothing is predicted in a password field`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("I want ")
+        assertEquals("", ime.previousFor.last())
+    }
+
+    @Test
+    fun `nothing is predicted in an address`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("keyd ")
+        assertEquals("", ime.previousFor.last())
     }
 
     /**

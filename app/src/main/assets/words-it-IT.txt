@@ -260,6 +260,7 @@ accompagnato:38
 accompagnatore:40
 accompagnatrice:42
 accompagnera:44
+accompagnero:98
 accompagnerà:43
 accompagnerò:44
 accompagni:38
@@ -977,6 +978,7 @@ altrettanto:36
 altri:24
 altrimenti:30
 altro:20
+altroche:98
 altroché:43
 altronde:41
 altrove:36
@@ -1126,6 +1128,7 @@ ammazzata:42
 ammazzati:42
 ammazzato:36
 ammazzeranno:44
+ammazzero:98
 ammazzerò:43
 ammazzi:41
 ammazziamo:43
@@ -1416,6 +1419,7 @@ antibiotici:40
 antica:36
 antiche:40
 antichi:37
+antichita:98
 antichità:44
 anticipare:42
 anticipata:43
@@ -1487,6 +1491,7 @@ apparente:42
 apparentemente:38
 apparenza:40
 apparenze:41
+apparira:98
 apparire:37
 apparirà:44
 appariscente:43
@@ -1765,6 +1770,7 @@ arrendendo:44
 arrenderci:43
 arrendere:43
 arrendermi:42
+arrendero:98
 arrendersi:39
 arrenderti:40
 arrenderò:44
@@ -2165,6 +2171,7 @@ atrian:44
 atrio:39
 atroce:41
 atroci:44
+atrocita:98
 atrocità:43
 attacca:37
 attaccamento:44
@@ -2178,6 +2185,7 @@ attaccata:38
 attaccate:40
 attaccati:38
 attaccato:34
+attacchera:98
 attaccheranno:42
 attaccheremo:43
 attaccherà:44
@@ -2713,6 +2721,7 @@ bambinone:43
 bambola:36
 bambole:38
 bambolina:40
+bambu:98
 bambù:44
 banale:39
 banali:43
@@ -3043,6 +3052,7 @@ bennett:38
 bennie:44
 benny:37
 benone:38
+bensi:98
 benson:40
 bensì:44
 bentley:41
@@ -3238,6 +3248,7 @@ bisnonna:43
 bisnonno:42
 bisogna:29
 bisognava:41
+bisognera:98
 bisognerebbe:40
 bisognerà:42
 bisogni:38
@@ -3619,6 +3630,7 @@ brusio:39
 bruta:44
 brutale:39
 brutali:43
+brutalita:98
 brutalità:44
 brutalmente:41
 bruto:41
@@ -5738,6 +5750,7 @@ complicazione:42
 complicazioni:39
 complice:36
 complici:40
+complicita:98
 complicità:44
 complimenti:34
 complimento:37
@@ -6294,6 +6307,7 @@ contenti:36
 contento:30
 contenuti:42
 contenuto:37
+contero:98
 conterò:44
 contessa:38
 contestare:44
@@ -6685,6 +6699,7 @@ costringermi:40
 costringerti:43
 costringi:43
 costruendo:38
+costrui:98
 costruiamo:42
 costruirci:44
 costruire:33
@@ -6977,6 +6992,7 @@ cucini:41
 cucino:41
 cucire:41
 cucito:41
+cucu:98
 cucù:44
 cuddy:42
 cue:43
@@ -7303,6 +7319,7 @@ decideranno:44
 decidere:32
 decideremo:42
 deciderlo:41
+decidero:98
 deciderà:42
 deciderò:44
 decidesse:43
@@ -13050,6 +13067,7 @@ informatori:41
 informatrice:44
 informazione:33
 informazioni:29
+informero:98
 informerò:44
 informi:43
 informo:42
@@ -13247,6 +13265,7 @@ insegnarti:40
 insegnate:43
 insegnato:32
 insegnava:42
+insegnera:98
 insegnero:42
 insegnerà:44
 insegnerò:41
@@ -13407,6 +13426,7 @@ interessati:38
 interessato:34
 interessava:40
 interesse:33
+interessera:98
 interesserebbe:43
 interesserà:44
 interessi:34
@@ -14748,6 +14768,7 @@ liberatoria:43
 liberatorio:44
 liberazione:39
 libere:39
+liberera:98
 libererai:44
 libereremo:43
 liberero:44
@@ -14929,6 +14950,7 @@ lobo:40
 lobos:42
 locale:31
 locali:35
+localita:98
 località:44
 localizzare:39
 localizzarlo:44
@@ -15141,6 +15163,7 @@ macabro:43
 macao:44
 macarthur:43
 macbeth:43
+macche:98
 maccheroni:42
 macchia:36
 macchiata:44
@@ -15373,6 +15396,7 @@ mancherai:37
 mancheranno:42
 mancherebbe:41
 mancherete:43
+manchero:98
 mancherà:40
 mancherò:44
 manchester:39
@@ -15538,6 +15562,7 @@ manteniamo:41
 mantenimento:42
 mantenuta:43
 mantenuto:38
+manterro:98
 manterrò:44
 mantiene:39
 mantieni:39
@@ -17226,6 +17251,7 @@ noah:36
 nobel:41
 nobile:35
 nobili:39
+nobilta:98
 nobiltà:43
 noble:43
 nocche:43
@@ -17238,6 +17264,7 @@ noce:40
 noci:39
 nodi:40
 nodo:39
+noe:98
 noel:41
 noelle:43
 nog:44
@@ -17576,6 +17603,7 @@ offrire:35
 offrirgli:43
 offrirle:39
 offrirmi:40
+offriro:98
 offrirti:37
 offrirvi:40
 offrirò:44
@@ -17662,6 +17690,7 @@ omo:43
 omone:44
 omosessuale:40
 omosessuali:41
+omosessualita:98
 omosessualità:44
 on:34
 ona:44
@@ -18295,6 +18324,7 @@ paride:44
 parigi:32
 paris:40
 parish:42
+parita:98
 parità:44
 park:33
 parker:35
@@ -18750,6 +18780,7 @@ penso:22
 pensò:42
 pentagono:39
 pentimento:43
+pentira:98
 pentirai:39
 pentire:42
 pentirete:43
@@ -19285,6 +19316,7 @@ pioniere:44
 pionieri:43
 piove:38
 piovendo:41
+piovera:98
 piovere:39
 pioverà:44
 pioveva:42
@@ -20414,6 +20446,7 @@ proseguiamo:41
 proseguire:38
 proseguite:43
 prosperare:44
+prosperita:98
 prosperità:43
 prospero:44
 prospettiva:37
@@ -20920,6 +20953,7 @@ raccontata:42
 raccontate:43
 raccontato:33
 raccontava:41
+raccontera:98
 racconterai:42
 raccontero:42
 racconterà:44
@@ -21015,6 +21049,7 @@ raggiungerla:42
 raggiungerli:43
 raggiungerlo:41
 raggiungermi:43
+raggiungero:98
 raggiungerti:43
 raggiungerà:42
 raggiungerò:43
@@ -21755,6 +21790,7 @@ riconosce:37
 riconoscente:40
 riconoscenti:44
 riconoscenza:43
+riconoscera:98
 riconoscere:36
 riconoscerei:43
 riconoscerlo:41
@@ -22777,6 +22813,7 @@ romero:42
 rompa:43
 rompe:38
 rompendo:41
+rompera:98
 romperai:44
 rompere:34
 romperlo:44
@@ -23072,6 +23109,7 @@ salgono:42
 sali:33
 saliamo:40
 salina:42
+salira:98
 salire:32
 salirà:44
 salita:38
@@ -23584,6 +23622,7 @@ scenate:42
 scenda:40
 scende:38
 scendendo:39
+scendera:98
 scendere:32
 scenderà:44
 scendete:39
@@ -23937,6 +23976,7 @@ scrivania:33
 scrivanie:44
 scrive:35
 scrivendo:36
+scrivera:98
 scriverai:42
 scriverci:43
 scrivere:30
@@ -24217,6 +24257,7 @@ semplice:28
 semplicemente:29
 semplici:36
 semplicissimo:43
+semplicita:98
 semplicità:44
 sempre:20
 sen:44
@@ -24651,6 +24692,7 @@ sibilo:44
 sibley:43
 sicari:42
 sicario:40
+siccita:98
 siccità:44
 siccome:36
 sicilia:42
@@ -25198,6 +25240,7 @@ sorellona:43
 sorge:41
 sorgente:40
 sorgenti:44
+sorgera:98
 sorgere:41
 sorgerà:44
 sorprende:35
@@ -26539,6 +26582,7 @@ superiamo:44
 superiora:44
 superiore:33
 superiori:34
+superiorita:98
 superiorità:44
 superman:38
 supermercati:44
@@ -27630,6 +27674,7 @@ touch:43
 touchdown:41
 touche:43
 tour:35
+tournee:98
 tournée:43
 tov:43
 tovaglia:44
@@ -27791,6 +27836,7 @@ trasformata:39
 trasformati:42
 trasformato:36
 trasformazione:40
+trasformera:98
 trasformerà:44
 trasformi:41
 trasformo:43
@@ -28733,6 +28779,7 @@ vena:37
 venda:42
 vende:36
 vendendo:38
+vendera:98
 venderai:44
 vendere:32
 venderemo:42

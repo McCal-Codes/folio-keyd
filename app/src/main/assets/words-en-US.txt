@@ -1386,7 +1386,6 @@ alloy's:43
 alloyed:80
 alloying:80
 alloys:46
-allright:40
 allude:80
 alluded:80
 alludes:80
@@ -2494,7 +2493,6 @@ arena:38
 arena's:38
 arenas:45
 ares:41
-areyou:42
 argentina:39
 argh:37
 arguable:70
@@ -11884,7 +11882,6 @@ cough's:37
 coughed:44
 coughing:34
 coughs:36
-couid:40
 could:20
 coulda:42
 couldn't:25
@@ -16244,7 +16241,6 @@ dowries:80
 dowry:39
 dowry's:39
 doyle:37
-doyou:42
 doze:44
 doze's:44
 dozed:43
@@ -18609,7 +18605,6 @@ everyone's:25
 everyplace:90
 everything:22
 everything's:22
-everytime:42
 everywhere:30
 eves:80
 evict:43
@@ -21353,7 +21348,6 @@ fortes:80
 forth:35
 forthcoming:42
 forthcoming's:42
-forthe:40
 forthright:45
 forthwith:44
 forties:45
@@ -21394,7 +21388,6 @@ forwardest:80
 forwarding:43
 forwards:41
 forwent:80
-foryou:40
 fossil:40
 fossil's:40
 fossilize:80
@@ -26587,7 +26580,6 @@ I'm:03
 I's:03
 I've:03
 ian:35
-iast:41
 ibrahim:41
 ice:29
 ice's:29
@@ -26699,17 +26691,12 @@ idolizing:80
 idols:42
 ids:41
 idyllic:44
-ieast:42
-iet:39
 if:16
 if's:16
 iffier:90
 iffiest:90
 iffy:44
-ifl:42
 ifs:41
-ifwe:42
-ifyou:39
 igloo:45
 igloo's:45
 igloos:80
@@ -26732,9 +26719,7 @@ igor:39
 iguana:43
 iguana's:43
 iguanas:45
-iife:40
 iii:38
-iike:36
 ike:38
 ilana:42
 ilk:45
@@ -28836,13 +28821,10 @@ iodine's:43
 iolaus:41
 ion:42
 ion's:42
-iong:41
 ions:45
-iot:38
 iota:45
 iota's:45
 iotas:80
-iove:39
 iowa:40
 ipad:42
 iphone:42
@@ -35871,7 +35853,6 @@ Nazis:38
 nba:42
 nbc:41
 ncis:39
-nder:39
 neal:37
 neanderthal:42
 neanderthals:42
@@ -37098,8 +37079,6 @@ offstages:80
 often:29
 oftener:80
 oftenest:80
-ofthe:38
-ofyou:42
 ogden:42
 ogle:45
 ogle's:45
@@ -55104,7 +55083,6 @@ thanks:23
 Thanksgiving:36
 Thanksgiving's:36
 Thanksgivings:90
-thankyou:41
 that:09
 that's:09
 thatch:80

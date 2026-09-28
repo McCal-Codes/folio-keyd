@@ -75,6 +75,7 @@ class KeysService : InputMethodService(), Ime {
     /** The suggestion thread's looper, so a test can wait for it. */
     internal val suggestionLooper: Looper get() = thinking.looper
     private var dictionary: Dictionary? = null
+    private var nextWords: NextWords? = null
     private var loadedFor: Language? = null
     private var learned: Learned? = null
     private var shortcuts: Shortcuts? = null
@@ -135,9 +136,11 @@ class KeysService : InputMethodService(), Ime {
      */
     private fun sync() {
         val words = prefs.getString(LEARNED, null)
-        if (learned == null || words != written[LEARNED]) {
-            learned = Learned.decode(words)
+        val seen = prefs.getString(SEEN, null)
+        if (learned == null || words != written[LEARNED] || seen != written[SEEN]) {
+            learned = Learned.decode(words, seen)
             written[LEARNED] = words
+            written[SEEN] = seen
         }
         val rules = prefs.getString(SHORTCUTS, null)
         if (shortcuts == null || rules != written[SHORTCUTS]) {
@@ -240,6 +243,10 @@ class KeysService : InputMethodService(), Ime {
         DevLog.event(this, "dictionary", "ms" to android.os.SystemClock.elapsedRealtime() - started,
             "loaded" to if (dictionary != null) 1 else 0)
         loadedFor = if (dictionary != null) language else null
+        // Small beside the dictionary, and without it the strip is only empty after a space, so a failure is logged
+        // and nothing more.
+        nextWords = runCatching { NextWords.load(this, language) }
+            .onFailure { DevLog.error(this, "NextWords.load", it) }.getOrNull()
         // Which keys are where has changed, so what counts as a near miss has changed with it.
         proximity = null
         proximityFor = null
@@ -292,15 +299,38 @@ class KeysService : InputMethodService(), Ime {
         thinking.quitSafely()
     }
 
-    override fun suggest(word: String) {
+    override fun suggest(word: String) = suggest(word, "")
+
+    override fun suggest(word: String, previous: String) {
         background.removeCallbacksAndMessages(suggesting)
         val mine = ++asked
+        // Nothing typed yet, straight after a word: what might come next. Not while the strip has a question
+        // waiting, which only ever gets asked in a gap like this one.
+        if (word.isEmpty() && previous.isNotEmpty() && keyboard?.offer == null) {
+            actions.offered(Verdict(word, null, misspelled = false))
+            val shift = actions.shift
+            background.postDelayed(
+                {
+                    val found = runCatching { Suggestions.predict(previous, nextWords, shift) }.getOrDefault(emptyList())
+                    main.post {
+                        if (mine != asked) return@post
+                        keyboard?.typedFirst = false
+                        keyboard?.suggestions = found
+                    }
+                },
+                suggesting,
+                THINK_MS,
+            )
+            return
+        }
         if (word.length < 2) {
             actions.offered(Verdict(word, null, misspelled = false))
             keyboard?.suggestions = emptyList()
             return
         }
         val keys = keyboard?.placements
+        val language = actions.language
+        val contractions = Contractions.of(language)
         background.postDelayed(
             {
                 val started = android.os.SystemClock.elapsedRealtime()
@@ -312,16 +342,19 @@ class KeysService : InputMethodService(), Ime {
                     proximityFor = keys
                 }
                 val found = runCatching {
-                    Suggestions.forWord(word, words, proximity, learned, shortcuts)
+                    Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions, previous, nextWords)
                 }.getOrDefault(emptyList())
                 val fix = runCatching {
-                    Suggestions.correction(word, words, proximity, learned)
+                    Suggestions.correction(
+                        word, words, proximity, learned, contractions, previous,
+                        compounds = language == Language.GERMAN, next = nextWords,
+                    )
                 }.getOrNull()
                 // "Never heard of it" is a different question from "here is what you probably meant", and a word
                 // can be the first without the second - a name, a word in another language, something made up.
                 val unknown = runCatching {
                     word.length >= Learned.SHORTEST &&
-                        !words.contains(word.lowercase()) &&
+                        !Suggestions.known(word.lowercase(), words) &&
                         (learned?.count(word.lowercase()) ?: 0) == 0 &&
                         shortcuts?.expand(word) == null
                 }.getOrDefault(false)
@@ -335,6 +368,7 @@ class KeysService : InputMethodService(), Ime {
                     // after a fast one for "teh" and the strip shows the wrong thing.
                     if (mine != asked) return@post
                     actions.offered(Verdict(word, fix, misspelled = unknown, suggestions = found))
+                    keyboard?.typedFirst = true
                     keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
                 }
             },
@@ -349,13 +383,22 @@ class KeysService : InputMethodService(), Ime {
      * Saved every time rather than on a timer: an input method is killed without warning, and a word learned and
      * then lost teaches nothing. It is a few hundred bytes.
      */
-    override fun learn(word: String) {
+    override fun learn(word: String) = learn(word, corrected = false)
+
+    override fun learn(word: String, corrected: Boolean) {
+        // A typo that was corrected, and the correction stood, is the one thing that must not be learned: learned,
+        // it would never be corrected again. If it is put back instead, [putBack] decides.
+        if (corrected) return
+        // With autocorrect off, every typo is left as typed, so being left alone says nothing about a word.
+        val watching = Settings.correcting(actions.settings)
+        val today = System.currentTimeMillis() / DAY_MS
         background.post {
             val words = dictionary ?: return@post
             sync()
             val store = learned ?: Learned().also { learned = it }
             val lower = word.lowercase()
-            val known = words.contains(lower)
+            // Known the way the strip knows it: "l'homme" is two known words, not a new one.
+            val known = Suggestions.known(lower, words)
             // Once per install, the first time the key positions are known: clear out slips learned before the
             // neighbouring-key rule existed.
             val keys = proximity
@@ -366,10 +409,14 @@ class KeysService : InputMethodService(), Ime {
                 DevLog.event(this, "pruned", "words" to gone)
             }
             if (!Learned.worthLearning(lower, known, nearMiss = false)) return@post
-            // The expensive question last, and only for words that got this far.
-            if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) return@post
+            // The expensive question last, and only for words that got this far. A near miss is not learned, but it
+            // is noticed: left alone often enough, it was meant.
+            if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) {
+                if (watching && store.sighted(lower, today)) save(store)
+                return@post
+            }
             store.learn(lower)
-            save(LEARNED to store.encode())
+            save(store)
         }
     }
 
@@ -395,6 +442,16 @@ class KeysService : InputMethodService(), Ime {
             val store = insights ?: Insights().also { insights = it }
             val offer = store.undone(typed, offering)
             countsChanged()
+            // Put back twice, it is a word, whatever it is one edit away from. Kept now rather than asked about on
+            // the third time, because there should not be a third time.
+            if (store.putBacks(typed) >= Learned.PUT_BACKS) {
+                val words = learned ?: Learned().also { learned = it }
+                if (words.count(typed.lowercase()) == 0) {
+                    words.keep(typed.lowercase())
+                    save(words)
+                }
+                return@post
+            }
             offer?.let { main.post { place(it) } }
         }
     }
@@ -426,6 +483,9 @@ class KeysService : InputMethodService(), Ime {
         }
     }
 
+    /** Learned words and their sightings, saved together so the two never disagree. */
+    private fun save(store: Learned) = save(LEARNED to store.encode(), SEEN to store.encodeSeen())
+
     /** Everything it has picked up about how someone writes, gone: the learned words and the fixes counted. */
     fun forgetLearned() {
         background.post {
@@ -435,7 +495,8 @@ class KeysService : InputMethodService(), Ime {
             background.removeCallbacks(saveInsights)
             written[LEARNED] = null
             written[INSIGHTS] = null
-            prefs.edit().remove(LEARNED).remove(INSIGHTS).apply()
+            written[SEEN] = null
+            prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).apply()
         }
     }
 
@@ -904,12 +965,15 @@ class KeysService : InputMethodService(), Ime {
         const val VOICE_MODE = "voice"
         const val RECENTS = "emojiRecents"
         const val LEARNED = "learnedWords"
+        const val SEEN = "seenWords"
         const val PRUNED_SLIPS = "prunedSlips1"
         const val SHORTCUTS = "shortcuts"
         const val INSIGHTS = "typingInsights"
 
         /** When to look at the clipboard after Copy, in milliseconds. */
         val COPY_LOOKS = longArrayOf(150, 600)
+
+        const val DAY_MS = 24L * 60 * 60 * 1000
 
         /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
         const val THINK_MS = 40L

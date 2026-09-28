@@ -17,7 +17,8 @@ nicety. A word missing from the dictionary is a word autocorrect will quietly re
 gaps are exactly the words nobody wants replaced - "arse", "bollocks", "wanker" were all missing, and all three
 would have been turned into something the person did not type.
 
-Both licences are permissive and both notices ship beside the list as `words-COPYING.txt`.
+SCOWL is permissive; FrequencyWords' data is CC BY-SA 4.0 (its code is MIT, its content is not), so the lists this
+builds are shared under CC BY-SA 4.0. Both notices ship beside the list as `words-COPYING.txt`.
 
 **Other languages have only the second source.** SCOWL is English, and the open word lists for most other
 languages are GPL, which this app cannot use. So `--spoken-only` builds a list from the frequency data alone.
@@ -32,12 +33,23 @@ import math
 import os
 import re
 import sys
+import unicodedata
 
 # The frequency list has had its apostrophes stripped, so "didn't" arrives as "didn". These stems are not words and
 # must not become dictionary entries. English has a closed set of them, so this is a list rather than a guess.
 NOT_WORDS = {
     "didn", "doesn", "isn", "wasn", "wouldn", "couldn", "shouldn", "aren", "weren", "hasn", "hadn", "haven",
     "ain", "mustn", "needn", "daren", "shan", "oughtn", "mightn", "usedn",
+}
+
+# Things the spoken list counts as words that are not: two words run together by whoever typed the subtitle
+# ("ofthe", "foryou"), and scanning slips where a lowercase l was read as an i ("iike", "couid"). Each one in the list
+# is worse than missing: a word the dictionary knows is a word autocorrect leaves alone, and a word it ranks common
+# is one it offers, so "couid" was the answer to "could" typed with one key off. Closed, like NOT_WORDS, and read
+# before adding anything here: "nevermind", "whatnot" and "daycare" look like the same thing and are not.
+JUNK = {
+    "ofthe", "forthe", "ifyou", "foryou", "thankyou", "areyou", "doyou", "ofyou", "ifwe", "everytime", "allright",
+    "iike", "iot", "iet", "iove", "couid", "iife", "iast", "iong", "ieast", "ifl", "nder",
 }
 
 # Letters of any alphabet, not just the twenty-six English happens to use.
@@ -52,6 +64,12 @@ SPOKEN_CUTOFF = 20_000        # past this the frequency list is mostly noise and
 # For a language with no dictionary to check against, the tail is riskier: nothing rules out a common misspelling.
 SPOKEN_ONLY_CUTOFF = 30_000
 SPOKEN_ONLY_SHORTEST = 2      # "yo", "tu", "je", "il" are words; single letters mostly are not
+
+# How much commoner the accented form must be before the bare one is only a typo of it: ten points is ten times.
+LOST_ACCENT_GAP = 10
+
+# The score for a word the keyboard should know but never offer: see mark_lost_accents. Nothing else scores 98.
+KNOWN_ONLY = 98
 
 
 def scowl_words(final_dir):
@@ -105,6 +123,44 @@ def position_of(word, positions):
     return None
 
 
+def fold(word):
+    """The word with its accents taken off: "acción" is "accion", "für" is "fur"."""
+    return "".join(c for c in unicodedata.normalize("NFD", word) if unicodedata.category(c) != "Mn")
+
+
+def mark_lost_accents(entries, positions):
+    """
+    Marks a word that looks like its accented twin typed without the accent as known but never offered.
+
+    Subtitles are typed by people, and people leave accents off: "accion" is in the Spanish list, and "fur" in the
+    German one, because someone typed "acción" and "für" that way often enough to count. Offered in the strip they
+    are noise. But many are also real words - "papa" and "papá", "cote" and "côté", "Ware" and "Wäre", "Caracas" -
+    and nothing here can tell which, so none of them is dropped: a word dropped from the list is one autocorrect
+    replaces, and replacing a real word is the one mistake a keyboard must not make.
+
+    So where the accented form is ten times as common (ten points on this log scale), the bare one is kept at
+    KNOWN_ONLY: known, so never corrected and never underlined; never suggested; and the accented twin is still
+    offered in the strip, one tap away. The same goes for a bare form further down the frequency list than the cut,
+    so a real word just past it ("facas" beside "faças") is not corrected either. Where the two are close, both are
+    ordinary words - "acabo" and "acabó" - and both stay as they are.
+    """
+    twins = {}
+    for word, value in entries.items():
+        bare = fold(word)
+        if bare != word:
+            twins[bare] = min(value, twins.get(bare, 99))
+    marked = 0
+    for word in list(entries):
+        if word in twins and twins[word] <= entries[word] - LOST_ACCENT_GAP:
+            entries[word] = KNOWN_ONLY
+            marked += 1
+    for word in positions:
+        if word in twins and word not in entries and WORD.match(word):
+            entries[word] = KNOWN_ONLY
+            marked += 1
+    return entries, marked
+
+
 def spoken_only(frequency_file, destination):
     """
     A word list built from frequency data alone, for a language with no usable dictionary.
@@ -120,6 +176,8 @@ def spoken_only(frequency_file, destination):
         if not WORD.match(word) or not (SPOKEN_ONLY_SHORTEST <= len(word) <= 20):
             continue
         entries[word] = score(position, 0)
+    entries, lost = mark_lost_accents(entries, positions)
+    print(f"{lost} words that may only be a lost accent kept as known but never offered")
     with open(destination, "w", encoding="utf-8") as out:
         for word, value in sorted(entries.items(), key=lambda kv: kv[0].lower()):
             out.write(f"{word}:{value:02d}\n")
@@ -135,12 +193,16 @@ def main(final_dir, frequency_file, destination):
     spoken = 0
     have = {word.lower() for word in entries}
     for word, position in positions.items():
-        if position > SPOKEN_CUTOFF or word in NOT_WORDS or word in have:
+        if position > SPOKEN_CUTOFF or word in NOT_WORDS or word in JUNK or word in have:
             continue
         if not WORD.match(word) or not (2 < len(word) <= 20):
             continue
         entries[word] = score(position, 0)
         spoken += 1
+
+    # English ships without its borrowed accents ("café", "cliché"): ninety-odd words, and the list has always been
+    # plain ASCII. Kept that way so this reproduces the list that ships, byte for byte.
+    entries = {word: value for word, value in entries.items() if word.isascii()}
 
     with open(destination, "w", encoding="utf-8") as out:
         for word, value in sorted(entries.items(), key=lambda kv: kv[0].lower()):
