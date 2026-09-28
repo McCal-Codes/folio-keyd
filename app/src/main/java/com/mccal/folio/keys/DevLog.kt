@@ -227,7 +227,10 @@ internal object DevLog {
      * true, false or an enum's name is left out, so if Settings ever holds words they still cannot reach a report.
      */
     internal fun switches(settings: Settings): List<String> =
-        settings.toString().substringAfter('(').substringBeforeLast(')').split(", ")
+        settings.toString().substringAfter('(').substringBeforeLast(')')
+            // A list of choices, like the toolbar's buttons, goes in as its names joined by +, or NONE when empty.
+            .replace(LIST) { match -> match.groupValues[1].split(", ").filter { it.isNotEmpty() }.joinToString("+").ifEmpty { "NONE" } }
+            .split(", ")
             .mapNotNull { pair ->
                 val key = pair.substringBefore('=', "")
                 val value = pair.substringAfter('=', "")
@@ -256,7 +259,8 @@ internal object DevLog {
     private fun prefs(context: Context) = context.getSharedPreferences("keys", Context.MODE_PRIVATE)
 
     @Volatile private var installed = false
-    private val SWITCH = Regex("true|false|[A-Z][A-Z0-9_]*")
+    private val SWITCH = Regex("true|false|[A-Z][A-Z0-9_]*(\\+[A-Z][A-Z0-9_]*)*")
+    private val LIST = Regex("\\[([^\\]]*)]")
     private const val LOG_FILE = "dev-log.txt"
     private const val ERROR_FILE = "dev-errors.txt"
     private const val SEPARATOR = "\n\n"

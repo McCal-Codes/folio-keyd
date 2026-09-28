@@ -91,7 +91,8 @@ class SettingsScreenTest {
             R.string.settings_delete_word, R.string.settings_swipe_hide, R.string.settings_sound,
             R.string.settings_high_contrast, R.string.settings_clipboard,
             R.string.settings_size_small, R.string.settings_appearance_dark, R.string.settings_split_never,
-            R.string.settings_voice_key, R.string.settings_cursor_pad_key, R.string.settings_key_style_samsung,
+            R.string.settings_edit_swipes, R.string.settings_shift_select, R.string.settings_selection_tools,
+            R.string.row_toolbar, R.string.settings_key_style_samsung,
             R.string.settings_mute_bluetooth, R.string.vibration_strong, R.string.settings_pure_black,
             R.string.row_per_app,
         ).map { a.getString(it) }
@@ -195,12 +196,11 @@ class SettingsScreenTest {
     fun `the toolbar keys and key style are there and save`() {
         val a = open()
         a.tap("Keys and gestures")
-        assertNotNull(a.text("TOOLBAR"))
-        assertTrue(a.switchIn("Voice key").isChecked)
-        a.tap("Voice key")
-        a.tap("Cursor pad key")
-        assertFalse(a.stored().voiceKey)
-        assertFalse(a.stored().cursorPadKey)
+        a.tap("Toolbar")
+        a.tap("Voice")
+        a.tap("Cursor pad")
+        assertEquals(Settings.DEFAULT_TOOLBAR - ToolKey.VOICE - ToolKey.CURSOR_PAD, a.stored().toolbar)
+        a.tap("‹ Keys and gestures")
         a.tap("‹ Keyd")
         a.tap("Look and size")
         assertNotNull(a.text("KEY STYLE"))

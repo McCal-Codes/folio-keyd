@@ -52,6 +52,7 @@ class SettingsActivity : Activity() {
         /** One app from that list. Its title is the app's name, so [title] is only the fallback. */
         APP(R.string.row_per_app, APPS),
         KEYS(R.string.page_keys, MAIN),
+        TOOLBAR(R.string.row_toolbar, KEYS),
         LOOK(R.string.page_look, MAIN),
         FEEL(R.string.page_feel, MAIN),
         CLIPBOARD(R.string.page_clipboard, MAIN),
@@ -220,6 +221,7 @@ class SettingsActivity : Activity() {
             Page.APPS -> apps(column)
             Page.APP -> app(column, app.orEmpty())
             Page.KEYS -> keys(column)
+            Page.TOOLBAR -> toolbar(column)
             Page.LOOK -> look(column)
             Page.FEEL -> feel(column)
             Page.CLIPBOARD -> clipboard(column)
@@ -236,6 +238,13 @@ class SettingsActivity : Activity() {
         }
         setContentView(scroll)
         scroll?.post { scroll?.scrollTo(0, y) }
+        // A button that moved a row rebuilt the page; TalkBack goes back to the button, now in its new place.
+        focusAfterRender?.let { wanted ->
+            focusAfterRender = null
+            column.findViewWithTag<View>(wanted)?.let { view ->
+                view.post { view.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null) }
+            }
+        }
         if (Build.VERSION.SDK_INT >= 33) {
             val callback = back as OnBackInvokedCallback
             onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback)
@@ -977,12 +986,19 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_preview), settings.keyPreview) { on -> settings.copy(keyPreview = on) }
         }
         footer(column, "${getString(R.string.settings_number_row_note)} ${getString(R.string.settings_accents_note)}")
-        header(column, getString(R.string.header_toolbar))
+        header(column, getString(R.string.header_editing))
         group(column) {
-            toggle(it, getString(R.string.settings_voice_key), settings.voiceKey) { on -> settings.copy(voiceKey = on) }
-            toggle(it, getString(R.string.settings_cursor_pad_key), settings.cursorPadKey) { on -> settings.copy(cursorPadKey = on) }
+            switchRow(
+                it, getString(R.string.settings_edit_swipes), settings.editSwipes,
+                subtitle = getString(R.string.settings_edit_swipes_note),
+            ) { on -> change(settings.copy(editSwipes = on)) }
+            toggle(it, getString(R.string.settings_shift_select), settings.shiftSelect) { on -> settings.copy(shiftSelect = on) }
+            toggle(it, getString(R.string.settings_selection_tools), settings.selectionTools) { on -> settings.copy(selectionTools = on) }
+            val buttons = settings.toolbar.size
+            nav(it, null, null, getString(R.string.row_toolbar),
+                resources.getQuantityString(R.plurals.value_buttons, buttons, buttons)) { show(Page.TOOLBAR) }
         }
-        footer(column, getString(R.string.footer_toolbar))
+        footer(column, getString(R.string.footer_editing))
         header(column, getString(R.string.header_flicks))
         group(column) {
             toggle(it, getString(R.string.settings_flick_down), settings.flickForAlternate) { on -> settings.copy(flickForAlternate = on) }
@@ -996,6 +1012,150 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_delete_word), settings.deleteWordSwipe) { on -> settings.copy(deleteWordSwipe = on) }
         }
         footer(column, getString(R.string.settings_gestures_note))
+    }
+
+    // ---- The toolbar ---------------------------------------------------------------------------------------------
+
+    /** The row to give TalkBack's focus back to after the page is rebuilt, by its tag. */
+    private var focusAfterRender: String? = null
+
+    private fun toolName(tool: ToolKey): String = getString(when (tool) {
+        ToolKey.EMOJI -> R.string.tool_emoji
+        ToolKey.UNDO -> R.string.tool_undo
+        ToolKey.REDO -> R.string.tool_redo
+        ToolKey.CURSOR_PAD -> R.string.tool_cursor_pad
+        ToolKey.SELECT_ALL -> R.string.tool_select_all
+        ToolKey.CUT -> R.string.tool_cut
+        ToolKey.COPY -> R.string.tool_copy
+        ToolKey.PASTE -> R.string.tool_paste
+        ToolKey.CLIPBOARD -> R.string.tool_clipboard
+        ToolKey.VOICE -> R.string.tool_voice
+    })
+
+    /** Saves a new arrangement and draws the page again, since rows move between the two lists. */
+    private fun arrange(toolbar: List<ToolKey>, focus: String? = null) {
+        change(settings.copy(toolbar = toolbar.distinct().take(Settings.MAX_TOOLS)))
+        focusAfterRender = focus
+        render(keepScroll = true)
+    }
+
+    /**
+     * The toolbar's buttons: what it looks like now, the ones on it in order, and the ones that could be.
+     *
+     * Rows move with an up and a down button rather than by dragging: a drag needs a steady finger and a long press
+     * TalkBack can't make, and two buttons read "Move Copy up" to anyone, however they use the phone.
+     */
+    private fun toolbar(column: LinearLayout) {
+        val chosen = settings.toolbar
+        group(column) { card ->
+            card.addView(ToolbarPreview(this, chosen).apply {
+                contentDescription = getString(
+                    R.string.toolbar_preview,
+                    (listOf(getString(R.string.tool_hide)) + chosen.map(::toolName)).joinToString(", "),
+                )
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56f)))
+        }
+        header(column, getString(R.string.header_on_toolbar))
+        group(column) { card ->
+            value(card, getString(R.string.tool_hide), getString(R.string.value_always_first))
+            chosen.forEachIndexed { index, tool -> chosenRow(card, tool, index, chosen) }
+        }
+        footer(column, getString(R.string.footer_on_toolbar))
+        val unused = ToolKey.entries.filter { it !in chosen }
+        if (unused.isNotEmpty()) {
+            header(column, getString(R.string.header_more_buttons))
+            val room = chosen.size < Settings.MAX_TOOLS
+            group(column) { card ->
+                unused.forEach { tool ->
+                    switchRow(card, toolName(tool), on = false, enabled = room) { on ->
+                        if (on) arrange(chosen + tool)
+                    }
+                }
+            }
+        }
+        footer(column, getString(R.string.footer_more_buttons))
+        group(column) { card ->
+            link(card, getString(R.string.toolbar_reset)) { arrange(Settings.DEFAULT_TOOLBAR) }
+        }
+        footer(column, getString(R.string.footer_voice))
+    }
+
+    /** One button on the toolbar: its name, a move up and a move down, and the switch that takes it off. */
+    private fun chosenRow(card: LinearLayout, tool: ToolKey, index: Int, chosen: List<ToolKey>) {
+        val name = toolName(tool)
+        row(card, iconSpace = false).apply {
+            addView(label(name))
+            fun moved(by: Int) = chosen.toMutableList().apply { add(index + by, removeAt(index)) }
+            val up = getString(R.string.toolbar_move_up, name)
+            val down = getString(R.string.toolbar_move_down, name)
+            addView(moveButton("↑", up, enabled = index > 0) { arrange(moved(-1), focus = up) })
+            addView(moveButton("↓", down, enabled = index < chosen.lastIndex) { arrange(moved(1), focus = down) })
+            val switch = Switch(context).apply {
+                isChecked = true
+                thumbTintList = ColorStateList.valueOf(Color.WHITE)
+                trackTintList = ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                    intArrayOf(colors.on, colors.off),
+                )
+                contentDescription = name
+                setOnCheckedChangeListener { _, checked -> if (!checked) arrange(chosen - tool) }
+            }
+            addView(switch)
+            setOnClickListener { switch.toggle() }
+            background = selectable()
+        }
+    }
+
+    /** A 48dp button with an arrow on it, named for what it does. Greyed at the end of the list it can't pass. */
+    private fun moveButton(arrow: String, name: String, enabled: Boolean, run: () -> Unit) = TextView(this).apply {
+        text = arrow
+        tag = name
+        setTextColor(if (enabled) colors.link else colors.divider)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+        gravity = Gravity.CENTER
+        minWidth = dp(48f)
+        minHeight = dp(48f)
+        contentDescription = name
+        isEnabled = enabled
+        isClickable = enabled
+        isFocusable = true
+        if (enabled) {
+            background = selectable()
+            setOnClickListener { run() }
+        }
+        accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = android.widget.Button::class.java.name
+            }
+        }
+    }
+
+    /** The toolbar as the keyboard draws it, Hide first, in the page's own colors. Voice is drawn whether or not it shows. */
+    private inner class ToolbarPreview(context: Context, private val chosen: List<ToolKey>) : View(context) {
+        private val stroke = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeJoin = android.graphics.Paint.Join.ROUND
+            color = colors.text
+        }
+        private val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = colors.text }
+
+        init {
+            isFocusable = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
+
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            val kinds = listOf(KeyKind.HIDE) + chosen.map { it.kind }
+            val pad = 12 * resources.displayMetrics.density
+            val slot = (width - 2 * pad) / kinds.size
+            val size = minOf(height * 0.46f, slot * 0.6f)
+            stroke.strokeWidth = maxOf(1.5f * resources.displayMetrics.density, size * 0.072f)
+            kinds.forEachIndexed { index, kind ->
+                Icons.tool(canvas, kind, pad + slot * (index + 0.5f), height / 2f, size, stroke, fill)
+            }
+        }
     }
 
     private fun look(column: LinearLayout) {

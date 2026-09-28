@@ -86,6 +86,9 @@ interface Ime {
 
     /** The strip asked, and was answered: Keep or Always when [accepted], No when not. */
     fun answered(offer: Insights.Offer, accepted: Boolean) {}
+
+    /** How much is selected now, for the toolbar, or null when nothing is or the toolbar should not say. */
+    fun selected(selection: Selected?) {}
 }
 
 /**
@@ -130,6 +133,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * it did not. Only ever set where it may be counted at all.
      */
     private var standing: Pair<String, String>? = null
+
+    /** Where the selection is, as the editor last said. -1 until it has said anything. */
+    private var selStart = -1
+    private var selEnd = -1
 
     /** Whether what is typed here may be counted or kept. The same test for learning a word and counting a fix. */
     private val remembering get() = settings.learn && !rules.ephemeral
@@ -233,6 +240,29 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         standing = null
         wordChanged()
         refresh()
+        selStart = -1
+        selEnd = -1
+        selectionChanged(info?.initialSelStart ?: -1, info?.initialSelEnd ?: -1)
+    }
+
+    /**
+     * The editor says the selection moved. Only when something is actually selected is the text read, once per
+     * change, to count it; a cursor moving while someone types costs nothing. The text is counted and let go: it is
+     * never kept, and never logged.
+     */
+    fun selectionChanged(start: Int, end: Int) {
+        if (start == selStart && end == selEnd) return
+        selStart = start
+        selEnd = end
+        ime.selected(selection())
+    }
+
+    private fun selection(): Selected? {
+        if (!settings.selectionTools || rules.password || selStart < 0 || selEnd < 0 || selStart == selEnd) return null
+        if (Selected.tooLong(abs(selEnd - selStart))) return Selected(Selected.CAP, 0, capped = true)
+        val text = ime.connection?.getSelectedText(0) ?: return null
+        if (text.isEmpty()) return null
+        return Selected.of(text)
     }
 
     fun refresh() =
@@ -431,7 +461,48 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onPaste() = menu(android.R.id.paste)
 
-    fun onCut() = menu(android.R.id.cut)
+    override fun onCut() = menu(android.R.id.cut)
+
+    /**
+     * Undo and redo as Ctrl+Z and Ctrl+Shift+Z, what a hardware keyboard sends. Android's own text fields have
+     * understand them, as do most editors and web pages; an app that ignores them does nothing, and nothing breaks.
+     */
+    override fun onUndo() {
+        undo = null
+        onMove(KeyEvent.KEYCODE_Z, CTRL)
+    }
+
+    override fun onRedo() {
+        undo = null
+        onMove(KeyEvent.KEYCODE_Z, CTRL or KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON)
+    }
+
+    /** Sliding from shift: the arrows the cursor pad sends while selecting, one per step, with Shift held. */
+    override fun onSelectMove(steps: Int) {
+        val connection = ime.connection ?: return
+        val (code, meta) = CursorPad.keyEvents(if (steps > 0) CursorPad.Move.RIGHT else CursorPad.Move.LEFT, true)
+        repeat(min(abs(steps), MAX_CURSOR_STEPS)) { sendKey(connection, code, meta) }
+        forget()
+    }
+
+    /**
+     * The selection, restyled in place and still selected, so another style or a copy can follow. Only what the
+     * cap allows is read; past it nothing changes. Never in a password field.
+     */
+    override fun onStyle(style: TextStyle) {
+        if (rules.password) return
+        val connection = ime.connection ?: return
+        val text = connection.getSelectedText(0) ?: return
+        if (text.isEmpty() || Selected.tooLong(text.length)) return
+        val styled = style.on(text)
+        val start = min(selStart, selEnd)
+        connection.beginBatchEdit()
+        connection.commitText(styled, 1)
+        if (start >= 0) connection.setSelection(start, start + styled.length)
+        connection.endBatchEdit()
+        undo = null
+        forget()
+    }
 
     override fun onVoice() = ime.startVoice()
 
@@ -446,10 +517,14 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     fun onMove(code: Int, meta: Int) {
         val connection = ime.connection ?: return
+        sendKey(connection, code, meta)
+        forget()
+    }
+
+    private fun sendKey(connection: InputConnection, code: Int, meta: Int) {
         val time = android.os.SystemClock.uptimeMillis()
         connection.sendKeyEvent(KeyEvent(time, time, KeyEvent.ACTION_DOWN, code, 0, meta))
         connection.sendKeyEvent(KeyEvent(time, time, KeyEvent.ACTION_UP, code, 0, meta))
-        forget()
     }
 
     private fun menu(action: Int) {
@@ -473,6 +548,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     private companion object {
         /** However fast the swipe, one gesture shouldn't fling the cursor across a paragraph. */
         const val MAX_CURSOR_STEPS = 8
+
+        const val CTRL = KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
 
         /** Enough for the editor's menu to be useful without becoming a list to read. */
         const val MAX_SUGGESTIONS_IN_SPAN = 3

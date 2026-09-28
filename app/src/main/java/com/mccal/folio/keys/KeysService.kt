@@ -684,6 +684,21 @@ class KeysService : InputMethodService(), Ime {
         }
     }
 
+    /**
+     * The editor saying the selection moved. Passed on to be counted when something is selected; what is selected is
+     * read there, once per change, and never kept or logged.
+     */
+    override fun onUpdateSelection(
+        oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int,
+    ) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        actions.selectionChanged(newSelStart, newSelEnd)
+    }
+
+    override fun selected(selection: Selected?) {
+        keyboard?.selection = selection
+    }
+
     /** A new field is a fresh question: whatever was true of the last one says nothing about this one. */
     override fun onFinishInput() {
         super.onFinishInput()

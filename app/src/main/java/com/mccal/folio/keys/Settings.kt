@@ -44,6 +44,17 @@ enum class Appearance { SYSTEM, DARK, LIGHT }
  */
 enum class Vibration { OFF, LIGHT, MEDIUM, STRONG }
 
+/**
+ * A button the toolbar can carry, besides Hide, which is always there and always first.
+ *
+ * Stored by name, in order, so a button added later cannot change what someone already arranged.
+ */
+enum class ToolKey(val kind: KeyKind) {
+    EMOJI(KeyKind.EMOJI), UNDO(KeyKind.UNDO), REDO(KeyKind.REDO), CURSOR_PAD(KeyKind.CURSOR_PAD),
+    SELECT_ALL(KeyKind.SELECT_ALL), CUT(KeyKind.CUT), COPY(KeyKind.COPY), PASTE(KeyKind.PASTE),
+    CLIPBOARD(KeyKind.CLIPBOARD), VOICE(KeyKind.VOICE),
+}
+
 data class Settings(
     /** The row above the keys that offers words. Off means no strip, and no autocorrect either. */
     val suggestions: Boolean = true,
@@ -96,15 +107,20 @@ data class Settings(
     /** A black board when dark is in effect, which an OLED screen draws by switching the pixels off. */
     val pureBlack: Boolean = false,
     /**
-     * The mic on the toolbar and at the end of the suggestion strip. It hands you to the phone's own voice keyboard,
-     * which is not Keyd and does use the Internet; with no voice keyboard on the phone the key is not drawn at all.
+     * The toolbar's buttons after Hide, in order, at most [MAX_TOOLS]. Voice is the mic on the toolbar and at the end
+     * of the suggestion strip; it hands you to the phone's own voice keyboard, which is not Keyd and does use the
+     * Internet, and with no voice keyboard on the phone it is not drawn at all.
      */
-    val voiceKey: Boolean = true,
-    /** The toolbar key that swaps the letters for arrows, word jumps and selection. */
-    val cursorPadKey: Boolean = true,
+    val toolbar: List<ToolKey> = DEFAULT_TOOLBAR,
     val keyStyle: KeyStyle = KeyStyle.FOLIO,
     /** After the same fix or undo three times, the strip asks once whether to make it permanent. */
     val offerRules: Boolean = true,
+    /** A swipe up on Z, X, C, V and A undoes, cuts, copies, pastes or selects all, instead of typing a capital. */
+    val editSwipes: Boolean = true,
+    /** Slide sideways from shift to select, the way the space bar moves the cursor. A tap is still shift. */
+    val shiftSelect: Boolean = true,
+    /** With text selected, the toolbar counts it and offers styles. Never in a password field. */
+    val selectionTools: Boolean = true,
 ) {
 
     fun save(prefs: SharedPreferences) {
@@ -135,10 +151,15 @@ data class Settings(
             remove(VIBRATE)
             putBoolean(MUTE_WITH_BLUETOOTH, muteWithBluetooth)
             putBoolean(PURE_BLACK, pureBlack)
-            putBoolean(VOICE_KEY, voiceKey)
-            putBoolean(CURSOR_PAD_KEY, cursorPadKey)
+            putString(TOOLBAR, toolbar.joinToString(",") { it.name })
+            // The two switches the list replaced go once their answers are in it, as the vibrate switch did.
+            remove(VOICE_KEY)
+            remove(CURSOR_PAD_KEY)
             putString(KEY_STYLE, keyStyle.name)
             putBoolean(OFFER_RULES, offerRules)
+            putBoolean(EDIT_SWIPES, editSwipes)
+            putBoolean(SHIFT_SELECT, shiftSelect)
+            putBoolean(SELECTION_TOOLS, selectionTools)
         }.apply()
     }
 
@@ -169,10 +190,41 @@ data class Settings(
         const val VIBRATION = "vibration"
         const val MUTE_WITH_BLUETOOTH = "muteWithBluetooth"
         const val PURE_BLACK = "pureBlack"
+        /** Before the toolbar could be arranged, the mic and the cursor pad key were switches. Read once, if set. */
         const val VOICE_KEY = "voiceKey"
         const val CURSOR_PAD_KEY = "cursorPadKey"
+        const val TOOLBAR = "toolbar"
         const val KEY_STYLE = "keyStyle"
         const val OFFER_RULES = "offerRules"
+        const val EDIT_SWIPES = "editSwipes"
+        const val SHIFT_SELECT = "shiftSelect"
+        const val SELECTION_TOOLS = "selectionTools"
+
+        /** Buttons besides Hide. More than this and a narrow screen can't give each one a big enough target. */
+        const val MAX_TOOLS = 7
+
+        /** The toolbar someone gets without arranging it. */
+        val DEFAULT_TOOLBAR = listOf(
+            ToolKey.EMOJI, ToolKey.UNDO, ToolKey.CURSOR_PAD, ToolKey.COPY, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE,
+        )
+
+        /** The stored list: names in order, anything unknown or repeated left out, and no more than [MAX_TOOLS]. */
+        fun parseToolbar(stored: String): List<ToolKey> =
+            stored.split(',').mapNotNull { name -> ToolKey.entries.firstOrNull { it.name == name.trim() } }
+                .distinct().take(MAX_TOOLS)
+
+        /**
+         * The toolbar, or what the two old switches said: the cursor pad key off put Select all in its place, which
+         * is where it went then, and the voice key off left the mic out. Anyone who never touched either gets the
+         * usual list.
+         */
+        private fun toolbar(prefs: SharedPreferences, fallback: List<ToolKey>): List<ToolKey> {
+            prefs.getString(TOOLBAR, null)?.let { return parseToolbar(it) }
+            fun old(key: String) = runCatching { prefs.getBoolean(key, true) }.getOrDefault(true)
+            return fallback
+                .map { if (it == ToolKey.CURSOR_PAD && !old(CURSOR_PAD_KEY)) ToolKey.SELECT_ALL else it }
+                .filter { it != ToolKey.VOICE || old(VOICE_KEY) }
+        }
 
         fun load(prefs: SharedPreferences): Settings {
             val fallback = Settings()
@@ -202,10 +254,12 @@ data class Settings(
                 vibration = vibration(prefs, fallback.vibration),
                 muteWithBluetooth = read(MUTE_WITH_BLUETOOTH, fallback.muteWithBluetooth),
                 pureBlack = read(PURE_BLACK, fallback.pureBlack),
-                voiceKey = read(VOICE_KEY, fallback.voiceKey),
-                cursorPadKey = read(CURSOR_PAD_KEY, fallback.cursorPadKey),
+                toolbar = toolbar(prefs, fallback.toolbar),
                 keyStyle = choice(prefs, KEY_STYLE, fallback.keyStyle),
                 offerRules = read(OFFER_RULES, fallback.offerRules),
+                editSwipes = read(EDIT_SWIPES, fallback.editSwipes),
+                shiftSelect = read(SHIFT_SELECT, fallback.shiftSelect),
+                selectionTools = read(SELECTION_TOOLS, fallback.selectionTools),
             )
         }
 
