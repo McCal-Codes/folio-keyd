@@ -280,15 +280,15 @@ class KeyboardViewTest {
 
     @Test
     fun `with nothing to suggest the toolbar is what shows`() {
-        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
-    /** With the cursor pad key switched off, Select all comes back rather than going missing. */
+    /** Select all can take the cursor pad's place, which is what switching the pad key off used to do. */
     @Test
-    fun `without the cursor pad key the toolbar has select all`() {
-        view.settings = Settings(cursorPadKey = false)
+    fun `with select all in place of the cursor pad the toolbar has select all`() {
+        view.settings = Settings(toolbar = Settings.DEFAULT_TOOLBAR.map { if (it == ToolKey.CURSOR_PAD) ToolKey.SELECT_ALL else it })
         view.layout(0, 0, view.width, view.height)
-        assertEquals(listOf("Hide", "Emoji", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Select all", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test
@@ -305,7 +305,7 @@ class KeyboardViewTest {
 
     @Test
     fun `the mic can be switched off`() {
-        view.settings = Settings(voiceKey = false)
+        view.settings = Settings(toolbar = Settings.DEFAULT_TOOLBAR - ToolKey.VOICE)
         view.voiceAvailable = true
         view.layout(0, 0, view.width, view.height)
         assertTrue("Voice" !in stripLabels())
@@ -350,7 +350,7 @@ class KeyboardViewTest {
     fun `the toolbar comes back when the word is finished`() {
         view.suggestions = listOf("teh", "the")
         view.suggestions = emptyList()
-        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     /** The strip is the same height as the toolbar, so nothing below it moves as words start and finish. */
@@ -368,7 +368,7 @@ class KeyboardViewTest {
     fun `a password field shows the toolbar, never suggestions`() {
         show(FieldRules(password = true))
         view.suggestions = listOf("hunter2", "hunter")
-        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test
@@ -968,7 +968,7 @@ class KeyboardViewTest {
         tapStrip("Always")
         assertEquals(listOf("yes:Folio", "yes:teh"), toolbar)
         assertEquals(null, view.offer)
-        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test
@@ -1004,7 +1004,7 @@ class KeyboardViewTest {
     fun `no offer in a password field`() {
         show(FieldRules(password = true))
         view.offer = keepFolio
-        assertEquals(listOf("Hide", "Emoji", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
+        assertEquals(listOf("Hide", "Emoji", "Undo", "Cursor pad", "Copy", "Paste", "Clipboard"), stripLabels())
     }
 
     @Test

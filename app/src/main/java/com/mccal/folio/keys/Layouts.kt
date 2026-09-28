@@ -11,9 +11,29 @@ import android.view.inputmethod.EditorInfo
  */
 enum class KeyKind {
     CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, CLIPBOARD, EMOJI,
-    SUGGESTION, VOICE, CURSOR_PAD,
+    SUGGESTION, VOICE, CURSOR_PAD, UNDO, REDO, CUT,
     /** The strip asking whether to keep a word or add a rule: the question, its Yes, and its No. */
     OFFER, OFFER_YES, OFFER_NO,
+    /**
+     * The toolbar while text is selected: how much is selected (read, not pressed), the Style button, then the menu
+     * Style opens - one of its choices, and the note under them.
+     */
+    SELECTION, STYLE, STYLE_CHOICE, STYLE_NOTE,
+}
+
+/**
+ * What a swipe up on one of five letter keys does instead of typing its capital.
+ *
+ * The keys are the ones a desktop's Ctrl shortcuts sit on - Z, X, C, V and A - found by where they are rather than
+ * by what they say: the first four letters of the bottom row and the first of the home row. On AZERTY that is W X C V
+ * and Q, on QWERTZ Y X C V and A, which is where the fingers already go for Ctrl+Z on those keyboards.
+ */
+enum class EditSwipe(val label: String, val verb: String) {
+    UNDO("Undo", "undo"),
+    CUT("Cut", "cut"),
+    COPY("Copy", "copy"),
+    PASTE("Paste", "paste"),
+    SELECT_ALL("Select all", "select all"),
 }
 
 data class Key(
@@ -24,6 +44,8 @@ data class Key(
     val output: String = label,
     /** Printed small in the key's corner: the long-press alternate, the way AOSP and HeliBoard do it. */
     val hint: String? = null,
+    /** What a swipe up does on this key instead of its capital, for the five keys that have one. */
+    val edit: EditSwipe? = null,
 )
 
 typealias Row = List<Key>
@@ -115,13 +137,26 @@ object Layouts {
                 // The digit in the corner belongs to the position on the top row, not to the letter: on AZERTY
                 // the first key is "a" and still gives 1, because that is where 1 is.
                 val hint = if (letters && index == 0) CORNER_DIGITS.getOrNull(position) else null
-                Key(shown.toString(), hint = hint?.toString())
+                val edit = if (letters) editAt(index, position, source.lastIndex) else null
+                Key(shown.toString(), hint = hint?.toString(), edit = edit)
             }
             if (index < source.lastIndex) keys else bottomOfLetters(keys, layer)
         }
         val top = if (numberRow && letters) listOf(DIGITS) else emptyList()
         return top + rows + listOf(spaceRow(layer, rules))
     }
+
+    /**
+     * The swipe-up edit for the letter at [position] in row [index], by place rather than by letter: the home row's
+     * first key selects all, and the bottom row's first four undo, cut, copy and paste. See [EditSwipe].
+     */
+    private fun editAt(index: Int, position: Int, lastRow: Int): EditSwipe? = when (index) {
+        1 -> if (position == 0) EditSwipe.SELECT_ALL else null
+        lastRow -> BOTTOM_EDITS.getOrNull(position)
+        else -> null
+    }
+
+    private val BOTTOM_EDITS = listOf(EditSwipe.UNDO, EditSwipe.CUT, EditSwipe.COPY, EditSwipe.PASTE)
 
     /** The third row carries shift and backspace at its ends, wider than a letter so they're easy to hit. */
     private fun bottomOfLetters(keys: List<Key>, layer: Layer): Row {

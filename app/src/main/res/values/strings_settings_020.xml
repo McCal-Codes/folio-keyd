@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Settings for Keyd 0.2.0: the toolbar keys, key styles, reporting a problem, and moving to a new phone. -->
 <resources>
-    <!-- Keys and gestures -->
-    <string name="header_toolbar">TOOLBAR</string>
-    <string name="settings_voice_key">Voice key</string>
-    <string name="settings_cursor_pad_key">Cursor pad key</string>
-    <string name="footer_toolbar">The mic hands you to your phone\'s own voice keyboard. That keyboard is not Keyd and does use the Internet. Keyd comes back when you\'re done. The cursor pad has arrows, word jumps, select, cut and select all.</string>
-
     <!-- Look and size -->
     <string name="header_key_style">KEY STYLE</string>
     <string name="settings_key_style_folio">Folio</string>

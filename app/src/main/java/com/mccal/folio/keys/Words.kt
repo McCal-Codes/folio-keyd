@@ -21,13 +21,15 @@ object Words {
 
 /** What a key is read as by a screen reader. Two keys must never read the same, or they can't be told apart. */
 object Spoken {
-    fun name(key: Key, shift: Shift): String = when (key.kind) {
+    /** [editSwipes] says whether the five edit keys read their swipe: "c, swipe up to copy". */
+    fun name(key: Key, shift: Shift, editSwipes: Boolean = false): String = when (key.kind) {
         KeyKind.BACKSPACE -> "Backspace, swipe left to delete a word"
         KeyKind.SHIFT -> when (shift) {
             Shift.OFF -> "Shift"
             Shift.ONCE -> "Shift, on for one letter"
             Shift.LOCKED -> "Caps lock"
         }
+        KeyKind.CHAR -> key.edit?.takeIf { editSwipes }?.let { "${key.label}, swipe up to ${it.verb}" } ?: key.label
         KeyKind.SPACE -> "Space, swipe to move the cursor"
         KeyKind.GLOBE -> "Switch keyboard"
         KeyKind.LAYER -> when (key.output) {
@@ -38,6 +40,9 @@ object Spoken {
         KeyKind.HIDE -> "Hide the keyboard"
         KeyKind.SELECT_ALL -> "Select all"
         KeyKind.COPY -> "Copy"
+        KeyKind.CUT -> "Cut"
+        KeyKind.UNDO -> "Undo"
+        KeyKind.REDO -> "Redo"
         KeyKind.PASTE -> "Paste"
         KeyKind.CLIPBOARD -> "Clipboard history"
         // The toolbar's key says "Emoji"; the one under the search letters says "Back to emoji".
@@ -46,6 +51,10 @@ object Spoken {
         KeyKind.CURSOR_PAD -> "Cursor pad"
         KeyKind.SUGGESTION -> key.output
         KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO -> key.label
-        KeyKind.ACTION, KeyKind.CHAR -> key.label
+        // The count is drawn with a middle dot between its halves; read aloud, a comma is the pause it stands for.
+        KeyKind.SELECTION -> key.label.replace(" · ", ", ")
+        KeyKind.STYLE -> "Style, bold, italic, script or monospace"
+        KeyKind.STYLE_CHOICE, KeyKind.STYLE_NOTE -> key.label
+        KeyKind.ACTION -> key.label
     }
 }

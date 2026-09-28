@@ -175,6 +175,63 @@ object Icons {
         }
     }
 
+    /**
+     * A hook curving back on itself, its head down on the left: undo. [redo] is the same hook the other way round, so
+     * the pair read as a pair.
+     */
+    fun undo(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) = hook(canvas, cx, cy, size, stroke, 1f)
+
+    fun redo(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) = hook(canvas, cx, cy, size, stroke, -1f)
+
+    private fun hook(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint, side: Float) {
+        val r = size * 0.34f
+        val centreY = cy + size * 0.1f
+        canvas.save()
+        canvas.scale(side, 1f, cx, cy)
+        // Over the top from the left end, round to the lower right.
+        rect.set(cx - r, centreY - r, cx + r, centreY + r)
+        canvas.drawArc(rect, 180f, 225f, false, stroke)
+        val tipX = cx - r
+        val head = size * 0.18f
+        canvas.drawLine(tipX, centreY, tipX - head, centreY - head, stroke)
+        canvas.drawLine(tipX, centreY, tipX + head, centreY - head, stroke)
+        canvas.restore()
+    }
+
+    /** Scissors: two rings, and the blades crossing above them. */
+    fun cut(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val ring = size * 0.13f
+        val ringY = cy + size * 0.3f
+        val apart = size * 0.2f
+        canvas.drawCircle(cx - apart, ringY, ring, stroke)
+        canvas.drawCircle(cx + apart, ringY, ring, stroke)
+        val top = cy - size * 0.46f
+        canvas.drawLine(cx - apart + ring * 0.5f, ringY - ring, cx + apart * 0.9f, top, stroke)
+        canvas.drawLine(cx + apart - ring * 0.5f, ringY - ring, cx - apart * 0.9f, top, stroke)
+    }
+
+    /**
+     * The icon for one of the toolbar's buttons, so the keyboard and the settings page that arranges it draw the same
+     * thing. False for a kind that has no icon.
+     */
+    fun tool(canvas: Canvas, kind: KeyKind, cx: Float, cy: Float, size: Float, stroke: Paint, fill: Paint): Boolean {
+        when (kind) {
+            KeyKind.HIDE -> chevronDown(canvas, cx, cy, size * 1.2f, stroke)
+            KeyKind.EMOJI -> smiley(canvas, cx, cy, size, stroke, fill)
+            KeyKind.SELECT_ALL -> selectAll(canvas, cx, cy, size, stroke, fill)
+            KeyKind.COPY -> copy(canvas, cx, cy, size, stroke)
+            KeyKind.PASTE -> paste(canvas, cx, cy, size, stroke, fill)
+            KeyKind.CLIPBOARD -> clipboard(canvas, cx, cy, size, stroke, fill)
+            KeyKind.VOICE -> mic(canvas, cx, cy, size, stroke)
+            KeyKind.CURSOR_PAD -> move(canvas, cx, cy, size, stroke)
+            KeyKind.UNDO -> undo(canvas, cx, cy, size, stroke)
+            KeyKind.REDO -> redo(canvas, cx, cy, size, stroke)
+            KeyKind.CUT -> cut(canvas, cx, cy, size, stroke)
+            else -> return false
+        }
+        return true
+    }
+
     private val DIRECTIONS = arrayOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f)
 
     /** A pushpin: the head, and the point it goes in by. Filled when the clip is pinned, outlined when it is not. */
