@@ -291,15 +291,19 @@ object Layouts {
             else -> FieldKind.TEXT
         }
         val multiline = klass == InputType.TYPE_CLASS_TEXT && inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
+        val plainEnter = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
         return FieldRules(
             kind = kind,
-            actionLabel = actionLabel?.takeIf { it.isNotBlank() } ?: actionFor(imeOptions, multiline),
+            // A key that sends Enter says return, whatever action the app also named: "Search" on a key that does
+            // not search is a promise the key cannot keep.
+            actionLabel = if (plainEnter) "return"
+                else actionLabel?.takeIf { it.isNotBlank() } ?: actionFor(imeOptions, multiline),
             password = password,
             noLearning = imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0,
             multiline = multiline,
             noSuggestions = klass == InputType.TYPE_CLASS_TEXT &&
                 inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS != 0,
-            plainEnter = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0,
+            plainEnter = plainEnter,
         )
     }
 

@@ -24,6 +24,9 @@ class EmojiSearch private constructor(private val entries: List<Entry>) {
         val whole: String,
         val nameWords: List<String>,
         val keywordWords: List<String>,
+        /** The words again with their hyphenated parts added, split once here rather than on every keystroke. */
+        val nameStarts: List<String>,
+        val keywordStarts: List<String>,
         /** Where it sits in [Emoji], so equal matches keep the order the grid shows. */
         val order: Int,
     )
@@ -80,21 +83,9 @@ class EmojiSearch private constructor(private val entries: List<Entry>) {
     private fun tier(entry: Entry, word: String): Int = when {
         word in entry.nameWords -> 0
         word in entry.keywordWords -> 1
-        entry.nameWords.any { starts(it, word) } -> 2
-        entry.keywordWords.any { starts(it, word) } -> 3
+        entry.nameStarts.any { it.startsWith(word) } -> 2
+        entry.keywordStarts.any { it.startsWith(word) } -> 3
         else -> -1
-    }
-
-    /**
-     * The start of a word, or the start of one part of a hyphenated word.
-     *
-     * "heart-eyes" is kept whole so that "heart" is not an exact match for the face with heart eyes, which would put
-     * it level with the red heart. It still counts as starting with "eyes", because that is a word in it.
-     */
-    private fun starts(stored: String, word: String): Boolean {
-        if (stored.startsWith(word)) return true
-        if ('-' !in stored) return false
-        return stored.split('-').any { it.startsWith(word) }
     }
 
     companion object {
@@ -127,12 +118,16 @@ class EmojiSearch private constructor(private val entries: List<Entry>) {
                 val name = parts[1]
                 val keywords = parts.getOrNull(2).orEmpty().split(',').filter { it.isNotBlank() }
                 val folded = fold(name)
+                val nameWords = words(folded)
+                val keywordWords = keywords.flatMap { words(fold(it)) }.distinct()
                 entries += Entry(
                     glyph = parts[0],
                     name = name,
-                    whole = words(folded).joinToString(" "),
-                    nameWords = words(folded),
-                    keywordWords = keywords.flatMap { words(fold(it)) }.distinct(),
+                    whole = nameWords.joinToString(" "),
+                    nameWords = nameWords,
+                    keywordWords = keywordWords,
+                    nameStarts = starts(nameWords),
+                    keywordStarts = starts(keywordWords),
                     order = entries.size,
                 )
             }
@@ -158,6 +153,15 @@ class EmojiSearch private constructor(private val entries: List<Entry>) {
                 .replace("ß", "ss")
             return MARKS.replace(Normalizer.normalize(lower, Normalizer.Form.NFD), "")
         }
+
+        /**
+         * What a typed word may be the start of: each word, and each part of a hyphenated one.
+         *
+         * "heart-eyes" is kept whole so that "heart" is not an exact match for the face with heart eyes, which would
+         * put it level with the red heart. It still counts as starting with "eyes", because that is a word in it.
+         */
+        private fun starts(words: List<String>): List<String> =
+            words.flatMap { if ('-' in it) listOf(it) + it.split('-') else listOf(it) }.filter { it.isNotEmpty() }.distinct()
 
         private fun words(folded: String): List<String> =
             folded.split(SEPARATORS).map { it.trim('-') }.filter { it.isNotEmpty() }
