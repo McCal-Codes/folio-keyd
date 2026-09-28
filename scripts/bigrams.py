@@ -63,6 +63,14 @@ CAST = {
     "luca", "paolo", "ricardo", "joão", "joao", "muiriel",
 }
 
+# British spellings, for the US English list: the spoken list added "colour" and "favourite" beside "color" and
+# "favorite", which is fine for knowing a word and wrong for offering one. Each pair is a British ending and the
+# American one; a word is only left out when its American twin is in the list.
+BRITISH = [("our", "or"), ("ours", "ors"), ("ourite", "orite"), ("ourhood", "orhood"), ("ourful", "orful"),
+           ("ourable", "orable"), ("oured", "ored"), ("ouring", "oring"), ("ise", "ize"), ("ised", "ized"), ("ising", "izing"),
+           ("isation", "ization"), ("tre", "ter"), ("tres", "ters"), ("ence", "ense"), ("lled", "led"),
+           ("lling", "ling"), ("ogue", "og")]
+
 TOKEN = re.compile(r"(?P<word>[^\W\d_]+(?:'[^\W\d_]+)*'?)|(?P<end>[.!?…]+)|(?P<other>\S)")
 
 
@@ -115,9 +123,13 @@ def word_list(tag):
     return spelled
 
 
-def offered(word, spelled):
+def british(word, spelled):
+    return any(word.endswith(uk) and (word[: -len(uk)] + us) in spelled for uk, us in BRITISH)
+
+
+def offered(word, spelled, american=False):
     """The spelling to offer [word] in, or None if it is not one to offer."""
-    if word in CAST:
+    if word in CAST or (american and british(word, spelled)):
         return None
     found = spelled.get(word)
     if found == "i" and spelled.get("i'm") == "I'm":
@@ -145,7 +157,7 @@ def build(tag, code, expected, highest, cache, held_out):
             held.append(text)
             continue
         for previous, word in pairs(text):
-            next_word = offered(word, spelled)
+            next_word = offered(word, spelled, american=tag == "en-US")
             if next_word is None:
                 continue
             counts[previous][next_word] += 1

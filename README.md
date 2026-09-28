@@ -127,7 +127,7 @@ The US English dictionary in `app/src/main/assets/words-en-US.txt` is two source
 - the **commonness score** on each word is the OpenSubtitles frequency list from
   [FrequencyWords](https://github.com/hermitdave/FrequencyWords), log-scaled. FrequencyWords' code is MIT but its
   content is CC BY-SA 4.0, so the modified lists ship under CC BY-SA 4.0 too. SCOWL's own bands are tiers rather
-  than frequencies — its top tier holds 4,434 words, so within it "the" ties with "tea", and a
+  than frequencies: its top tier holds 4,434 words, so within it "the" ties with "tea", and a
   keyboard that cannot tell those apart offers the wrong one.
 
 Both notices ship beside the lists as `words-COPYING.txt` and must stay there, along with the note that the lists
