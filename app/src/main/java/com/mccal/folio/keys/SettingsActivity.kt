@@ -1043,6 +1043,15 @@ class SettingsActivity : Activity() {
             ), settings.split) { value -> settings.copy(split = value) }
         }
         footer(column, getString(R.string.settings_split_note))
+        header(column, getString(R.string.settings_one_handed).uppercase())
+        group(column) {
+            pick(it, listOf(
+                getString(R.string.settings_one_handed_off) to OneHanded.OFF,
+                getString(R.string.settings_one_handed_left) to OneHanded.LEFT,
+                getString(R.string.settings_one_handed_right) to OneHanded.RIGHT,
+            ), settings.oneHanded) { value -> settings.copy(oneHanded = value) }
+        }
+        footer(column, getString(R.string.settings_one_handed_note))
     }
 
     private fun feel(column: LinearLayout) {

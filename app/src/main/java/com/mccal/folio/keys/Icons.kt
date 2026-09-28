@@ -207,6 +207,36 @@ object Icons {
         canvas.drawLine(tip, cy, tip + head, cy + head, stroke)
     }
 
+    /** Four arrows out to the corners: back to the full width. */
+    fun maximize(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        val head = half * 0.5f
+        for ((dx, dy) in CORNERS) {
+            val tipX = cx + dx * half
+            val tipY = cy + dy * half
+            canvas.drawLine(cx + dx * half * 0.22f, cy + dy * half * 0.22f, tipX, tipY, stroke)
+            // Each head is a corner bracket, back along the edge each way.
+            canvas.drawLine(tipX, tipY, tipX - dx * head, tipY, stroke)
+            canvas.drawLine(tipX, tipY, tipX, tipY - dy * head, stroke)
+        }
+    }
+
+    private val CORNERS = arrayOf(1f to 1f, -1f to 1f, 1f to -1f, -1f to -1f)
+
+    /** Two arrows passing each other, right along the top and left along the bottom: move to the other side. */
+    fun swap(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        val head = half * 0.4f
+        val upper = cy - half * 0.4f
+        val lower = cy + half * 0.4f
+        canvas.drawLine(cx - half, upper, cx + half, upper, stroke)
+        canvas.drawLine(cx + half, upper, cx + half - head, upper - head, stroke)
+        canvas.drawLine(cx + half, upper, cx + half - head, upper + head, stroke)
+        canvas.drawLine(cx + half, lower, cx - half, lower, stroke)
+        canvas.drawLine(cx - half, lower, cx - half + head, lower - head, stroke)
+        canvas.drawLine(cx - half, lower, cx - half + head, lower + head, stroke)
+    }
+
     /** A cross, for forgetting one clip. */
     fun close(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
         val half = size / 2 * 0.62f

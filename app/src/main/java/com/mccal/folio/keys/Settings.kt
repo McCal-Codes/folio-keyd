@@ -24,6 +24,12 @@ enum class Size(val share: Float) { SMALL(0.86f), MEDIUM(1f), LARGE(1.14f) }
 enum class Split { AUTO, ALWAYS, NEVER }
 
 /**
+ * A narrower keyboard against one edge, for a thumb that can't reach across. Only on a window that would otherwise
+ * fill its width: a screen big enough to split or centre the keys has already solved the reach problem.
+ */
+enum class OneHanded { OFF, LEFT, RIGHT }
+
+/**
  * How the keys are drawn. [FOLIO] is rounded with a little depth, [MATERIAL] flat like Gboard, [SAMSUNG] squarer and
  * closer together. Only the shapes and colours change; where every key sits is the same in all three.
  */
@@ -69,6 +75,7 @@ data class Settings(
     val swipeDownToHide: Boolean = true,
     val size: Size = Size.MEDIUM,
     val split: Split = Split.AUTO,
+    val oneHanded: OneHanded = OneHanded.OFF,
     val appearance: Appearance = Appearance.SYSTEM,
     /** Every key outlined and every label at full strength, for eyes the ordinary palette does not suit. */
     val highContrast: Boolean = false,
@@ -118,6 +125,7 @@ data class Settings(
             putBoolean(SWIPE_DOWN_HIDE, swipeDownToHide)
             putString(SIZE, size.name)
             putString(SPLIT, split.name)
+            putString(ONE_HANDED, oneHanded.name)
             putString(APPEARANCE, appearance.name)
             putBoolean(HIGH_CONTRAST, highContrast)
             putBoolean(CLIPBOARD, clipboardHistory)
@@ -151,6 +159,7 @@ data class Settings(
         const val SWIPE_DOWN_HIDE = "swipeDownHide"
         const val SIZE = "size"
         const val SPLIT = "split"
+        const val ONE_HANDED = "oneHanded"
         const val APPEARANCE = "appearance"
         const val HIGH_CONTRAST = "highContrast"
         const val CLIPBOARD = "clipboardHistory"
@@ -185,6 +194,7 @@ data class Settings(
                 swipeDownToHide = read(SWIPE_DOWN_HIDE, fallback.swipeDownToHide),
                 size = choice(prefs, SIZE, fallback.size),
                 split = choice(prefs, SPLIT, fallback.split),
+                oneHanded = choice(prefs, ONE_HANDED, fallback.oneHanded),
                 appearance = choice(prefs, APPEARANCE, fallback.appearance),
                 highContrast = read(HIGH_CONTRAST, fallback.highContrast),
                 clipboardHistory = read(CLIPBOARD, fallback.clipboardHistory),

@@ -14,6 +14,8 @@ enum class KeyKind {
     SUGGESTION, VOICE, CURSOR_PAD,
     /** The strip asking whether to keep a word or add a rule: the question, its Yes, and its No. */
     OFFER, OFFER_YES, OFFER_NO,
+    /** The one-handed keyboard's rail: back to the full width, and over to the other edge. */
+    FULL_WIDTH, OTHER_SIDE,
 }
 
 data class Key(

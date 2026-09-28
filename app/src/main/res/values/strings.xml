@@ -67,6 +67,13 @@
     <string name="settings_split_auto">Automatic</string>
     <string name="settings_split_always">Always</string>
     <string name="settings_split_never">Never</string>
+    <string name="settings_one_handed">One-handed</string>
+    <string name="settings_one_handed_note">A narrower keyboard against one edge. Only on screens too small to split.</string>
+    <string name="settings_one_handed_off">Off</string>
+    <string name="settings_one_handed_left">Left</string>
+    <string name="settings_one_handed_right">Right</string>
+    <string name="one_handed_full_width">Full width</string>
+    <string name="one_handed_other_side">Move to the other side</string>
     <string name="settings_cursor_swipe">Swipe the space bar to move the cursor</string>
     <string name="settings_delete_word">Swipe left on backspace for a whole word</string>
     <string name="settings_swipe_hide">Swipe down on the space bar to hide</string>

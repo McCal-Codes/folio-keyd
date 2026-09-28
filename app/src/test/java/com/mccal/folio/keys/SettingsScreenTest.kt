@@ -144,6 +144,18 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun `one-handed is picked on the look page, and saved`() {
+        val a = open()
+        a.tap("Look and size")
+        assertNotNull(a.text("ONE-HANDED"))
+        assertNotNull(a.text("A narrower keyboard against one edge. Only on screens too small to split."))
+        a.tap(a.getString(R.string.settings_one_handed_right))
+        assertEquals(OneHanded.RIGHT, a.stored().oneHanded)
+        a.tap(a.getString(R.string.settings_one_handed_off))
+        assertEquals(OneHanded.OFF, a.stored().oneHanded)
+    }
+
+    @Test
     fun `back steps out a page at a time`() {
         val a = open()
         a.tap("Privacy")

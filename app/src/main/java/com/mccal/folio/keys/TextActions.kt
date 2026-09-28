@@ -72,6 +72,9 @@ interface Ime {
     /** Swap the letters for the cursor pad, or back. */
     fun showCursorPad(showing: Boolean) {}
 
+    /** The one-handed rail was used. Keep the new side as the setting, and hand it back to the keys. */
+    fun oneHanded(side: OneHanded) {}
+
     /**
      * A correction stood: the next word began and it was not undone. Counted off the typing thread, like [learn],
      * and under the same rules - never from a password field, never when learning is off.
@@ -433,6 +436,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onVoice() = ime.startVoice()
 
     override fun onCursorPad() = ime.showCursorPad(true)
+
+    override fun onOneHanded(side: OneHanded) = ime.oneHanded(side)
 
     /**
      * One step from the cursor pad, as the key a hardware keyboard would send: an arrow, Ctrl and an arrow for a

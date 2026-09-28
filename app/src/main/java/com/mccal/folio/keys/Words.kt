@@ -46,6 +46,7 @@ object Spoken {
         KeyKind.CURSOR_PAD -> "Cursor pad"
         KeyKind.SUGGESTION -> key.output
         KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO -> key.label
+        KeyKind.FULL_WIDTH, KeyKind.OTHER_SIDE -> key.label
         KeyKind.ACTION, KeyKind.CHAR -> key.label
     }
 }

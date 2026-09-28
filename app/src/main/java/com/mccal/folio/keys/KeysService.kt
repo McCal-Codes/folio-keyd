@@ -8,7 +8,6 @@ import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.InputConnection
@@ -428,7 +427,7 @@ class KeysService : InputMethodService(), Ime {
         clipboard = clips
         pad = arrows
         actions.refresh()
-        return FrameLayout(this).also { root = it }.apply {
+        return KeyboardFrame(this, keys).also { root = it }.apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             )
@@ -530,6 +529,17 @@ class KeysService : InputMethodService(), Ime {
         }
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         shown.visibility = if (showing) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * From the rail beside a one-handed keyboard. Saved as the usual setting rather than this app's, since the hand
+     * that wants the keys on the other side wants them there in every app, and the panels move with the letters.
+     */
+    override fun oneHanded(side: OneHanded) {
+        Settings.load(prefs).copy(oneHanded = side).save(prefs)
+        actions.settings = actions.settings.copy(oneHanded = side)
+        keyboard?.settings = actions.settings
+        root?.requestLayout()
     }
 
     /** One place that changes the stored list and puts the panel back in step with it. */

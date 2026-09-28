@@ -77,6 +77,9 @@ class KeyboardView(context: Context) : View(context) {
 
         /** The strip's question, answered: Keep or Always when [accepted], No when not. */
         fun onOffer(offer: Insights.Offer, accepted: Boolean) {}
+
+        /** The one-handed rail was used: back to the full width, or over to the other edge. Already on screen. */
+        fun onOneHanded(side: OneHanded) {}
     }
 
     var listener: Listener? = null
@@ -336,11 +339,21 @@ class KeyboardView(context: Context) : View(context) {
     /**
      * How the keyboard sits in the window it was given. A phone keyboard stretched across an unfolded Fold gives keys
      * no thumb can reach, so a wide window splits (as Samsung's does), a middling one is capped and centred (as a
-     * tablet keyboard is), and a phone fills the width.
+     * tablet keyboard is), and a phone fills the width - or, asked to be one-handed, sits against one edge with the
+     * rail beside it.
      */
-    private enum class Shape { FULL, CAPPED, SPLIT }
+    private enum class Shape { FULL, CAPPED, SPLIT, ONE_HANDED }
 
     private var shape = Shape.FULL
+
+    /** The board's two edges, and the keys' two edges inside it. The whole width, unless the keyboard is one-handed. */
+    private var boardLeft = 0f
+    private var boardRight = 0f
+    private var keysLeft = 0f
+    private var keysRight = 0f
+
+    /** The one-handed rail's two buttons. Empty whenever the keyboard fills its window. */
+    private var rail: List<Placement> = emptyList()
 
     /**
      * Width alone does not say how big a screen is.
@@ -360,10 +373,41 @@ class KeyboardView(context: Context) : View(context) {
         else -> Shape.FULL
     }
 
+    /**
+     * Where a one-handed board goes in a window [across] pixels wide, or null when it doesn't apply.
+     *
+     * Only where the keyboard would otherwise fill the width. A window big enough to split or centre the keys has no
+     * reach problem left to solve, so an unfolded Fold simply ignores the setting. The cutout's side is kept clear on
+     * both edges, the way the full keyboard keeps it, so the rail never ends up under a camera.
+     */
+    private fun oneHandedSpan(across: Float): Pair<Float, Float>? {
+        if (settings.oneHanded == OneHanded.OFF || searchKeys || across <= 0f) return null
+        if (shapeFor(across / dp, resources.configuration.screenHeightDp.toFloat()) != Shape.FULL) return null
+        val keys = Geometry.oneHandedDp((across - 2 * sideInset) / dp)?.times(dp) ?: return null
+        return if (settings.oneHanded == OneHanded.RIGHT) across - sideInset - keys to across else 0f to sideInset + keys
+    }
+
+    /**
+     * The part of a window [across] pixels wide that the letters' board takes, so a panel opened in its place can
+     * take the same part. The whole width unless the keyboard is one-handed.
+     */
+    fun boardSpan(across: Int): Pair<Int, Int> =
+        oneHandedSpan(across.toFloat())?.let { (left, right) -> left.roundToInt() to right.roundToInt() } ?: (0 to across)
+
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
-        shape = shapeFor(width / dp, resources.configuration.screenHeightDp.toFloat())
+        arrange()
+    }
+
+    /** Places everything for the size the view has now. Also run straight away when the rail moves the keyboard. */
+    private fun arrange() {
+        val span = oneHandedSpan(width.toFloat())
+        shape = if (span != null) Shape.ONE_HANDED else shapeFor(width / dp, resources.configuration.screenHeightDp.toFloat())
         val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        boardLeft = span?.first ?: 0f
+        boardRight = span?.second ?: width.toFloat()
+        keysLeft = if (boardLeft > 0f) boardLeft + panelPad + Geometry.SIDE_PAD_DP * dp else edge
+        keysRight = if (boardRight < width) boardRight - panelPad - Geometry.SIDE_PAD_DP * dp else width - edge
         val usable = width - 2 * edge
         val top = toolbarHeight + panelPad
         val bottom = bottomInset + panelPad
@@ -395,10 +439,71 @@ class KeyboardView(context: Context) : View(context) {
                     startX = edge + half + gutter, fillWidth = half, evenKeys = true, alignEnd = true,
                 )
             }
+            Shape.ONE_HANDED -> Geometry.place(
+                rows, width, height, dp, bottomInset = bottom, top = top,
+                startX = keysLeft, fillWidth = keysRight - keysLeft,
+            )
         }
+        rail = if (shape == Shape.ONE_HANDED) placeRail() else emptyList()
         tools = placeToolbar()
         keyNodes.invalidateRoot()
         openPendingHold()
+    }
+
+    /**
+     * The rail beside a one-handed keyboard: Full width above, the other side below, in the middle of its height.
+     *
+     * Each is the rail's whole width across and taller than a fingertip, though what is drawn is smaller: the rail
+     * is slim, and a button drawn as big as its target would crowd it.
+     */
+    private fun placeRail(): List<Placement> {
+        val (left, right) = if (settings.oneHanded == OneHanded.RIGHT) {
+            max(sideInset, boardLeft - Geometry.RAIL_DP * dp) to boardLeft
+        } else {
+            boardRight to min(width - sideInset, boardRight + Geometry.RAIL_DP * dp)
+        }
+        val cy = (panelPad + height - bottomInset - panelPad) / 2
+        val tall = RAIL_BUTTON_DP * dp
+        val gap = RAIL_GAP_DP * dp / 2
+        return listOf(
+            Placement(
+                Key(context.getString(R.string.one_handed_full_width), KeyKind.FULL_WIDTH),
+                Box(left, cy - gap - tall, right, cy - gap),
+            ),
+            Placement(
+                Key(context.getString(R.string.one_handed_other_side), KeyKind.OTHER_SIDE),
+                Box(left, cy + gap, right, cy + gap + tall),
+            ),
+        )
+    }
+
+    /** The rail's own strip of board, and its two buttons drawn like the keys that aren't letters. */
+    private fun drawRail(canvas: Canvas) {
+        if (rail.isEmpty()) return
+        val column = rail.first().box
+        // The gap between the rail and the keyboard is the same gap the board keeps from the screen's edge.
+        val left = if (settings.oneHanded == OneHanded.RIGHT) column.left else column.left + panelPad
+        val right = if (settings.oneHanded == OneHanded.RIGHT) column.right - panelPad else column.right
+        val across = right - left
+        scratch.set(left, panelPad, right, height - panelPad)
+        fill.color = theme.board
+        canvas.drawRoundRect(scratch, min(PANEL_RADIUS_DP * dp, across / 2), min(PANEL_RADIUS_DP * dp, across / 2), fill)
+        val side = min(across - 8 * dp, RAIL_KEY_DP * dp)
+        val cx = (left + right) / 2
+        val radius = theme.keyRadiusDp * dp
+        for (placement in rail) {
+            val box = placement.box
+            val cy = (box.top + box.bottom) / 2
+            fill.color = if (isHeld(placement)) blend(theme.altKey, theme.pressTint) else theme.altKey
+            scratch.set(cx - side / 2, cy - side / 2, cx + side / 2, cy + side / 2)
+            canvas.drawRoundRect(scratch, radius, radius, fill)
+            stroke.color = theme.label
+            stroke.strokeWidth = max(1.5f * dp, side * 0.045f)
+            when (placement.key.kind) {
+                KeyKind.FULL_WIDTH -> Icons.maximize(canvas, cx, cy, side * 0.5f, stroke)
+                else -> Icons.swap(canvas, cx, cy, side * 0.5f, stroke)
+            }
+        }
     }
 
     /** The toolbar: hide the keyboard, and the three editing actions a field always supports. */
@@ -406,8 +511,8 @@ class KeyboardView(context: Context) : View(context) {
         if (width == 0 || searchKeys) return emptyList()
         if (suggestions.isNotEmpty() && !rules.password) return placeSuggestions()
         if (offer != null && !rules.password) return placeOffer()
-        val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
-        val right = width - left
+        val left = keysLeft
+        val right = keysRight
         val top = panelPad
         val bottom = top + toolbarHeight
         // Select all lives in the cursor pad when the pad has a key here, the way Gboard keeps it with the arrows;
@@ -443,8 +548,8 @@ class KeyboardView(context: Context) : View(context) {
      * people mis-tap. The first is always the literal, so taking back a suggestion is always in the same place.
      */
     private fun placeSuggestions(): List<Placement> {
-        val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
-        val right = width - left
+        val left = keysLeft
+        val right = keysRight
         val top = panelPad
         val bottom = top + toolbarHeight
         // The mic keeps the last slot while a word is being typed, where Gboard, Samsung and SwiftKey all keep it:
@@ -470,11 +575,11 @@ class KeyboardView(context: Context) : View(context) {
      */
     private fun placeOffer(): List<Placement> {
         val asked = offer ?: return emptyList()
-        val left = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
-        val right = width - left
+        val left = keysLeft
+        val right = keysRight
         val top = 0f
         val bottom = panelPad + toolbarHeight
-        val narrow = width / dp < NARROW_OFFER_DP
+        val narrow = (boardRight - boardLeft) / dp < NARROW_OFFER_DP
         val question = context.getString(
             when {
                 asked.keep && narrow -> R.string.offer_keep_short
@@ -549,12 +654,13 @@ class KeyboardView(context: Context) : View(context) {
         // The panel floats: the app shows through around it, the way a phone keyboard looks. Under the emoji search
         // the panel around it has already drawn the board.
         if (!searchKeys) {
-            scratch.set(panelPad, panelPad, width - panelPad, height - panelPad)
+            scratch.set(boardLeft + panelPad, panelPad, boardRight - panelPad, height - panelPad)
             fill.color = theme.board
             canvas.drawRoundRect(scratch, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
         }
 
         drawToolbar(canvas)
+        drawRail(canvas)
 
         val radius = theme.keyRadiusDp * dp
         for (placement in placedKeys) {
@@ -766,6 +872,7 @@ class KeyboardView(context: Context) : View(context) {
     /** Where the keys and the toolbar actually ended up. A test should ask rather than work it out a second time. */
     internal val placements: List<Placement> get() = placedKeys
     internal val toolbarPlacements: List<Placement> get() = tools
+    internal val railPlacements: List<Placement> get() = rail
 
     /** What the open row of alternates is offering, and which one is chosen. A test should not have to guess. */
     internal val popupItems: List<String> get() = popup?.items.orEmpty()
@@ -797,7 +904,9 @@ class KeyboardView(context: Context) : View(context) {
         popup = openPopup(placement, items)
     }
 
-    private fun keyAt(x: Float, y: Float): Placement? = nearest(placedKeys, x, y) ?: nearest(tools, x, y)
+    /** The rail first: its buttons sit close enough to the keys that a key's slop would otherwise take them. */
+    private fun keyAt(x: Float, y: Float): Placement? =
+        rail.firstOrNull { it.box.contains(x, y) } ?: nearest(placedKeys, x, y) ?: nearest(tools, x, y) ?: nearest(rail, x, y)
 
     /**
      * The key under a point: the one containing it, or failing that the closest one within [HIT_SLOP_DP].
@@ -930,9 +1039,8 @@ class KeyboardView(context: Context) : View(context) {
         // looking like it belongs to the key underneath it. Never below a fingertip, though.
         val item = max(box.width * 0.78f, POPUP_MIN_DP * dp)
         val width = item * items.size
-        val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
         val centre = (box.left + box.right) / 2
-        val left = (centre - width / 2).coerceIn(edge, max(edge, width.let { this.width - edge - it }))
+        val left = (centre - width / 2).coerceIn(keysLeft, max(keysLeft, keysRight - width))
         val height = box.height * 1.15f
         val bottom = box.top - POPUP_LIFT_DP * dp
         val top = max(panelPad, bottom - height)
@@ -1106,6 +1214,9 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.VOICE -> l.onVoice()
             KeyKind.CURSOR_PAD -> l.onCursorPad()
             KeyKind.OFFER -> Unit
+            KeyKind.FULL_WIDTH -> oneHanded(OneHanded.OFF, l)
+            KeyKind.OTHER_SIDE ->
+                oneHanded(if (settings.oneHanded == OneHanded.RIGHT) OneHanded.LEFT else OneHanded.RIGHT, l)
             KeyKind.OFFER_YES, KeyKind.OFFER_NO -> offer?.let { asked ->
                 offer = null
                 l.onOffer(asked, accepted = key.kind == KeyKind.OFFER_YES)
@@ -1113,12 +1224,23 @@ class KeyboardView(context: Context) : View(context) {
         }
     }
 
+    /** Moved on screen at once, rather than after the service has saved it and handed the settings back. */
+    private fun oneHanded(side: OneHanded, l: Listener) {
+        settings = settings.copy(oneHanded = side)
+        if (width > 0) {
+            arrange()
+            invalidate()
+        }
+        l.onOneHanded(side)
+    }
+
     // ---- screen readers ---------------------------------------------------------------------------------------
 
     override fun dispatchHoverEvent(event: MotionEvent): Boolean =
         keyNodes.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
 
-    private fun nodeAt(id: Int): Placement? = (placedKeys + tools).getOrNull(id)
+    /** The keys, then the toolbar, then the rail: the order TalkBack reads them in. */
+    private fun nodeAt(id: Int): Placement? = (placedKeys + tools + rail).getOrNull(id)
 
     /**
      * The keys are drawn, not laid out, so a screen reader would find one blank rectangle. Each key is published as a
@@ -1126,13 +1248,13 @@ class KeyboardView(context: Context) : View(context) {
      */
     private inner class KeyNodes : ExploreByTouchHelper(this@KeyboardView) {
         override fun getVirtualViewAt(x: Float, y: Float): Int {
-            val all = placedKeys + tools
+            val all = placedKeys + tools + rail
             val index = all.indexOfFirst { it.box.contains(x, y) }
             return if (index < 0) HOST_ID else index
         }
 
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
-            for (index in (placedKeys + tools).indices) ids.add(index)
+            for (index in (placedKeys + tools + rail).indices) ids.add(index)
         }
 
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
@@ -1193,6 +1315,9 @@ class KeyboardView(context: Context) : View(context) {
         const val OFFER_BUTTON_PAD_DP = 14f
         const val OFFER_GAP_DP = 6f
         const val OFFER_PILL_DP = 32f
+        const val RAIL_BUTTON_DP = 52f    // each rail button's target, taller than a fingertip
+        const val RAIL_GAP_DP = 8f
+        const val RAIL_KEY_DP = 40f       // and what is drawn of it
         val OFFER_KINDS = setOf(KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO)
     }
 }

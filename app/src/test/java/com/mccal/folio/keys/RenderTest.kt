@@ -134,6 +134,22 @@ class RenderTest {
     }
 
     @Test
+    fun `the one-handed keyboard, as a phone would draw it`() {
+        render("one-handed-left-dark", 411, 891, night = true) {
+            it.settings = Settings(oneHanded = OneHanded.LEFT)
+            letters(it)
+        }
+        render("one-handed-right-light", 411, 891, night = false) {
+            it.settings = Settings(oneHanded = OneHanded.RIGHT)
+            letters(it)
+        }
+        render("one-handed-cover-dark", 475, 751, night = true) {
+            it.settings = Settings(oneHanded = OneHanded.RIGHT)
+            letters(it)
+        }
+    }
+
+    @Test
     fun `the keyboard, as a phone would draw it`() {
         render("phone-dark", 411, 891, night = true) { letters(it) }
         render("phone-light", 411, 891, night = false) { letters(it) }
