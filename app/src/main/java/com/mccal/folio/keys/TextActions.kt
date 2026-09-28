@@ -422,10 +422,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             rules.multiline -> connection.commitText("\n", 1)
             // The app asked for Enter itself: some search boxes and web forms listen for the key, not the action.
             rules.plainEnter -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
+            // performEditorAction's answer only says whether the call reached the app, not whether the app did
+            // anything with it, so there is no "it ignored Search" to fall back from.
             action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED ->
-                // An app that doesn't handle its own action (it returns false) still gets Enter, which is what a
-                // hardware keyboard would send, rather than a Search key that silently does nothing.
-                if (!connection.performEditorAction(action)) sendKey(connection, KeyEvent.KEYCODE_ENTER)
+                connection.performEditorAction(action)
             else -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
         }
     }
