@@ -236,6 +236,14 @@ class KeysService : InputMethodService(), Ime {
             val store = learned ?: Learned().also { learned = it }
             val lower = word.lowercase()
             val known = words.contains(lower)
+            // Once per install, the first time the key positions are known: clear out slips learned before the
+            // neighbouring-key rule existed.
+            val keys = proximity
+            if (keys != null && !prefs.getBoolean(PRUNED_SLIPS, false)) {
+                val gone = store.prune { words.nearCommonWord(it, keys) }
+                prefs.edit().putBoolean(PRUNED_SLIPS, true).putString(LEARNED, store.encode()).apply()
+                DevLog.event(this, "pruned", "words" to gone)
+            }
             if (!Learned.worthLearning(lower, known, nearMiss = false)) return@post
             // The expensive question last, and only for words that got this far.
             if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) return@post
@@ -592,6 +600,7 @@ class KeysService : InputMethodService(), Ime {
         const val VOICE_MODE = "voice"
         const val RECENTS = "emojiRecents"
         const val LEARNED = "learnedWords"
+        const val PRUNED_SLIPS = "prunedSlips1"
         const val SHORTCUTS = "shortcuts"
 
         /** When to look at the clipboard after Copy, in milliseconds. */

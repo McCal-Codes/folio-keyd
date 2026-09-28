@@ -103,6 +103,10 @@ class Dictionary private constructor(
      * Used to decide that something is a slip rather than a word: "teh" is one swap from "the", and learning it
      * would put it in the strip next to "the" for good. Only common words count, because being one edit from
      * something obscure is no evidence of anything.
+     *
+     * A finger landing on the key next door is stronger evidence than any other edit, so for that one slip the
+     * bar is lower: "updste" is "update" with the a missed for the s beside it, and "update" is too rare (37) for
+     * the general rule. Found on a real phone, where both it and "autp" had been learned as words.
      */
     fun nearCommonWord(word: String, proximity: Suggestions.Proximity?): Boolean {
         val lower = word.lowercase()
@@ -111,8 +115,14 @@ class Dictionary private constructor(
             for (length in word.length - 1..word.length + 1) {
                 if (length < 1) continue
                 for (index in byShape(candidate, length)) {
-                    if (rank(index) > COMMON) continue
-                    if (Suggestions.distance(lower, word(index).lowercase(), 1, proximity) <= 1) return true
+                    val rank = rank(index)
+                    if (rank > NEIGHBOUR_COMMON) continue
+                    val other = word(index).lowercase()
+                    if (rank <= COMMON) {
+                        if (Suggestions.distance(lower, other, 1, proximity) <= 1) return true
+                    } else if (proximity != null && neighbourSlip(lower, other, proximity)) {
+                        return true
+                    }
                 }
             }
         }
@@ -130,6 +140,21 @@ class Dictionary private constructor(
 
         /** Common enough that a word one edit away from it is probably a slip. */
         const val COMMON = 35
+
+        /** Common enough that one key hit next door is a slip: about 26,000 English words. */
+        const val NEIGHBOUR_COMMON = 42
+
+        /** Same length, one letter different, and that letter is on a key beside the intended one. */
+        internal fun neighbourSlip(typed: String, word: String, proximity: Suggestions.Proximity): Boolean {
+            if (typed.length != word.length) return false
+            var at = -1
+            for (i in typed.indices) {
+                if (typed[i] == word[i]) continue
+                if (at >= 0) return false
+                at = i
+            }
+            return at >= 0 && typed[at] in proximity.neighbours(word[at])
+        }
 
         /**
          * Reads `word:NN`, one per line, already sorted, where NN is a two-digit commonness score.

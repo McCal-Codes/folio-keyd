@@ -284,4 +284,44 @@ class DictionaryTest {
         }
         assertEquals("not corrected: $missed", emptyMap<String, String>(), missed)
     }
+
+    // ---- what counts as a slip rather than a word ----------------------------------------------------------------
+
+    private val qwerty: Suggestions.Proximity by lazy {
+        Suggestions.Proximity(Geometry.place(Layouts.rows(Layer.LETTERS, false, FieldRules()), 1080, 700, 3f))
+    }
+
+    /** Both were learned as words on a real phone before this rule: a and s, o and p are neighbours. */
+    @Test
+    fun `a key hit next door to a fairly common word is a slip`() {
+        assertTrue(dictionary.nearCommonWord("updste", qwerty))
+        assertTrue(dictionary.nearCommonWord("autp", qwerty))
+    }
+
+    @Test
+    fun `the ordinary rule still catches slips of the commonest words`() {
+        assertTrue(dictionary.nearCommonWord("teh", qwerty))
+    }
+
+    /** One letter from a word, but not a neighbouring key: a name or a new word, and worth learning. */
+    @Test
+    fun `a different letter far from the key is not called a slip`() {
+        assertFalse(Dictionary.neighbourSlip("updxte", "update", qwerty))
+        assertTrue(Dictionary.neighbourSlip("updste", "update", qwerty))
+    }
+
+    @Test
+    fun `real words the phone learned are not slips`() {
+        assertFalse(dictionary.nearCommonWord("ghostlock", qwerty))
+        assertFalse(dictionary.nearCommonWord("esim", qwerty))
+    }
+
+    @Test
+    fun `pruning drops slips but keeps ones typed often enough to mean it`() {
+        val learned = Learned.decode("updste:1\nautp:2\nghostlock:1\nkeyd:5\nteh:4")
+        val gone = learned.prune { dictionary.nearCommonWord(it, qwerty) }
+        assertEquals(2, gone)
+        assertEquals(setOf("ghostlock", "keyd", "teh"), learned.all().toSet())
+    }
 }
+
