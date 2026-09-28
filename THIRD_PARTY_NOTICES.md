@@ -30,6 +30,8 @@ and por; the script pins each file's SHA-256). The sentences themselves are not 
 nine in ten of them, kept to about twenty thousand per language, and limited to words in Keyd's own word lists. The
 changes made are exactly that counting and cutting, done by the script.
 
+The credit and license ship inside the app as `app/src/main/assets/next-COPYING.txt`.
+
 ## Unicode CLDR: emoji names and search keywords
 
 Emoji names and search keywords from Unicode CLDR 48.2. Copyright © 1991-2026 Unicode, Inc. Licensed under the

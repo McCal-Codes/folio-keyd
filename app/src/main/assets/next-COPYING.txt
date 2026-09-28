@@ -1,0 +1,14 @@
+The next-word lists in this folder (next-*.txt) are derived from the example
+sentences of Tatoeba.
+
+  Source: Tatoeba contributors, https://tatoeba.org
+  Exports: https://downloads.tatoeba.org/exports/per_language/ (eng, deu, spa,
+           fra, ita, por), weekly export of 2026-09-26
+  License: Creative Commons Attribution 2.0 France (CC BY 2.0 FR)
+           https://creativecommons.org/licenses/by/2.0/fr/
+
+The data was modified: the sentences are not included. Nine in ten of them
+were counted into pairs of consecutive words, the pairs were limited to words
+in Keyd's own word lists and cut to about twenty thousand per language, and
+only which words follow which, in order of how often, is kept. The script
+that does this is scripts/bigrams.py in Keyd's source.

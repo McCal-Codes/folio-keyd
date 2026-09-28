@@ -252,7 +252,8 @@ and Australian word list.  It is under the following copyright:
 The commonness score attached to each word, and for every language except
 English the word list itself, is derived from the OpenSubtitles frequency
 lists published by Hermit Dave at https://github.com/hermitdave/FrequencyWords
-(which in turn are built from the OpenSubtitles corpus, http://opus.nlpl.eu/).
+(the 2018 lists, which in turn are built from the OpenSubtitles2018 corpus of
+OPUS, http://opus.nlpl.eu/OpenSubtitles2018.php, from www.opensubtitles.org).
 
 FrequencyWords is dual licensed. Its README says: "MIT License for code.
 CC-by-sa-4.0 for content." The frequency lists are content, so the data Keyd
