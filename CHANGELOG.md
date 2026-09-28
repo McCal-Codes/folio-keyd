@@ -17,8 +17,17 @@ under Settings › About › What's New.
 - **One-handed:** a narrower keyboard against either edge, with a rail to switch sides or go back to full width.
 - **Feel:** vibration strength, no key clicks while Bluetooth audio is connected, and pure black in dark mode.
 
+- **Next word:** after a space the strip suggests the next word, in all six languages, and the word before helps pick the right fix.
+- **Contractions:** dont, im, youre and about 40 more get their apostrophe back, and "i" becomes "I".
+
+### Changed
+- Fewer wrong fixes: slang like btw, idk and wifi is left alone and learned, possessives stay out of the strip unless you type an apostrophe, and a word is never shown twice.
+- Missing accents in German, Spanish, French, Italian and Portuguese are offered first in the strip, and a real word is never swapped for its accented twin.
+- "thisis" becomes "this is".
+- A word you leave as typed is learned after three times on two different days, not the first time.
+
 ### Fixed
-- Search and Go work every time: a thumb rolling off the corner no longer cancels them, and an app that ignores its search action gets Enter.
+- Search and Go no longer cancel when a thumb rolls off the corner.
 - Web and email addresses are left as typed: nothing corrected, learned or given a double-space period.
 - The split keyboard's keys are one size in both halves, and the space bar says its language once.
 - Keyd no longer learns typos of fairly common words, like "updste" for "update".
