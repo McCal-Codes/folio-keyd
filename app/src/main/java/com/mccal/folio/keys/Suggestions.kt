@@ -87,6 +87,7 @@ object Suggestions {
         proximity: Proximity?,
         learned: Learned? = null,
         shortcuts: Shortcuts? = null,
+        contractions: Contractions.Table? = null,
     ): List<String> {
         if (typed.isEmpty()) return emptyList()
         val lower = typed.lowercase()
@@ -141,15 +142,23 @@ object Suggestions {
             }
         }
 
+        // "dont" and "youre" are in the word list only because subtitles lost their apostrophes. With the table
+        // there to put them back, the bare forms are never worth offering.
+        if (contractions != null) scored.keys.removeAll { contractions.sure.containsKey(it.lowercase()) }
+
         val ranked = scored.entries
             .sortedWith(compareBy({ it.value }, { it.key.length }, { it.key }))
             .take(LIMIT)
             .map { matchCase(typed, it.key) }
 
         // A shortcut is an exact answer to exactly this word, so it goes first - ahead of anything the dictionary
-        // merely thinks is likely. It is still only offered: taking it is a tap, the same as everything else here.
-        val expansion = shortcuts?.expand(typed)
-        return if (expansion == null) ranked else listOf(expansion) + ranked.take(LIMIT - 1)
+        // merely thinks is likely. A missing apostrophe is the next most certain answer there is. Both are still
+        // only offered: taking one is a tap, the same as everything else here.
+        val first = listOfNotNull(
+            shortcuts?.expand(typed),
+            contractions?.let { Contractions.offer(typed, it) },
+        ).distinct()
+        return (first + ranked.filter { it !in first }).take(LIMIT)
     }
 
     /**
@@ -174,10 +183,16 @@ object Suggestions {
         words: Words,
         proximity: Proximity?,
         learned: Learned? = null,
+        contractions: Contractions.Table? = null,
+        previous: String = "",
     ): String? {
-        if (typed.length < SHORTEST_CORRECTABLE) return null
         val lower = typed.lowercase()
-        if (words.contains(lower) || (learned?.count(lower) ?: 0) > 0) return null
+        // Something kept on purpose is never argued with, apostrophe or not.
+        if ((learned?.count(lower) ?: 0) > 0) return null
+        // Ahead of the dictionary check, because the dictionary knows "dont": see [Contractions].
+        if (contractions != null) Contractions.fix(typed, contractions, previous)?.let { return it }
+        if (typed.length < SHORTEST_CORRECTABLE) return null
+        if (words.contains(lower)) return null
         // Halfway through a longer word is not a mistake. "keyb" is not a word, and "key" is one letter away, but
         // replacing it would take the keyboard off the person typing "keyboard". Where a word could still be
         // finished, finishing it is the strip's job and there is nothing here to put right.

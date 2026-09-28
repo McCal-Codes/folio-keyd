@@ -76,6 +76,12 @@ class KeysServiceTest {
             suggestedFor += word
         }
 
+        val previousFor = mutableListOf<String>()
+        override fun suggest(word: String, previous: String) {
+            previousFor += previous
+            suggest(word)
+        }
+
         override fun learn(word: String) {
             taught += word
         }
@@ -308,6 +314,42 @@ class KeysServiceTest {
         actions.offered(Verdict("teh", "the", misspelled = false))
         type(" ")
         assertEquals("well the ", text)
+    }
+
+    @Test
+    fun `i on its own becomes I`() {
+        type("so i")
+        type(" ")
+        assertEquals("so I ", text)
+    }
+
+    @Test
+    fun `i is left alone with capitals off`() {
+        actions.settings = Settings(autoCapitalise = false)
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("so i ")
+        assertEquals("so i ", text)
+    }
+
+    @Test
+    fun `i becomes I even with autocorrect off, and backspace puts it back`() {
+        actions.settings = Settings(autocorrect = false)
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("so i'm ")
+        assertEquals("so I'm ", text)
+        actions.onBackspace()
+        assertEquals("so i'm ", text)
+        assertTrue(ime.stood.isEmpty() && ime.putBack.isEmpty())
+    }
+
+    @Test
+    fun `the word before goes with every question to the strip`() {
+        type("hello wor")
+        assertEquals("hello", ime.previousFor.last())
+        type("ld. ")
+        assertEquals(SENTENCE_START, ime.previousFor.last())
+        type("a, ")
+        assertEquals("", ime.previousFor.last())
     }
 
     /** The one key that undoes it. Without this, correcting on its own would not be worth doing at all. */

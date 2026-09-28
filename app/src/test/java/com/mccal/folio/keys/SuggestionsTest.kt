@@ -205,4 +205,29 @@ class SuggestionsTest {
         assertTrue('g' in proximity.neighbours('h'))
         assertFalse('p' in proximity.neighbours('q'))
     }
+
+    // ---- apostrophes ----------------------------------------------------------------------------------------------
+
+    private val withBareForms = Small(listOf("don't" to 14, "dont" to 35, "done" to 20, "don" to 30, "dot" to 33))
+
+    @Test
+    fun `a missing apostrophe is fixed even though the list knows the bare word`() {
+        val english = Contractions.of(Language.ENGLISH)
+        assertEquals("don't", Suggestions.correction("dont", withBareForms, proximity, contractions = english))
+    }
+
+    @Test
+    fun `a missing apostrophe is offered first, and the bare word not at all`() {
+        val english = Contractions.of(Language.ENGLISH)
+        val found = Suggestions.forWord("dont", withBareForms, proximity, contractions = english)
+        assertEquals("don't", found.first())
+        assertFalse(found.contains("dont"))
+    }
+
+    @Test
+    fun `a contraction kept as a word is left alone`() {
+        val learned = Learned().also { it.keep("dont") }
+        val english = Contractions.of(Language.ENGLISH)
+        assertEquals(null, Suggestions.correction("dont", withBareForms, proximity, learned, english))
+    }
 }

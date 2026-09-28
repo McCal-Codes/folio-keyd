@@ -196,7 +196,9 @@ class KeysService : InputMethodService(), Ime {
         thinking.quitSafely()
     }
 
-    override fun suggest(word: String) {
+    override fun suggest(word: String) = suggest(word, "")
+
+    override fun suggest(word: String, previous: String) {
         background.removeCallbacksAndMessages(suggesting)
         val mine = ++asked
         if (word.length < 2) {
@@ -205,6 +207,7 @@ class KeysService : InputMethodService(), Ime {
             return
         }
         val keys = keyboard?.placements
+        val contractions = Contractions.of(actions.language)
         background.postDelayed(
             {
                 val started = android.os.SystemClock.elapsedRealtime()
@@ -216,10 +219,10 @@ class KeysService : InputMethodService(), Ime {
                     proximityFor = keys
                 }
                 val found = runCatching {
-                    Suggestions.forWord(word, words, proximity, learned, shortcuts)
+                    Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions)
                 }.getOrDefault(emptyList())
                 val fix = runCatching {
-                    Suggestions.correction(word, words, proximity, learned)
+                    Suggestions.correction(word, words, proximity, learned, contractions, previous)
                 }.getOrNull()
                 // "Never heard of it" is a different question from "here is what you probably meant", and a word
                 // can be the first without the second - a name, a word in another language, something made up.

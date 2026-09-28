@@ -10,6 +10,12 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.min
 
+/** What the word before is, at the start of a sentence: a full stop, since that is what usually put it there. */
+const val SENTENCE_START = "."
+
+/** What ends a sentence, as far as guessing its next word goes. */
+private val SENTENCE_ENDS = setOf('.', '!', '?', '\n')
+
 /**
  * The little that editing needs from the keyboard service. Keeping it to this means the behaviour below can be driven
  * without an input method running, which is the only way to check what the keys actually do to someone's text.
@@ -46,6 +52,12 @@ interface Ime {
      * happens off the thread the keys are drawn on.
      */
     fun suggest(word: String)
+
+    /**
+     * The same, knowing the word before it: lowercase, [SENTENCE_START] at the start of a sentence, or empty when
+     * it is not known. With [word] empty this asks what might come next.
+     */
+    fun suggest(word: String, previous: String) = suggest(word)
 
     /**
      * A word was finished. Keep it if it is worth keeping.
@@ -116,6 +128,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     private val word = StringBuilder()
 
+    /**
+     * The word before the one being typed, lowercase: what the strip predicts from, and what tells "wont" from
+     * "won't". Empty when it is not known - after a comma, a moved cursor, a backspace into the text before - and
+     * [SENTENCE_START] after a full stop, which is a fact worth knowing in itself.
+     */
+    private var previous = ""
+
     /** Everything the suggestion thread worked out about the word being typed. Null until it has. */
     private var verdict: Verdict? = null
 
@@ -141,8 +160,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         verdict = answer
     }
 
-    private fun wordChanged() =
-        ime.suggest(if (rules.password || rules.noSuggestions || !settings.suggestions) "" else word.toString())
+    private fun wordChanged() {
+        val quiet = rules.password || rules.noSuggestions || !settings.suggestions
+        ime.suggest(if (quiet) "" else word.toString(), if (quiet || rules.address) "" else previous)
+    }
 
     /**
      * Two spaces in a row become a full stop and a space.
@@ -161,6 +182,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.commitText(". ", 1)
         connection.endBatchEdit()
         lastWasSpace = false
+        previous = SENTENCE_START
         word.setLength(0)
         wordChanged()
         return true
@@ -181,11 +203,19 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         // than applied to whatever happens to be under the cursor now.
         val answer = verdict?.takeIf { it.word == done }
         verdict = null
+        previous = done.lowercase()
         // An address is left exactly as typed: "keyd.dev" ends the word "keyd" at the period, and a keyboard that
         // "fixed" it would be typing somewhere else.
         if (rules.address) return
+        // "i" is "I". That is capitalization rather than correction, so it follows the capitals setting, and it is
+        // left alone wherever the app asked for no suggestions - a code editor, a username.
+        val capital = if (settings.autoCapitalise && !rules.noSuggestions) Contractions.capitalI(done, language) else null
         when {
-            Settings.correcting(settings) && answer?.correction != null -> autocorrect(done, answer.correction)
+            Settings.correcting(settings) && answer?.correction != null -> {
+                autocorrect(done, answer.correction)
+                previous = answer.correction.substringAfterLast(' ').lowercase()
+            }
+            capital != null -> autocorrect(done, capital, counted = false)
             settings.spellCheck && answer?.misspelled == true -> underline(done, answer.suggestions)
         }
     }
@@ -196,7 +226,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * The ending that finished the word - a space, a full stop - has already been typed, so what comes out is
      * removed and put back with the word corrected and the ending kept exactly as it was.
      */
-    private fun autocorrect(typed: String, replacement: String) {
+    private fun autocorrect(typed: String, replacement: String, counted: Boolean = true) {
         undo = null
         standing = null
         val connection = ime.connection ?: return
@@ -210,12 +240,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.commitText(replacement + ending, 1)
         connection.endBatchEdit()
         undo = typed to (replacement + ending)
-        if (remembering) standing = typed to replacement
+        if (remembering && counted) standing = typed to replacement
     }
 
     private fun forget() {
         // The cursor went somewhere else: what is typed next is not the word after the correction.
         standing = null
+        previous = ""
         if (word.isEmpty()) return
         word.setLength(0)
         wordChanged()
@@ -225,7 +256,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     fun startInput(info: EditorInfo?) {
         rules = Layouts.rulesFor(info)
         layer = if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) Layer.NUMBERS else Layer.LETTERS
-        shift = if (settings.autoCapitalise && autoCaps(info)) Shift.ONCE else Shift.OFF
+        val capitals = autoCaps(info)
+        shift = if (settings.autoCapitalise && capitals) Shift.ONCE else Shift.OFF
+        // The field says whether the cursor is at the start of a sentence; that is all that is known about before it.
+        previous = if (capitals) SENTENCE_START else ""
         word.setLength(0)
         standing = null
         wordChanged()
@@ -254,6 +288,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             word.append(text)
         } else {
             finished()
+            // A space keeps the word before; a full stop starts a sentence; anything else - a comma, a bracket, a
+            // digit - puts too much between the two words for one to say anything about the next.
+            previous = when {
+                text == " " -> previous
+                text.lastOrNull() in SENTENCE_ENDS -> SENTENCE_START
+                else -> ""
+            }
         }
         lastWasSpace = text == " "
         wordChanged()
@@ -309,11 +350,14 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
                 connection.endBatchEdit()
                 if (standing != null) ime.putBack(typed)
                 standing = null
+                previous = typed.lowercase()
                 wordChanged()
                 return
             }
         }
         standing = null
+        // Deleting back into the text before: the word before is no longer the one that was finished.
+        if (word.isEmpty()) previous = ""
         // Asking for the selection is a blocking call into the app. Worth it once, to delete a selection whole.
         val selected = connection.getSelectedText(0)
         if (!selected.isNullOrEmpty()) {
@@ -329,7 +373,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     /** Holding the key down: whatever was selected went with the first delete, so don't ask again. */
     override fun onBackspaceRepeat() {
         ime.connection?.deleteSurroundingText(1, 0) ?: return
-        if (word.isNotEmpty()) word.setLength(word.length - 1)
+        if (word.isNotEmpty()) word.setLength(word.length - 1) else previous = ""
         wordChanged()
     }
 
@@ -361,6 +405,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val action = ime.editorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
             ?: EditorInfo.IME_ACTION_UNSPECIFIED
         finished()
+        // A new line, or a message sent: either way what comes next starts a sentence.
+        previous = SENTENCE_START
         wordChanged()
         when {
             rules.multiline -> connection.commitText("\n", 1)
@@ -406,6 +452,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.deleteSurroundingText(typed.length, 0)
         connection.commitText("$chosen ", 1)
         connection.endBatchEdit()
+        previous = chosen.substringAfterLast(' ').lowercase()
         word.setLength(0)
         wordChanged()
     }
