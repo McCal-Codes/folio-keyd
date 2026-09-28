@@ -383,6 +383,9 @@ class KeyboardView(context: Context) : View(context) {
     private fun oneHandedSpan(across: Float): Pair<Float, Float>? {
         if (settings.oneHanded == OneHanded.OFF || searchKeys || across <= 0f) return null
         if (shapeFor(across / dp, resources.configuration.screenHeightDp.toFloat()) != Shape.FULL) return null
+        // A phone on its side has no reach problem either: both thumbs are on the long edge, and a 360 dp keyboard
+        // with the rest of the width empty only wastes it. Gboard switches one-handed off in landscape too.
+        if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) return null
         val keys = Geometry.oneHandedDp((across - 2 * sideInset) / dp)?.times(dp) ?: return null
         return if (settings.oneHanded == OneHanded.RIGHT) across - sideInset - keys to across else 0f to sideInset + keys
     }

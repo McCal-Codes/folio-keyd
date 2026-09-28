@@ -336,4 +336,11 @@ class OneHandedTest {
         service.oneHanded(OneHanded.OFF)
         assertEquals(OneHanded.OFF, Settings.load(prefs).oneHanded)
     }
+
+    /** On its side both thumbs are on the long edge, so the keyboard takes the width, as Gboard does. */
+    @Test
+    fun `a phone on its side keeps the full keyboard`() {
+        assertEquals("FULL", keyboard(891, 411, OneHanded.RIGHT).shapeName)
+        assertEquals("FULL", keyboard(751, 475, OneHanded.LEFT).shapeName)
+    }
 }
