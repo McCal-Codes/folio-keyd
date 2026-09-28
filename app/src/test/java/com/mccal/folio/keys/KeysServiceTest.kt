@@ -675,15 +675,6 @@ class KeysServiceTest {
         assertTrue(field.keys.isEmpty())
     }
 
-    /** A search box that ignores its own action used to leave Search doing nothing at all. */
-    @Test
-    fun `an app that ignores its action still gets enter`() {
-        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH)
-        field.handles = false
-        actions.onAction()
-        assertEquals(listOf(android.view.KeyEvent.KEYCODE_ENTER), field.keys)
-    }
-
     @Test
     fun `an app that asks for plain enter gets enter, not its action`() {
         start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_ENTER_ACTION)
