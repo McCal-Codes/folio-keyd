@@ -160,9 +160,14 @@ object Suggestions {
         // A shortcut is an exact answer to exactly this word, so it goes first - ahead of anything the dictionary
         // merely thinks is likely. A missing apostrophe is the next most certain answer there is. Both are still
         // only offered: taking one is a tap, the same as everything else here.
+        // And two words with the space missed, when this is not on its way to being a longer word.
+        val split = if (typed.length >= SHORTEST_CORRECTABLE && completions.none { words.rank(it) <= COMMON_ENOUGH } &&
+            !known(lower, words)
+        ) spaceSlip(lower, words)?.let { matchCase(typed, it.words) } else null
         val first = listOfNotNull(
             shortcuts?.expand(typed),
             contractions?.let { Contractions.offer(typed, it) },
+            split,
         ).distinct()
         return (first + ranked.filter { it !in first }).take(LIMIT)
     }
@@ -191,6 +196,7 @@ object Suggestions {
         learned: Learned? = null,
         contractions: Contractions.Table? = null,
         previous: String = "",
+        compounds: Boolean = false,
     ): String? {
         val lower = typed.lowercase()
         // Something kept on purpose is never argued with, apostrophe or not.
@@ -198,11 +204,13 @@ object Suggestions {
         // Ahead of the dictionary check, because the dictionary knows "dont": see [Contractions].
         if (contractions != null) Contractions.fix(typed, contractions, previous)?.let { return it }
         if (typed.length < SHORTEST_CORRECTABLE) return null
-        if (words.contains(lower)) return null
+        if (known(lower, words)) return null
         // Halfway through a longer word is not a mistake. "keyb" is not a word, and "key" is one letter away, but
         // replacing it would take the keyboard off the person typing "keyboard". Where a word could still be
-        // finished, finishing it is the strip's job and there is nothing here to put right.
-        if (words.startingWith(lower).any { words.rank(it) <= COMMON_ENOUGH }) return null
+        // finished, finishing it is the strip's job and there is nothing here to put right. The exception is a word
+        // that is only missing its accent: "accion" could go on to be "acciones", but typed and finished it is
+        // "acción", and nothing else is that close.
+        if (words.startingWith(lower).any { words.rank(it) <= COMMON_ENOUGH }) return accented(typed, lower, words)
 
         val possessive = '\'' in typed
         val short = typed.length <= SHORT_WORD
@@ -234,6 +242,18 @@ object Suggestions {
                 }
             }
         }
+        // Two words with the space missed: "thisis", "tothe". Every letter is right, so it is better evidence than a
+        // guess one letter out - "thesis" and "tote" were what these used to become. Not in a language that writes
+        // its compounds as one word, where two common words run together is how a third one is spelled.
+        val slip = if (compounds) null else spaceSlip(lower, words)
+        if (slip != null && slip.sure && slip.rank <= SPLIT_SURE) {
+            // It still has to beat a correction, and a letter pressed twice is good evidence too: "allso" is "also",
+            // not "all so". So the pair wins over a real slip only when both its words are far commoner than the
+            // one the slip would make.
+            if (best == null || (bestCost / 100 >= MISSED && slip.rank + SPLIT_EDGE <= bestRank)) {
+                return matchCase(typed, slip.words)
+            }
+        }
         if (best == null) return null
         if (runnerUp != Int.MAX_VALUE && runnerUp - bestCost < MARGIN) return null
         // A short word is too easily something typed on purpose - "idk", "wifi", "bday" - so it is only fixed for
@@ -248,6 +268,90 @@ object Suggestions {
         return matchCase(typed, best)
     }
 
+    /**
+     * Whether a word is in the list, either whole or as an elision and a word: "l'homme", "c'était", "dell'anno".
+     *
+     * French and Italian glue the article to the next word with an apostrophe, and the lists keep the two halves
+     * apart - "l'" is a word in them, and so is "homme" - so the whole was never found, and every one of those was
+     * underlined as if it were misspelled.
+     */
+    fun known(word: String, words: Words): Boolean {
+        if (words.contains(word)) return true
+        val apostrophe = word.indexOf('\'')
+        if (apostrophe <= 0 || apostrophe > MOST_ELIDED || apostrophe == word.length - 1) return false
+        return words.contains(word.substring(0, apostrophe + 1)) && known(word.substring(apostrophe + 1), words)
+    }
+
+    /**
+     * The common word that is [lower] with its accents put on, or null. Held to the same margin as any correction:
+     * "für" is 14 and "fûr", a subtitle typo, is 44, which is no contest; two real words close in rank are.
+     */
+    private fun accented(typed: String, lower: String, words: Words): String? {
+        val first = bare(lower.first())
+        var found: String? = null
+        var foundRank = Int.MAX_VALUE
+        var runnerUp = Int.MAX_VALUE
+        for (letter in listOf(first) + ACCENTED[first]?.toList().orEmpty()) {
+            for (index in words.byShape(letter, lower.length)) {
+                val rank = words.rank(index)
+                if (rank > COMMON_ENOUGH) continue
+                val candidate = words.word(index).lowercase()
+                if (candidate == lower || candidate == found || candidate.indices.any { bare(candidate[it]) != lower[it] }) continue
+                if (rank < foundRank) {
+                    runnerUp = foundRank
+                    foundRank = rank
+                    found = candidate
+                } else if (rank < runnerUp) {
+                    runnerUp = rank
+                }
+            }
+        }
+        if (found == null || runnerUp - foundRank < MARGIN) return null
+        return matchCase(typed, found)
+    }
+
+    /** Two words where one was typed, and whether that is the only way to read it. */
+    class SpaceSlip(val words: String, val sure: Boolean, val rank: Int)
+
+    /**
+     * [lower] as two common words with the space between them missed, or null.
+     *
+     * Both halves have to be common - "this" and "is", not "the" and "sis" - which is also what keeps a long word
+     * that happens to contain two short ones from being taken apart. Where there is more than one way to cut it,
+     * the commoner pair is offered and none of them is sure.
+     */
+    internal fun spaceSlip(lower: String, words: Words): SpaceSlip? {
+        var found: String? = null
+        var bestScore = Int.MAX_VALUE
+        var rarer = 0
+        var ways = 0
+        // Two letters each at least: "a" and "i" are words, but "aable" is "able" with the a pressed twice, not "a able".
+        for (at in 2..lower.length - 2) {
+            val left = rankOf(lower.substring(0, at), words) ?: continue
+            if (left > SPLIT_COMMON) continue
+            val right = rankOf(lower.substring(at), words) ?: continue
+            if (right > SPLIT_COMMON) continue
+            ways++
+            if (left + right < bestScore) {
+                bestScore = left + right
+                rarer = maxOf(left, right)
+                found = lower.substring(0, at) + " " + lower.substring(at)
+            }
+        }
+        return found?.let { SpaceSlip(it, sure = ways == 1, rank = rarer) }
+    }
+
+    /** How common a word is, the commonest reading if it comes in more than one case, or null if it is not a word. */
+    private fun rankOf(word: String, words: Words): Int? {
+        var best: Int? = null
+        for (index in words.startingWith(word)) {
+            if (words.word(index).length != word.length) break
+            if (!words.word(index).equals(word, ignoreCase = true)) continue
+            best = minOf(best ?: Int.MAX_VALUE, words.rank(index))
+        }
+        return best
+    }
+
     /** "wont's" and "bib's" are words, but not what someone typing "wont" or "bib" is after. */
     private fun isPossessive(word: String) = word.endsWith("'s")
 
@@ -259,8 +363,10 @@ object Suggestions {
      */
     internal fun thumbSlip(typed: String, word: String, proximity: Suggestions.Proximity?): Boolean {
         if (typed.length == word.length) {
-            val differ = typed.indices.filter { typed[it] != word[it] }
+            // A missing accent is not a slip of the thumb at all, but it is as sure a sign of one word as any.
+            val differ = typed.indices.filter { bare(typed[it]) != bare(word[it]) }
             return when (differ.size) {
+                0 -> true
                 1 -> proximity?.neighbours(typed[differ[0]])?.contains(word[differ[0]]) == true
                 2 -> differ[1] == differ[0] + 1 && typed[differ[0]] == word[differ[1]] && typed[differ[1]] == word[differ[0]]
                 else -> false
@@ -315,6 +421,9 @@ object Suggestions {
      */
     internal fun cost(a: String, b: String, limit: Int, proximity: Proximity?): Int {
         if (abs(a.length - b.length) > limit) return OVER
+        // Accents left off are one habit, not several mistakes: "deja" is as near "déjà" as "déja" is, and the
+        // commoner word should win rather than the one with fewer marks to add.
+        if (a.length == b.length && a != b && a.indices.all { bare(a[it]) == bare(b[it]) }) return ACCENT
         val scale = SCALE
         val cap = limit * scale
         var before = IntArray(b.length + 1)
@@ -326,6 +435,7 @@ object Suggestions {
             for (j in 1..b.length) {
                 val substitution = when {
                     a[i - 1] == b[j - 1] -> 0
+                    bare(a[i - 1]) == bare(b[j - 1]) -> ACCENT
                     proximity?.neighbours(a[i - 1])?.contains(b[j - 1]) == true -> NEIGHBOUR
                     else -> scale
                 }
@@ -386,7 +496,32 @@ object Suggestions {
         add(lower.first())
         if (lower.length > 1) add(lower[1])
         proximity?.neighbours(lower.first())?.let { addAll(it) }
+        // "ecole" is "école": the accent is on the first letter, and a word starting with é is filed under é.
+        ACCENTED[bare(lower.first())]?.let { accented -> accented.forEach { add(it) } }
     }
+
+    /**
+     * The letter with its accent taken off, or the letter itself.
+     *
+     * Leaving an accent off is the commonest way to misspell in every language that has them - the accent is a long
+     * press away - and it is not a mistyped letter at all: the letter is right and only the mark is missing. So it
+     * costs a quarter of an edit rather than a whole one, which is what lets "accion" reach "acción" ahead of every
+     * other word one letter from it.
+     */
+    internal fun bare(char: Char): Char = if (char.code < BARE.size) BARE[char.code] else char
+
+    /** Looked up in every cell of every comparison, so a table rather than a map. */
+    private val BARE = CharArray(0x180) { it.toChar() }.also { table ->
+        for ((plain, marked) in ACCENTS) for (it in marked) table[it.code] = plain
+    }
+
+    private val ACCENTED: Map<Char, String> = ACCENTS.toMap()
+
+    private val ACCENTS
+        get() = listOf(
+            'a' to "àáâäãå", 'e' to "èéêë", 'i' to "ìíîï", 'o' to "òóôöõ", 'u' to "ùúûü",
+            'c' to "ç", 'n' to "ñ", 'y' to "ýÿ",
+        )
 
     /** Below this there is not enough typed for "wrong" to mean anything. */
     internal const val SHORTEST_CORRECTABLE = 3
@@ -404,6 +539,21 @@ object Suggestions {
      */
     private const val COMMON_ENOUGH = 45
 
+    /** Each half of a missed space has to be at least this common: "this" is 12, "is" 10, "sis" 36. */
+    private const val SPLIT_COMMON = 30
+
+    /**
+     * Each half common enough for the space to be put in unasked. Stricter than the strip's bar, because a word the
+     * list lacks is often two words joined on purpose - "airsick", "voiceless" - and those halves are rarer.
+     */
+    private const val SPLIT_SURE = 20
+
+    /** How much commoner than a correction both halves of a missed space must be to win: ten points is ten times. */
+    private const val SPLIT_EDGE = 10
+
+    /** The longest article or pronoun that elides: "quelqu'" and "lorsqu'" are the long end of it. */
+    private const val MOST_ELIDED = 8
+
     /** At or under this many letters, only a thumb slip is corrected unasked: see [thumbSlip]. */
     private const val SHORT_WORD = 4
 
@@ -418,6 +568,7 @@ object Suggestions {
 
     /** An edit is worth this much; the kinds that cost less are the kinds hands actually make. */
     internal const val SCALE = 4
+    private const val ACCENT = 1          // the right letter, with its accent left off
     private const val NEIGHBOUR = 3       // a key next to the one meant
     private const val SWAP = 2            // two letters the wrong way round
     private const val MISSED = 3          // a letter dropped or doubled

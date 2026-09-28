@@ -495,7 +495,6 @@ aha:31
 ahab:43
 ahh:39
 ahhh:42
-ahm:42
 ahmad:43
 ahmed:41
 ahmet:44
@@ -8311,7 +8310,6 @@ falls:27
 fallschirm:40
 fallschirme:44
 fallschirmspringer:44
-fallt:43
 falltür:43
 falsch:27
 falsche:31
@@ -9343,7 +9341,6 @@ funktioniert:28
 funktionierte:39
 funktionsfähig:43
 funky:44
-fur:37
 furcht:36
 furchtbar:31
 furchtbare:37
@@ -9372,7 +9369,6 @@ fußball:36
 fußballer:44
 fußballspiel:43
 fußboden:40
-fuße:44
 fußfessel:43
 fußgänger:44
 fußspuren:42
@@ -9966,7 +9962,6 @@ gehorchen:37
 gehorchst:44
 gehorcht:40
 gehorsam:40
-gehort:44
 gehst:27
 geht:19
 gehts:34
@@ -11000,7 +10995,6 @@ glotz:44
 glotze:43
 glotzen:41
 glotzt:39
-gluck:44
 glut:43
 glänzen:41
 glänzend:41
@@ -12611,7 +12605,6 @@ horace:41
 horatio:42
 horch:44
 horde:41
-horen:44
 horizont:39
 hormone:40
 horn:38
@@ -12621,8 +12614,6 @@ horror:40
 horrorfilm:43
 horrorfilme:44
 horse:42
-horst:40
-hort:43
 horton:43
 hose:32
 hosen:34
@@ -14708,8 +14699,6 @@ konkurrenten:42
 konkurrenz:37
 konkurrieren:43
 konkurs:43
-konnen:41
-konnt:42
 konnte:25
 konnten:29
 konntest:32
@@ -16111,7 +16100,6 @@ lorraine:40
 los:19
 losbinden:44
 lose:40
-losen:43
 loser:37
 losfahren:40
 losgefahren:42
@@ -16369,7 +16357,6 @@ macy:41
 mad:41
 madam:33
 madame:30
-madchen:44
 maddie:40
 maddox:42
 maddy:41
@@ -17354,9 +17341,6 @@ mobilen:44
 mobilisieren:44
 mobiltelefon:43
 moby:42
-mochte:33
-mochten:39
-mochtest:40
 mode:37
 model:38
 modell:36
@@ -17621,7 +17605,6 @@ musketiere:41
 muslim:44
 muslime:42
 muss:18
-mussen:42
 mussolini:44
 musst:23
 musste:26
@@ -17911,7 +17894,6 @@ nah:31
 nahaufnahme:43
 nahe:31
 nahen:40
-naher:43
 nahezu:40
 nahkampf:43
 nahm:30
@@ -17984,7 +17966,6 @@ nationalhymne:43
 nationen:39
 nato:43
 natur:32
-naturlich:44
 naturtalent:41
 naturwissenschaften:44
 natürlich:23
@@ -21875,7 +21856,6 @@ schokolade:35
 schokoladenkuchen:44
 schokoriegel:41
 schon:17
-schone:44
 schonen:39
 schonmal:41
 school:36
@@ -25078,7 +25058,6 @@ tunneln:43
 tunnels:43
 tunte:42
 tupfer:44
-tur:44
 turban:44
 turbo:41
 turbulenzen:42
@@ -25201,7 +25180,6 @@ türsteher:41
 tüte:37
 tüten:41
 uah:44
-uber:41
 ucla:44
 udo:41
 udssr:44
@@ -27600,7 +27578,6 @@ wappen:42
 war:15
 ward:37
 warden:44
-ware:35
 warehouse:43
 waren:22
 warenhaus:44
@@ -29103,7 +29080,6 @@ zuordnen:43
 zur:22
 zurecht:34
 zurechtkommen:41
-zuruck:43
 zurzeit:36
 zurück:22
 zurückbekommen:39

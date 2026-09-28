@@ -364,4 +364,15 @@ class DictionaryTest {
             assertEquals(found.toString(), found.size, found.map { it.lowercase() }.toSet().size)
         }
     }
+
+    /** They used to become "thesis" and "tote". */
+    @Test
+    fun `a missed space between two common words is put back`() {
+        val near = proximity()
+        assertEquals("this is", Suggestions.correction("thisis", dictionary, near))
+        assertEquals("to the", Suggestions.correction("tothe", dictionary, near))
+        assertEquals("of the", Suggestions.forWord("ofthe", dictionary, near).first())
+        // A letter pressed twice is still the better reading.
+        assertEquals("also", Suggestions.correction("allso", dictionary, near))
+    }
 }

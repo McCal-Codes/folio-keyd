@@ -33,6 +33,7 @@ import math
 import os
 import re
 import sys
+import unicodedata
 
 # The frequency list has had its apostrophes stripped, so "didn't" arrives as "didn". These stems are not words and
 # must not become dictionary entries. English has a closed set of them, so this is a list rather than a guess.
@@ -63,6 +64,9 @@ SPOKEN_CUTOFF = 20_000        # past this the frequency list is mostly noise and
 # For a language with no dictionary to check against, the tail is riskier: nothing rules out a common misspelling.
 SPOKEN_ONLY_CUTOFF = 30_000
 SPOKEN_ONLY_SHORTEST = 2      # "yo", "tu", "je", "il" are words; single letters mostly are not
+
+# How much commoner the accented form must be before the bare one is only a typo of it: ten points is ten times.
+LOST_ACCENT_GAP = 10
 
 
 def scowl_words(final_dir):
@@ -116,6 +120,32 @@ def position_of(word, positions):
     return None
 
 
+def fold(word):
+    """The word with its accents taken off: "acción" is "accion", "für" is "fur"."""
+    return "".join(c for c in unicodedata.normalize("NFD", word) if unicodedata.category(c) != "Mn")
+
+
+def drop_lost_accents(entries):
+    """
+    Drops a word that is only its accented twin typed without the accent.
+
+    Subtitles are typed by people, and people leave accents off: "accion" is in the Spanish list, and "fur" in the
+    German one, because someone typed "acción" and "für" that way often enough to count. As words they are worse
+    than useless. A word the dictionary knows is one autocorrect leaves alone, so "accion" was never fixed.
+
+    Where the accented form is ten times as common (ten points on this log scale), the bare one goes. Where the two
+    are close, both are real words that differ by an accent - "acabo" and "acabó", "aime" and "aimé" - and both stay,
+    so the bare one is never corrected and the accented one is still offered in the strip.
+    """
+    twins = {}
+    for word, value in entries.items():
+        bare = fold(word)
+        if bare != word:
+            twins[bare] = min(value, twins.get(bare, 99))
+    lost = {word for word, value in entries.items() if word in twins and twins[word] <= value - LOST_ACCENT_GAP}
+    return {word: value for word, value in entries.items() if word not in lost}, len(lost)
+
+
 def spoken_only(frequency_file, destination):
     """
     A word list built from frequency data alone, for a language with no usable dictionary.
@@ -131,6 +161,8 @@ def spoken_only(frequency_file, destination):
         if not WORD.match(word) or not (SPOKEN_ONLY_SHORTEST <= len(word) <= 20):
             continue
         entries[word] = score(position, 0)
+    entries, lost = drop_lost_accents(entries)
+    print(f"{lost} words that were only a lost accent dropped")
     with open(destination, "w", encoding="utf-8") as out:
         for word, value in sorted(entries.items(), key=lambda kv: kv[0].lower()):
             out.write(f"{word}:{value:02d}\n")

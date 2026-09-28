@@ -207,7 +207,8 @@ class KeysService : InputMethodService(), Ime {
             return
         }
         val keys = keyboard?.placements
-        val contractions = Contractions.of(actions.language)
+        val language = actions.language
+        val contractions = Contractions.of(language)
         background.postDelayed(
             {
                 val started = android.os.SystemClock.elapsedRealtime()
@@ -222,13 +223,15 @@ class KeysService : InputMethodService(), Ime {
                     Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions)
                 }.getOrDefault(emptyList())
                 val fix = runCatching {
-                    Suggestions.correction(word, words, proximity, learned, contractions, previous)
+                    Suggestions.correction(
+                        word, words, proximity, learned, contractions, previous, compounds = language == Language.GERMAN,
+                    )
                 }.getOrNull()
                 // "Never heard of it" is a different question from "here is what you probably meant", and a word
                 // can be the first without the second - a name, a word in another language, something made up.
                 val unknown = runCatching {
                     word.length >= Learned.SHORTEST &&
-                        !words.contains(word.lowercase()) &&
+                        !Suggestions.known(word.lowercase(), words) &&
                         (learned?.count(word.lowercase()) ?: 0) == 0 &&
                         shortcuts?.expand(word) == null
                 }.getOrDefault(false)
