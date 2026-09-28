@@ -138,6 +138,12 @@ class Dictionary private constructor(
 
         private val EMPTY = IntArray(0)
 
+        /**
+         * A word to know but never offer: most often a word typed without its accent ("accion" for "acción"), which
+         * may also be a real word ("papa", "cote"), so it is never corrected either. See tools/build-dictionary.py.
+         */
+        const val KNOWN_ONLY = 98
+
         /** Common enough that a word one edit away from it is probably a slip. */
         const val COMMON = 35
 

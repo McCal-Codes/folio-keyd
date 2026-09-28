@@ -248,4 +248,18 @@ class SuggestionsTest {
         val close = Small(listOf("want" to 20, "wait" to 20, "went" to 20))
         assertEquals("want", Suggestions.forWord("wsnt", close, proximity, previous = "i", next = following).first())
     }
+
+    @Test
+    fun `a shortcut is offered in the case it was typed`() {
+        val shortcuts = Shortcuts().also { it.add("omw", "on my way") }
+        assertEquals("On my way", Suggestions.forWord("Omw", words, proximity, shortcuts = shortcuts).first())
+        assertEquals("on my way", Suggestions.forWord("omw", words, proximity, shortcuts = shortcuts).first())
+    }
+
+    @Test
+    fun `half a word is never a correction`() {
+        val halves = Small(listOf("ma'" to 20, "jusqu'" to 20, "mai" to 40))
+        val fix = Suggestions.correction("maa", halves, proximity)
+        assertTrue(fix, fix == null || !fix.endsWith("'"))
+    }
 }

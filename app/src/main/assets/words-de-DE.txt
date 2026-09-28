@@ -495,6 +495,7 @@ aha:31
 ahab:43
 ahh:39
 ahhh:42
+ahm:98
 ahmad:43
 ahmed:41
 ahmet:44
@@ -897,6 +898,7 @@ anfang:30
 anfange:40
 anfangen:29
 anfangs:37
+anfangt:98
 anfasse:44
 anfassen:34
 anfasst:40
@@ -1478,6 +1480,7 @@ arena:39
 ares:44
 arg:43
 argentinien:40
+arger:98
 argh:43
 argo:43
 argument:38
@@ -2073,6 +2076,7 @@ ausgebrochen:38
 ausgebucht:40
 ausgecheckt:44
 ausgedacht:37
+ausgedruckt:98
 ausgedrückt:37
 ausgefallen:38
 ausgeflippt:39
@@ -2462,6 +2466,7 @@ badeanzug:41
 badehose:42
 bademantel:41
 baden:36
+bader:98
 badet:43
 badewanne:38
 badezimmer:35
@@ -3453,6 +3458,7 @@ beschwerst:43
 beschwert:38
 beschwerte:44
 beschwingte:40
+beschworen:98
 beschwöre:43
 beschwören:42
 beschwörung:44
@@ -4225,6 +4231,7 @@ borgias:44
 boris:37
 borland:44
 born:44
+bos:98
 bosch:42
 bosco:43
 boshaft:44
@@ -4595,6 +4602,7 @@ bunten:43
 burbank:44
 bureau:42
 burg:37
+burgen:98
 burger:37
 burke:38
 burkhalter:41
@@ -5422,6 +5430,7 @@ daddys:40
 dads:37
 dadurch:32
 daedalus:43
+dafur:98
 dafür:23
 dag:41
 dagegen:29
@@ -5460,6 +5469,7 @@ damien:39
 damit:21
 damm:39
 damon:35
+damons:98
 dampf:38
 dampfbad:44
 dampfen:43
@@ -6178,6 +6188,7 @@ dran:26
 dranbleiben:41
 drang:39
 drangekriegt:44
+drangen:98
 drankriegen:42
 draper:41
 drastisch:43
@@ -6288,10 +6299,12 @@ drosseln:43
 drover:44
 drovers:43
 druck:32
+drucke:98
 drucken:39
 drucker:41
 druckerei:43
 druckmittel:40
+druckt:98
 druiden:43
 drum:34
 drumherum:43
@@ -6381,6 +6394,7 @@ dunkler:39
 dunkles:40
 dunlop:44
 dunn:42
+dunne:98
 dunphy:43
 dunst:44
 duo:43
@@ -6498,6 +6512,7 @@ dusche:35
 duschen:35
 duscht:43
 dussel:44
+duster:98
 dustin:42
 dusty:41
 dutch:40
@@ -7243,6 +7258,7 @@ empfang:34
 empfange:38
 empfangen:34
 empfangsdame:43
+empfangt:98
 empfehle:38
 empfehlen:37
 empfehlung:38
@@ -8027,6 +8043,7 @@ erwünscht:42
 erwürgen:41
 erwürgt:40
 erz:44
+erzahlen:98
 erzbischof:41
 erzengel:44
 erzeugen:38
@@ -8310,6 +8327,7 @@ falls:27
 fallschirm:40
 fallschirme:44
 fallschirmspringer:44
+fallt:98
 falltür:43
 falsch:27
 falsche:31
@@ -8709,6 +8727,7 @@ fingerabdruck:41
 fingerabdrücke:34
 fingerabdrücken:42
 fingern:38
+fingernagel:98
 fingernägel:41
 fingernägeln:42
 fingers:44
@@ -8852,6 +8871,7 @@ flowers:43
 floyd:40
 floß:41
 fluch:34
+fluche:98
 fluchen:40
 flucht:33
 fluchtplan:43
@@ -8997,6 +9017,7 @@ forschen:42
 forscher:39
 forschung:36
 forschungen:40
+forster:98
 fort:29
 fortan:43
 fortfahren:39
@@ -9078,6 +9099,7 @@ francisco:35
 franck:41
 franco:40
 francois:42
+francoise:98
 francs:38
 frank:29
 franken:42
@@ -9111,6 +9133,7 @@ frauen:26
 frauenheld:43
 frauenstimme:42
 frauenzimmer:44
+fraulein:98
 frazier:43
 fraß:39
 freak:36
@@ -9311,7 +9334,9 @@ fuentes:43
 fuer:39
 fugen:43
 fuhr:33
+fuhre:98
 fuhren:36
+fuhrst:98
 full:41
 fuller:40
 fulton:43
@@ -9341,6 +9366,7 @@ funktioniert:28
 funktionierte:39
 funktionsfähig:43
 funky:44
+fur:98
 furcht:36
 furchtbar:31
 furchtbare:37
@@ -9369,6 +9395,7 @@ fußball:36
 fußballer:44
 fußballspiel:43
 fußboden:40
+fuße:98
 fußfessel:43
 fußgänger:44
 fußspuren:42
@@ -9772,6 +9799,7 @@ gefalle:41
 gefallen:27
 gefallene:44
 gefallenen:41
+gefallt:98
 gefaltet:44
 gefangen:31
 gefangene:35
@@ -9816,6 +9844,7 @@ gefrühstückt:40
 gefunden:25
 gefunkt:43
 gefurzt:44
+gefuttert:98
 gefährden:37
 gefährdet:37
 gefährdung:44
@@ -9962,6 +9991,7 @@ gehorchen:37
 gehorchst:44
 gehorcht:40
 gehorsam:40
+gehort:98
 gehst:27
 geht:19
 gehts:34
@@ -10718,6 +10748,7 @@ gevögelt:38
 gewachsen:36
 gewagt:39
 gewahrsam:38
+gewahrt:98
 gewalt:32
 gewalteinwirkung:44
 gewaltig:38
@@ -10925,11 +10956,13 @@ glamour:44
 glamourös:44
 glanz:39
 glas:31
+glaser:98
 glasgow:43
 glasklar:44
 glass:41
 glatt:36
 glatte:43
+glatten:98
 glatter:43
 glatze:40
 glatzkopf:42
@@ -10995,6 +11028,7 @@ glotz:44
 glotze:43
 glotzen:41
 glotzt:39
+gluck:98
 glut:43
 glänzen:41
 glänzend:41
@@ -11620,6 +11654,7 @@ hand:26
 handarbeit:44
 handbremse:44
 handbuch:41
+hande:98
 handel:36
 handele:44
 handeln:33
@@ -11667,6 +11702,7 @@ hannes:39
 hanni:44
 hannibal:38
 hans:35
+hansel:98
 hansen:41
 hansi:44
 hanson:40
@@ -12533,6 +12569,7 @@ hoher:38
 hohes:38
 hohl:42
 hohle:44
+hohlen:98
 hohn:44
 hoi:44
 hokuspokus:42
@@ -12549,6 +12586,8 @@ holger:42
 holiday:42
 holla:43
 holland:39
+hollander:98
+holle:98
 hollis:42
 hollow:40
 holloway:43
@@ -12601,10 +12640,12 @@ hopkins:41
 hopp:35
 hopper:41
 hoppla:39
+hor:98
 horace:41
 horatio:42
 horch:44
 horde:41
+horen:98
 horizont:39
 hormone:40
 horn:38
@@ -12614,6 +12655,9 @@ horror:40
 horrorfilm:43
 horrorfilme:44
 horse:42
+horst:98
+hort:98
+horten:98
 horton:43
 hose:32
 hosen:34
@@ -12673,6 +12717,7 @@ hummer:39
 humor:35
 humphrey:37
 hund:28
+hundchen:98
 hunde:32
 hundefutter:42
 hundegebell:42
@@ -14699,6 +14744,8 @@ konkurrenten:42
 konkurrenz:37
 konkurrieren:43
 konkurs:43
+konnen:98
+konnt:98
 konnte:25
 konnten:29
 konntest:32
@@ -15433,6 +15480,7 @@ lasst:27
 last:35
 lasten:43
 laster:36
+lastern:98
 lastet:42
 lastwagen:39
 laszlo:44
@@ -16100,6 +16148,7 @@ lorraine:40
 los:19
 losbinden:44
 lose:40
+losen:98
 loser:37
 losfahren:40
 losgefahren:42
@@ -16143,6 +16192,7 @@ loving:44
 low:43
 lowe:44
 lowell:42
+lowen:98
 lower:44
 lowry:43
 loyal:38
@@ -16357,6 +16407,7 @@ macy:41
 mad:41
 madam:33
 madame:30
+madchen:98
 maddie:40
 maddox:42
 maddy:41
@@ -16501,6 +16552,7 @@ manipulieren:38
 manipuliert:37
 manipulierte:44
 mann:20
+manner:98
 mannes:32
 manning:41
 mannomann:43
@@ -17341,6 +17393,9 @@ mobilen:44
 mobilisieren:44
 mobiltelefon:43
 moby:42
+mochte:98
+mochten:98
+mochtest:98
 mode:37
 model:38
 modell:36
@@ -17491,6 +17546,7 @@ morton:41
 morty:39
 mosby:43
 moschee:41
+mose:98
 moses:38
 moskau:36
 moskauer:44
@@ -17540,6 +17596,7 @@ mu:42
 muad:44
 much:39
 mucho:44
+mucke:98
 mucks:41
 mueller:42
 muessen:44
@@ -17551,6 +17608,7 @@ muhen:43
 muirfield:42
 mulder:35
 mulders:44
+muller:98
 mulligan:44
 multiple:43
 mum:34
@@ -17605,6 +17663,7 @@ musketiere:41
 muslim:44
 muslime:42
 muss:18
+mussen:98
 mussolini:44
 musst:23
 musste:26
@@ -17630,6 +17689,7 @@ mutmaßlichen:44
 mutter:22
 muttermal:41
 muttermilch:44
+muttern:98
 mutters:41
 mutterschiff:42
 muttersöhnchen:44
@@ -17848,6 +17908,7 @@ nachsicht:41
 nachsichtig:41
 nachsitzen:41
 nachspiel:44
+nachste:98
 nachstellen:44
 nacht:23
 nachtclub:41
@@ -17894,6 +17955,7 @@ nah:31
 nahaufnahme:43
 nahe:31
 nahen:40
+naher:98
 nahezu:40
 nahkampf:43
 nahm:30
@@ -17966,6 +18028,7 @@ nationalhymne:43
 nationen:39
 nato:43
 natur:32
+naturlich:98
 naturtalent:41
 naturwissenschaften:44
 natürlich:23
@@ -18470,6 +18533,7 @@ och:38
 ochse:42
 ochsen:42
 octavia:42
+ode:98
 oder:18
 odessa:42
 odile:43
@@ -20769,6 +20833,7 @@ rohen:44
 rohes:44
 rohr:38
 rohre:40
+rohren:98
 rojas:44
 roland:38
 rolex:43
@@ -20843,6 +20908,7 @@ roslin:44
 ross:33
 rossi:42
 rost:42
+rosten:98
 roswell:44
 rot:32
 rote:33
@@ -20882,6 +20948,7 @@ ru:44
 rube:44
 rubel:42
 ruben:41
+ruber:98
 rubin:42
 ruby:37
 ruck:40
@@ -20913,6 +20980,7 @@ ruhigen:40
 ruhiger:38
 ruhiges:41
 ruhm:36
+ruhr:98
 ruhst:43
 ruht:38
 ruin:42
@@ -21856,7 +21924,9 @@ schokolade:35
 schokoladenkuchen:44
 schokoriegel:41
 schon:17
+schone:98
 schonen:39
+schoner:98
 schonmal:41
 school:36
 schornstein:43
@@ -21871,6 +21941,7 @@ schoß:38
 schrader:44
 schramme:44
 schrank:34
+schranke:98
 schranken:43
 schraube:41
 schrauben:41
@@ -22002,6 +22073,7 @@ schusswunden:43
 schuster:42
 schutt:42
 schutz:33
+schutze:98
 schutzengel:41
 schutzhaft:42
 schutzlos:43
@@ -22420,6 +22492,7 @@ senkrecht:44
 senkt:43
 senor:40
 senora:43
+senorita:98
 sensation:41
 sensationell:42
 sense:43
@@ -23044,7 +23117,9 @@ spartakus:44
 spartaner:44
 spass:39
 spasti:44
+spat:98
 spaten:44
+spater:98
 spatz:41
 spatzen:43
 spaulding:44
@@ -23267,6 +23342,7 @@ spukt:41
 spul:44
 spule:43
 spulen:43
+spult:98
 spur:31
 spuren:33
 spurensicherung:40
@@ -23674,6 +23750,7 @@ stoppt:38
 stoppte:43
 stoppuhr:44
 storch:43
+store:98
 storm:41
 story:33
 storybrooke:42
@@ -23684,6 +23761,7 @@ stoß:39
 stoße:42
 stoßen:36
 stoßstange:43
+stoßt:98
 strafbar:42
 strafe:34
 strafen:40
@@ -23816,6 +23894,7 @@ stu:38
 stuart:37
 stubbs:44
 stube:43
+stuck:98
 student:38
 studenten:36
 studentin:39
@@ -23852,6 +23931,7 @@ sturms:44
 sturz:39
 stute:42
 stuttgart:44
+stutzen:98
 style:42
 stäbchen:43
 städtchen:43
@@ -24295,6 +24375,7 @@ taugt:39
 tausch:38
 tausche:41
 tauschen:35
+tauschst:98
 tauscht:42
 tauschte:43
 tauschten:44
@@ -24630,6 +24711,7 @@ todes:35
 todesangst:41
 todesengel:44
 todesfall:42
+todesfalle:98
 todesfälle:41
 todesopfer:43
 todesstrafe:38
@@ -25058,6 +25140,7 @@ tunneln:43
 tunnels:43
 tunte:42
 tupfer:44
+tur:98
 turban:44
 turbo:41
 turbulenzen:42
@@ -25081,6 +25164,7 @@ tussi:38
 tussis:43
 tust:27
 tut:21
+tuten:98
 tuttle:44
 tuvok:39
 tv:36
@@ -25180,6 +25264,8 @@ türsteher:41
 tüte:37
 tüten:41
 uah:44
+uber:98
+uberhaupt:98
 ucla:44
 udo:41
 udssr:44
@@ -26228,6 +26314,7 @@ verhaftete:43
 verhafteten:43
 verhaftung:37
 verhaftungen:42
+verhalt:98
 verhalte:41
 verhalten:32
 verhaltens:43
@@ -26524,6 +26611,7 @@ verringern:41
 verringert:43
 verrotten:39
 verrottet:42
+verruckt:98
 verruf:44
 verrät:38
 verräter:33
@@ -26737,6 +26825,7 @@ verstorbene:41
 verstorbenen:38
 verstorbener:43
 verstoß:40
+verstoße:98
 verstoßen:38
 verstreut:40
 verstrickt:42
@@ -27317,6 +27406,7 @@ vorsatz:42
 vorschau:43
 vorschein:42
 vorschlag:33
+vorschlage:98
 vorschlagen:37
 vorschlaghammer:44
 vorschlug:44
@@ -27578,6 +27668,7 @@ wappen:42
 war:15
 ward:37
 warden:44
+ware:98
 warehouse:43
 waren:22
 warenhaus:44
@@ -29068,6 +29159,7 @@ zumal:42
 zumindest:30
 zumute:41
 zumuten:43
+zunder:98
 zunehmen:43
 zunehmend:42
 zuneigung:38
@@ -29080,6 +29172,7 @@ zuordnen:43
 zur:22
 zurecht:34
 zurechtkommen:41
+zuruck:98
 zurzeit:36
 zurück:22
 zurückbekommen:39
@@ -29181,6 +29274,7 @@ zusammengekommen:43
 zusammengeschlagen:41
 zusammengesetzt:43
 zusammengestellt:41
+zusammenhalt:98
 zusammenhalten:39
 zusammenhang:37
 zusammenhält:44

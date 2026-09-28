@@ -101,6 +101,7 @@ object Suggestions {
         for (index in completions) {
             val word = words.word(index)
             if (word.equals(typed, ignoreCase = true)) continue
+            if (words.rank(index) == Dictionary.KNOWN_ONLY) continue
             if (!possessive && isPossessive(word)) continue
             val cost = completionCost(words.rank(index), word.length - typed.length)
             scored.merge(word, cost, ::min)
@@ -116,10 +117,13 @@ object Suggestions {
                     for (index in words.byShape(first, length)) {
                         val word = words.word(index)
                         if (word.equals(typed, ignoreCase = true)) continue
+                        if (words.rank(index) == Dictionary.KNOWN_ONLY || word.endsWith('\'')) continue
                         if (!possessive && isPossessive(word)) continue
                         val edits = cost(lower, word.lowercase(), allowed, proximity)
                         if (edits > allowed * SCALE) continue
-                        val cost = correctionCost(edits, words.rank(index))
+                        // Only the accents missing is not a mistake in the word, so it is priced as the word itself:
+                        // "familia" offers "família" ahead of "familiar".
+                        val cost = if (edits == ACCENT) words.rank(index) else correctionCost(edits, words.rank(index))
                         scored.merge(word, cost, ::min)
                     }
                 }
@@ -172,7 +176,7 @@ object Suggestions {
             !known(lower, words)
         ) spaceSlip(lower, words)?.let { matchCase(typed, it.words) } else null
         val first = listOfNotNull(
-            shortcuts?.expand(typed),
+            shortcuts?.expand(typed)?.let { matchCase(typed, it) },
             contractions?.let { Contractions.offer(typed, it) },
             split,
         ).distinct()
@@ -234,6 +238,8 @@ object Suggestions {
                     val candidate = words.word(index)
                     if (candidate.equals(typed, ignoreCase = true)) continue
                     if (words.rank(index) > COMMON_ENOUGH) continue
+                    // "jusqu'" and "ma'" are halves of words. Put in on their own they cut the word in two.
+                    if (candidate.endsWith('\'')) continue
                     if (!possessive && isPossessive(candidate)) continue
                     val edits = cost(lower, candidate.lowercase(), 1, proximity)
                     if (edits > SCALE) continue
@@ -289,7 +295,10 @@ object Suggestions {
         if (words.contains(word)) return true
         val apostrophe = word.indexOf('\'')
         if (apostrophe <= 0 || apostrophe > MOST_ELIDED || apostrophe == word.length - 1) return false
-        return words.contains(word.substring(0, apostrophe + 1)) && known(word.substring(apostrophe + 1), words)
+        if (!words.contains(word.substring(0, apostrophe + 1))) return false
+        val tail = word.substring(apostrophe + 1)
+        // "jusqu'à", "m'a", "dov'è", "qu'y": the word after is often one letter, and the lists leave those out.
+        return (tail.length == 1 && tail[0] in ONE_LETTER_WORDS) || known(tail, words)
     }
 
     /**
@@ -586,6 +595,9 @@ object Suggestions {
 
     /** How much commoner than a correction both halves of a missed space must be to win: ten points is ten times. */
     private const val SPLIT_EDGE = 10
+
+    /** The one-letter words an elision can come before, in French and Italian. */
+    private const val ONE_LETTER_WORDS = "aàeèéoyiìuù"
 
     /** The longest article or pronoun that elides: "quelqu'" and "lorsqu'" are the long end of it. */
     private const val MOST_ELIDED = 8

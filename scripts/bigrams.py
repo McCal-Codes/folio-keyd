@@ -115,7 +115,9 @@ def word_list(tag):
     """Lowercase word to the spelling the list keeps it in."""
     spelled = {}
     for line in open(os.path.join(ASSETS, f"words-{tag}.txt"), encoding="utf-8"):
-        word = line.rsplit(":", 1)[0]
+        word, score = line.strip().rsplit(":", 1)
+        if score == "98":
+            continue        # known but never offered: a word typed without its accent, see build-dictionary.py
         lower = word.lower()
         # A lowercase entry wins: "may" the word over "May" the month.
         if lower not in spelled or word == lower:

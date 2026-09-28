@@ -68,6 +68,9 @@ SPOKEN_ONLY_SHORTEST = 2      # "yo", "tu", "je", "il" are words; single letters
 # How much commoner the accented form must be before the bare one is only a typo of it: ten points is ten times.
 LOST_ACCENT_GAP = 10
 
+# The score for a word the keyboard should know but never offer: see mark_lost_accents. Nothing else scores 98.
+KNOWN_ONLY = 98
+
 
 def scowl_words(final_dir):
     """Every US English word SCOWL lists up to the size-40 band, with the band it first appeared in."""
@@ -125,25 +128,37 @@ def fold(word):
     return "".join(c for c in unicodedata.normalize("NFD", word) if unicodedata.category(c) != "Mn")
 
 
-def drop_lost_accents(entries):
+def mark_lost_accents(entries, positions):
     """
-    Drops a word that is only its accented twin typed without the accent.
+    Marks a word that looks like its accented twin typed without the accent as known but never offered.
 
     Subtitles are typed by people, and people leave accents off: "accion" is in the Spanish list, and "fur" in the
-    German one, because someone typed "acción" and "für" that way often enough to count. As words they are worse
-    than useless. A word the dictionary knows is one autocorrect leaves alone, so "accion" was never fixed.
+    German one, because someone typed "acción" and "für" that way often enough to count. Offered in the strip they
+    are noise. But many are also real words - "papa" and "papá", "cote" and "côté", "Ware" and "Wäre", "Caracas" -
+    and nothing here can tell which, so none of them is dropped: a word dropped from the list is one autocorrect
+    replaces, and replacing a real word is the one mistake a keyboard must not make.
 
-    Where the accented form is ten times as common (ten points on this log scale), the bare one goes. Where the two
-    are close, both are real words that differ by an accent - "acabo" and "acabó", "aime" and "aimé" - and both stay,
-    so the bare one is never corrected and the accented one is still offered in the strip.
+    So where the accented form is ten times as common (ten points on this log scale), the bare one is kept at
+    KNOWN_ONLY: known, so never corrected and never underlined; never suggested; and the accented twin is still
+    offered in the strip, one tap away. The same goes for a bare form further down the frequency list than the cut,
+    so a real word just past it ("facas" beside "faças") is not corrected either. Where the two are close, both are
+    ordinary words - "acabo" and "acabó" - and both stay as they are.
     """
     twins = {}
     for word, value in entries.items():
         bare = fold(word)
         if bare != word:
             twins[bare] = min(value, twins.get(bare, 99))
-    lost = {word for word, value in entries.items() if word in twins and twins[word] <= value - LOST_ACCENT_GAP}
-    return {word: value for word, value in entries.items() if word not in lost}, len(lost)
+    marked = 0
+    for word in list(entries):
+        if word in twins and twins[word] <= entries[word] - LOST_ACCENT_GAP:
+            entries[word] = KNOWN_ONLY
+            marked += 1
+    for word in positions:
+        if word in twins and word not in entries and WORD.match(word):
+            entries[word] = KNOWN_ONLY
+            marked += 1
+    return entries, marked
 
 
 def spoken_only(frequency_file, destination):
@@ -161,8 +176,8 @@ def spoken_only(frequency_file, destination):
         if not WORD.match(word) or not (SPOKEN_ONLY_SHORTEST <= len(word) <= 20):
             continue
         entries[word] = score(position, 0)
-    entries, lost = drop_lost_accents(entries)
-    print(f"{lost} words that were only a lost accent dropped")
+    entries, lost = mark_lost_accents(entries, positions)
+    print(f"{lost} words that may only be a lost accent kept as known but never offered")
     with open(destination, "w", encoding="utf-8") as out:
         for word, value in sorted(entries.items(), key=lambda kv: kv[0].lower()):
             out.write(f"{word}:{value:02d}\n")
