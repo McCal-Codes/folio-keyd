@@ -63,6 +63,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.3.0",
+          "notes": {
+            "en": "Emoji search, next-word prediction, contractions, and a strip that offers to keep a word or always fix it. Per-app settings, swipe up on Z X C V A to edit, slide from shift to select, a toolbar you arrange, one-handed mode, vibration strength and pure black. Fewer wrong fixes, accents offered instead of forced, and typos no longer learned."
+          }
+        },
+        {
           "version": "0.2.0",
           "notes": {
             "en": "Fixes the keyboard staying fullscreen after you hid it (thanks, Roby). Adds a cursor pad, a voice key that hands you to your phone's voice keyboard, Folio, Material and Samsung key styles, pinned clips as text shortcuts, Report a problem with a preview of every line, and export and import of what it learned."
