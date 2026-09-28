@@ -81,7 +81,8 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
     private var appearance = Appearance.SYSTEM
     private var highContrast = false
     private var keyStyle = KeyStyle.FOLIO
-    private var vibrate = true
+    private var vibration = Vibration.MEDIUM
+    private var pureBlack = false
     private var theme = Theme.of(context)
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -110,7 +111,8 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
         appearance = settings.appearance
         highContrast = settings.highContrast
         keyStyle = settings.keyStyle
-        vibrate = settings.vibrate
+        vibration = settings.vibration
+        pureBlack = settings.pureBlack
         keys.settings = settings.copy(accents = false)
         keys.language = language
         keys.rows = Layouts.searchRows(language)
@@ -192,7 +194,7 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
 
     /** One board behind the search rows and the letters, so they read as one keyboard rather than two. */
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance, highContrast, keyStyle)
+        theme = Theme.of(context, appearance, highContrast, keyStyle, pureBlack)
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
@@ -399,7 +401,7 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
                     val id = idAt(event.x, event.y)
                     // Only a tap that lets go where it landed: sliding off is how you change your mind.
                     if (id == pressed && id != NONE && id != FIELD) {
-                        if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        Haptics.feel(this, vibration)
                         activate(id)
                         performClick()
                     }
