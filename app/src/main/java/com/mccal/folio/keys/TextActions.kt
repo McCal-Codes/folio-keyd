@@ -173,6 +173,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         lastWasSpace = false
         word.setLength(0)
         wordChanged()
+        recapitalize()
         return true
     }
 
@@ -294,6 +295,25 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             shift = Shift.OFF
             refresh()
         }
+        // A space or a period may have started a sentence: ask the app again, the way it was asked when the field
+        // opened. Letters never can, so they skip the round trip.
+        if (!text[0].isLetter()) recapitalize()
+    }
+
+    /**
+     * Shift for the start of a sentence, asked of the app wherever the cursor may have moved to a new one.
+     *
+     * It used to be asked only when a field opened, so a period and a space never brought the capital back, and
+     * neither did deleting everything: "the quick brown fox" came out without its capital T after a clear. Caps lock
+     * is left alone, since the person chose it.
+     */
+    private fun recapitalize() {
+        if (shift == Shift.LOCKED || !settings.autoCapitalise) return
+        val wanted = if (autoCaps(ime.editorInfo)) Shift.ONCE else Shift.OFF
+        if (wanted != shift) {
+            shift = wanted
+            refresh()
+        }
     }
 
     /**
@@ -357,6 +377,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             if (word.isNotEmpty()) word.setLength(word.length - 1)
         }
         wordChanged()
+        recapitalize()
     }
 
     /** Holding the key down: whatever was selected went with the first delete, so don't ask again. */
@@ -364,6 +385,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         ime.connection?.deleteSurroundingText(1, 0) ?: return
         if (word.isNotEmpty()) word.setLength(word.length - 1)
         wordChanged()
+        recapitalize()
     }
 
     /** Swiping the backspace takes a word, which is what every other keyboard does and what hands expect. */
@@ -373,6 +395,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val remove = Words.charsToRemoveForWord(before)
         if (remove > 0) connection.deleteSurroundingText(remove, 0)
         forget()
+        recapitalize()
     }
 
     override fun onShift() {
@@ -519,6 +542,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val connection = ime.connection ?: return
         sendKey(connection, code, meta)
         forget()
+        recapitalize()
     }
 
     private fun sendKey(connection: InputConnection, code: Int, meta: Int) {
@@ -538,6 +562,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
         repeat(min(abs(steps), MAX_CURSOR_STEPS)) { sendKey(connection, code) }
         forget()
+        recapitalize()
     }
 
     private fun sendKey(connection: InputConnection, code: Int) {

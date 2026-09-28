@@ -818,5 +818,56 @@ class KeysServiceTest {
         type("hel")
         assertTrue(ime.suggestedFor.all { it.isEmpty() })
     }
+
+    // ---- the capital at the start of a sentence -------------------------------------------------------------------
+
+    private val sentences = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+
+    @Test
+    fun `a new field starts with a capital`() {
+        start(sentences, 0)
+        assertEquals(Shift.ONCE, ime.shift)
+    }
+
+    @Test
+    fun `a period and a space bring the capital back`() {
+        start(sentences, 0)
+        type("hi. ")
+        assertEquals(Shift.ONCE, ime.shift)
+    }
+
+    @Test
+    fun `mid-sentence a space does not`() {
+        start(sentences, 0)
+        type("hi there ")
+        assertEquals(Shift.OFF, ime.shift)
+    }
+
+    /** Found typing "the quick brown fox" on a phone: after deleting everything, the T came out lowercase. */
+    @Test
+    fun `deleting back to an empty field brings the capital back`() {
+        start(sentences, 0)
+        type("ab")
+        assertEquals(Shift.OFF, ime.shift)
+        actions.onBackspace()
+        actions.onBackspace()
+        assertEquals("", text)
+        assertEquals(Shift.ONCE, ime.shift)
+    }
+
+    @Test
+    fun `caps lock is left alone`() {
+        start(sentences, 0)
+        actions.onShift()   // ONCE to LOCKED
+        type("ab ")
+        assertEquals(Shift.LOCKED, ime.shift)
+    }
+
+    @Test
+    fun `a field that asks for no capitals never gets one`() {
+        start(InputType.TYPE_CLASS_TEXT, 0)
+        type("hi. ")
+        assertEquals(Shift.OFF, ime.shift)
+    }
 }
 
