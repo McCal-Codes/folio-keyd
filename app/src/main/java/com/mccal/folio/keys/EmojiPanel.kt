@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.Paint
 import android.graphics.RectF
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.VelocityTracker
@@ -69,8 +68,15 @@ class EmojiPanel(context: Context) : View(context) {
             invalidate()
         }
 
-    /** Keyd's own Vibration switch. Off means off here too, not only on the letters. */
-    var vibrate: Boolean = true
+    /** Keyd's own Vibration choice. Off means off here too, not only on the letters. */
+    var vibration: Vibration = Vibration.MEDIUM
+
+    /** A black board when dark, as on the letters. */
+    var pureBlack: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
 
     /** The key style the letters use, so switching to this panel doesn't change the keyboard's look. */
     var keyStyle: KeyStyle = KeyStyle.FOLIO
@@ -177,7 +183,7 @@ class EmojiPanel(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance, highContrast, keyStyle)
+        theme = Theme.of(context, appearance, highContrast, keyStyle, pureBlack)
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
@@ -346,7 +352,7 @@ class EmojiPanel(context: Context) : View(context) {
             val slots = tabSlots()
             val index = slots.indexOfFirst { x >= it.first && x < it.second }
             if (index < 0) return
-            if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            Haptics.feel(this, vibration)
             when (index) {
                 0 -> listener?.onLetters()
                 slots.lastIndex -> listener?.onBackspace()
@@ -362,7 +368,7 @@ class EmojiPanel(context: Context) : View(context) {
         val index = indexAt(x, y)
         val list = items()
         if (index in list.indices) {
-            if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            Haptics.feel(this, vibration)
             listener?.onEmoji(list[index])
         }
     }

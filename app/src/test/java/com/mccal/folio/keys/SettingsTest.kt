@@ -32,7 +32,9 @@ class SettingsTest {
         assertTrue(fresh.accents)
         assertTrue(fresh.keyPreview)
         assertTrue(fresh.sound)
-        assertTrue(fresh.vibrate)
+        assertEquals(Vibration.MEDIUM, fresh.vibration)
+        assertTrue("clicks stay out of headphones unless asked for", fresh.muteWithBluetooth)
+        assertFalse(fresh.pureBlack)
         assertFalse("a number row costs a row of height, so it is asked for", fresh.numberRow)
     }
 
@@ -41,7 +43,7 @@ class SettingsTest {
         val chosen = Settings(
             suggestions = false, autocorrect = false, learn = false, autoCapitalise = false,
             doubleSpaceFullStop = false, numberRow = true, accents = false, keyPreview = false,
-            sound = false, vibrate = false,
+            sound = false, vibration = Vibration.STRONG, muteWithBluetooth = false, pureBlack = true,
         )
         chosen.save(prefs)
         assertEquals(chosen, Settings.load(prefs))

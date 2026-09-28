@@ -10,7 +10,6 @@ import android.graphics.RectF
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -98,7 +97,7 @@ class KeyboardView(context: Context) : View(context) {
     var settings: Settings = Settings()
         set(value) {
             field = value
-            theme = Theme.of(context, value.appearance, value.highContrast, value.keyStyle)
+            theme = Theme.of(context, value.appearance, value.highContrast, value.keyStyle, value.pureBlack)
             // The toolbar's keys depend on two of these switches, so it is placed again now rather than waiting on a
             // layout pass that only comes if the size changed.
             tools = placeToolbar()
@@ -243,8 +242,14 @@ class KeyboardView(context: Context) : View(context) {
         repeatingFor = null
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        feedback.start()
+    }
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        feedback.stop()
         stopRepeat()   // a keyboard hidden mid-hold must not keep deleting
         closePopup()
         for (press in presses.values) cancelHold(press)
@@ -271,7 +276,7 @@ class KeyboardView(context: Context) : View(context) {
         super.onConfigurationChanged(newConfig)
         // Only the phone's night mode can have changed; the person's own choices still stand. This used to be
         // Theme.of(context), which dropped a forced light or dark, and high contrast, on every rotation and unfold.
-        theme = Theme.of(context, settings.appearance, settings.highContrast, settings.keyStyle)
+        theme = Theme.of(context, settings.appearance, settings.highContrast, settings.keyStyle, settings.pureBlack)
         invalidate()
     }
 
@@ -719,8 +724,8 @@ class KeyboardView(context: Context) : View(context) {
         val placement = keyAt(x, y) ?: return
         val press = Press(placement, x, y)
         presses[pointer] = press
-        if (settings.vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-        if (settings.sound) feedback.play(placement.key.kind)
+        Haptics.feel(this, settings.vibration)
+        if (settings.sound) feedback.play(placement.key.kind, settings.muteWithBluetooth)
         if (placement.key.kind == KeyKind.BACKSPACE) {
             repeatingFor = press
             repeat.postDelayed(repeatBackspace, FIRST_REPEAT_MS)
@@ -765,7 +770,7 @@ class KeyboardView(context: Context) : View(context) {
         }
         if (items.isEmpty()) return
         val task = Runnable {
-            if (settings.vibrate) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            Haptics.feel(this, settings.vibration, Haptics.Touch.HOLD)
             if (items.size == 1) {
                 // Nothing to choose between, so holding simply gives it.
                 press.handled = true
@@ -874,7 +879,7 @@ class KeyboardView(context: Context) : View(context) {
                         press.swiping = true
                         press.handled = true
                         listener?.onText(flicked)
-                        if (settings.vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        Haptics.feel(this, settings.vibration)
                         invalidate()
                         return
                     }

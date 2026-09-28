@@ -7,7 +7,6 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Bundle
 import android.text.TextUtils
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
@@ -82,8 +81,15 @@ internal class ClipboardPanel(context: Context) : View(context) {
             invalidate()
         }
 
-    /** Keyd's own Vibration switch. Off means off here too, not only on the letters. */
-    var vibrate: Boolean = true
+    /** Keyd's own Vibration choice. Off means off here too, not only on the letters. */
+    var vibration: Vibration = Vibration.MEDIUM
+
+    /** A black board when dark, as on the letters. */
+    var pureBlack: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
 
     /** The key style the letters use, so switching to this panel doesn't change the keyboard's look. */
     var keyStyle: KeyStyle = KeyStyle.FOLIO
@@ -177,7 +183,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance, highContrast, keyStyle)
+        theme = Theme.of(context, appearance, highContrast, keyStyle, pureBlack)
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
@@ -319,7 +325,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
         held = true
         pressed = -1
         invalidate()
-        if (vibrate) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        Haptics.feel(this, vibration, Haptics.Touch.HOLD)
         listener?.onShortcutFromClip(clip.text)
     }
 
@@ -344,7 +350,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
         if (y >= listBottom) {
             val index = tabSlots().indexOfFirst { x >= it.first && x < it.second }
             if (index < 0) return
-            if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            Haptics.feel(this, vibration)
             when (index) {
                 0 -> listener?.onLetters()
                 1 -> listener?.onClearClips()
@@ -354,7 +360,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
         }
         val row = rowAt(y)
         val clip = clips.getOrNull(row) ?: return
-        if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        Haptics.feel(this, vibration)
         when (partAt(x)) {
             Part.PIN -> listener?.onPinClip(clip.text, !clip.pinned)
             Part.FORGET -> listener?.onForgetClip(clip.text)

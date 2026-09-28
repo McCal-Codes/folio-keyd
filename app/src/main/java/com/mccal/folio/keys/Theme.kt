@@ -46,7 +46,6 @@ data class Theme(
             preview = 0xFFFFFFFF.toInt(),
         )
 
-        /** Both themes, for the contrast test: the colours that ship are the colours that get checked. */
         /**
          * Every palette that ships, for the contrast checks.
          *
@@ -60,6 +59,9 @@ data class Theme(
             "material light" to MATERIAL_LIGHT,
             "samsung dark" to SAMSUNG_DARK,
             "samsung light" to SAMSUNG_LIGHT,
+            "pure black" to onBlack(DARK),
+            "material pure black" to onBlack(MATERIAL_DARK),
+            "samsung pure black" to onBlack(SAMSUNG_DARK),
             "high contrast dark" to HIGH_CONTRAST_DARK,
             "high contrast light" to HIGH_CONTRAST_LIGHT,
         )
@@ -151,12 +153,28 @@ data class Theme(
             preview = 0xFF000000.toInt(),
         )
 
-        /** High contrast wins over the style: it exists for eyes the styles don't suit, whichever one was picked. */
+        /**
+         * A dark palette on a black board, for an OLED screen to draw with its pixels off.
+         *
+         * Derived rather than written out three times: only the board changes, and every dark key is already light
+         * enough to stand off black. Samsung's shift and backspace keys are the exception - nearly black already, they
+         * vanished into it - so they come up a step.
+         */
+        private fun onBlack(dark: Theme): Theme = dark.copy(
+            board = 0xFF000000.toInt(),
+            altKey = if (dark.altKey == SAMSUNG_DARK.altKey) 0xFF2E2E30.toInt() else dark.altKey,
+        )
+
+        /**
+         * High contrast wins over the style and over pure black: it exists for eyes the styles don't suit, whichever
+         * one was picked, and its dark palette is already on black. Pure black only ever changes a dark palette.
+         */
         fun of(
             context: Context,
             appearance: Appearance = Appearance.SYSTEM,
             highContrast: Boolean = false,
             style: KeyStyle = KeyStyle.FOLIO,
+            pureBlack: Boolean = false,
         ): Theme {
             val dark = when (appearance) {
                 Appearance.DARK -> true
@@ -165,11 +183,12 @@ data class Theme(
                     Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             }
             if (highContrast) return if (dark) HIGH_CONTRAST_DARK else HIGH_CONTRAST_LIGHT
-            return when (style) {
+            val chosen = when (style) {
                 KeyStyle.FOLIO -> if (dark) DARK else LIGHT
                 KeyStyle.MATERIAL -> if (dark) MATERIAL_DARK else MATERIAL_LIGHT
                 KeyStyle.SAMSUNG -> if (dark) SAMSUNG_DARK else SAMSUNG_LIGHT
             }
+            return if (dark && pureBlack) onBlack(chosen) else chosen
         }
 
     }
