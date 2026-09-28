@@ -125,23 +125,32 @@ class LearnedTest {
     }
 
     @Test
-    fun `a near miss left alone twice is kept, and stops being corrected`() {
+    fun `a near miss left alone three times on two days is kept, and stops being corrected`() {
         val learned = Learned()
-        learned.sighted("wifi")
+        learned.sighted("wifi", day = 1)
+        learned.sighted("wifi", day = 1)
         assertEquals(0, learned.count("wifi"))
-        learned.sighted("wifi")
+        learned.sighted("wifi", day = 2)
         assertTrue(learned.count("wifi") >= Learned.MEANT_IT)
+    }
+
+    @Test
+    fun `the same slip many times in one day is not a word`() {
+        val learned = Learned()
+        repeat(5) { learned.sighted("teh", day = 7) }
+        assertEquals(0, learned.count("teh"))
     }
 
     @Test
     fun `seen words are stored apart and forgotten with the rest`() {
         val learned = Learned()
-        learned.sighted("bruh")
+        learned.sighted("bruh", day = 1)
+        learned.sighted("bruh", day = 2)
         val back = Learned.decode(learned.encode(), learned.encodeSeen())
         assertEquals(0, back.size)
-        back.sighted("bruh")
+        back.sighted("bruh", day = 3)
         assertEquals(1, back.size)
-        back.sighted("yeet")
+        back.sighted("yeet", day = 3)
         back.clear()
         assertEquals("", back.encodeSeen())
     }

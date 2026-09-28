@@ -10,6 +10,9 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.min
 
+/** What an "i" is followed by when it is a numeral rather than the word. */
+private val NUMERAL_ENDS = setOf('.', ')', ':')
+
 /** What ends a sentence, as far as guessing its next word goes. */
 private val SENTENCE_ENDS = setOf('.', '!', '?', '\n')
 
@@ -145,6 +148,12 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     private var wordStart = false
 
+    /**
+     * A word that was underlined, waiting to be learned until it is known that it stayed as typed: the next word
+     * beginning says it did. Backspace, a moved cursor or a tap into the text may be it being fixed, and drop it.
+     */
+    private var underlined: String? = null
+
     /** Everything the suggestion thread worked out about the word being typed. Null until it has. */
     private var verdict: Verdict? = null
 
@@ -206,7 +215,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * This is the only moment a word is offered for learning: while it is still being typed it is a prefix, and
      * every prefix of every word is not something worth remembering.
      */
-    private fun finished() {
+    private fun finished(ending: String = " ") {
         val done = word.toString()
         word.setLength(0)
         if (done.isEmpty()) return
@@ -219,10 +228,18 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         // "fixed" it would be typing somewhere else.
         if (rules.address) return
         val fix = answer?.correction?.takeIf { Settings.correcting(settings) }
-        if (remembering) ime.learn(done, corrected = fix != null)
+        val marked = fix == null && settings.spellCheck && answer?.misspelled == true && !rules.ephemeral
+        if (remembering && !marked) ime.learn(done, corrected = fix != null)
+        underlined = if (remembering && marked) done else null
         // "i" is "I". That is capitalization rather than correction, so it follows the capitals setting, and it is
         // left alone wherever the app asked for no suggestions - a code editor, a username.
-        val capital = if (settings.autoCapitalise && !rules.noSuggestions) Contractions.capitalI(done, language) else null
+        // Not before a full stop, a bracket or a colon, where "i" is more likely a numeral or a list item: "i.",
+        // "i)", "part i:".
+        val capital = if (settings.autoCapitalise && !rules.noSuggestions && ending.firstOrNull() !in NUMERAL_ENDS) {
+            Contractions.capitalI(done, language)
+        } else {
+            null
+        }
         when {
             fix != null -> {
                 autocorrect(done, fix)
@@ -259,6 +276,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     private fun forget() {
         // The cursor went somewhere else: what is typed next is not the word after the correction.
         standing = null
+        underlined = null
         previous = ""
         wordStart = false
         // Asked again even with no word, so a prediction for where the cursor used to be does not stay on screen.
@@ -277,6 +295,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         wordStart = capitals
         word.setLength(0)
         standing = null
+        underlined = null
         wordChanged()
         refresh()
     }
@@ -297,12 +316,17 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         ime.connection?.commitText(text, 1) ?: return
         // A letter continues the word; anything else - a space, a full stop, a bracket - ends it.
         if (text.length == 1 && (text[0].isLetter() || text[0] == '\'')) {
-            // The first letter of the next word, with no backspace in between: the correction before it stood.
-            if (word.isEmpty()) standing?.let { (typed, replacement) -> ime.fixStood(typed, replacement) }
+            // The first letter of the next word, with no backspace in between: the correction before it stood, and
+            // so did a word that was underlined.
+            if (word.isEmpty()) {
+                standing?.let { (typed, replacement) -> ime.fixStood(typed, replacement) }
+                underlined?.let { ime.learn(it, corrected = false) }
+                underlined = null
+            }
             standing = null
             word.append(text)
         } else {
-            finished()
+            finished(text)
             // A space keeps the word before; a full stop starts a sentence; anything else - a comma, a bracket, a
             // digit - puts too much between the two words for one to say anything about the next.
             previous = when {
@@ -373,6 +397,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             }
         }
         standing = null
+        underlined = null
         wordStart = false
         // Deleting back into the text before: the word before is no longer the one that was finished.
         if (word.isEmpty()) previous = ""
@@ -392,6 +417,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onBackspaceRepeat() {
         ime.connection?.deleteSurroundingText(1, 0) ?: return
         if (word.isNotEmpty()) word.setLength(word.length - 1) else previous = ""
+        underlined = null
         wordStart = false
         wordChanged()
     }
@@ -423,7 +449,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val connection = ime.connection ?: return
         val action = ime.editorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
             ?: EditorInfo.IME_ACTION_UNSPECIFIED
-        finished()
+        finished("\n")
         // A new line, or a message sent: either way what comes next starts a sentence.
         previous = SENTENCE_START
         wordStart = true
@@ -491,7 +517,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     private fun predicted(connection: InputConnection, chosen: String) {
         standing?.let { (typed, replacement) -> ime.fixStood(typed, replacement) }
         standing = null
-        connection.commitText("$chosen ", 1)
+        underlined?.let { ime.learn(it, corrected = false) }
+        underlined = null
+        // Asked rather than trusted, like a suggestion taken mid-word: if the app moved the cursor or changed the
+        // text since the space, the word still goes in as a word of its own.
+        val before = connection.getTextBeforeCursor(1, 0)
+        val gap = if (before.isNullOrEmpty() || before.last().isWhitespace()) "" else " "
+        connection.commitText("$gap$chosen ", 1)
         previous = chosen.substringAfterLast(' ').lowercase()
         lastWasSpace = false
         wordStart = true

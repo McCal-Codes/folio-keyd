@@ -72,6 +72,8 @@ object Contractions {
 
     /** The contraction to put in unasked for [typed], or null. [previous] is the word before, lowercase, or "". */
     fun fix(typed: String, table: Table, previous: String = ""): String? {
+        // Two capitals is an abbreviation or a shout, not a contraction: "IM" is instant messaging, not "I'M".
+        if (typed.length == 2 && typed.all { it.isUpperCase() }) return null
         val lower = typed.lowercase()
         val found = table.sure[lower]
             ?: table.maybe[lower]?.takeIf { lower == "wont" && previous !in WONT_IS_MEANT_AFTER }

@@ -291,11 +291,15 @@ class KeysService : InputMethodService(), Ime {
         // A typo that was corrected, and the correction stood, is the one thing that must not be learned: learned,
         // it would never be corrected again. If it is put back instead, [putBack] decides.
         if (corrected) return
+        // With autocorrect off, every typo is left as typed, so being left alone says nothing about a word.
+        val watching = Settings.correcting(actions.settings)
+        val today = System.currentTimeMillis() / DAY_MS
         background.post {
             val words = dictionary ?: return@post
             val store = learned ?: Learned().also { learned = it }
             val lower = word.lowercase()
-            val known = words.contains(lower)
+            // Known the way the strip knows it: "l'homme" is two known words, not a new one.
+            val known = Suggestions.known(lower, words)
             // Once per install, the first time the key positions are known: clear out slips learned before the
             // neighbouring-key rule existed.
             val keys = proximity
@@ -308,7 +312,7 @@ class KeysService : InputMethodService(), Ime {
             // The expensive question last, and only for words that got this far. A near miss is not learned, but it
             // is noticed: left alone often enough, it was meant.
             if (store.count(lower) == 0 && words.nearCommonWord(lower, proximity)) {
-                if (store.sighted(lower)) save(store)
+                if (watching && store.sighted(lower, today)) save(store)
                 return@post
             }
             store.learn(lower)
@@ -809,6 +813,8 @@ class KeysService : InputMethodService(), Ime {
 
         /** When to look at the clipboard after Copy, in milliseconds. */
         val COPY_LOOKS = longArrayOf(150, 600)
+
+        const val DAY_MS = 24L * 60 * 60 * 1000
 
         /** Long enough that a fast typist skips most lookups, short enough not to feel behind. */
         const val THINK_MS = 40L

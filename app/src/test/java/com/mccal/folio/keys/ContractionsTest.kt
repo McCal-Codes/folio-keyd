@@ -23,6 +23,12 @@ class ContractionsTest {
     }
 
     @Test
+    fun `two capitals are an abbreviation, not a contraction`() {
+        assertNull(Contractions.fix("IM", english))
+        assertEquals("I'VE", Contractions.fix("IVE", english))
+    }
+
+    @Test
     fun `a real word is only offered, never fixed`() {
         for (word in listOf("its", "were", "well", "lets", "ill", "id", "hell", "shed")) {
             assertNull(word, Contractions.fix(word, english))

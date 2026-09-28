@@ -78,7 +78,7 @@ class Insights(
     /** How many times this word has been put back after a correction. */
     fun putBacks(typed: String): Int = putBacks[typed.lowercase()]?.count ?: 0
 
-        /** An answer, Yes or No. Either way it is never asked again. */
+    /** An answer, Yes or No. Either way it is never asked again. */
     fun answered(offer: Offer) {
         val (map, key) = where(offer)
         map[key]?.let { map[key] = it.copy(settled = true, pending = 0) }

@@ -21,7 +21,7 @@ package com.mccal.folio.keys
  */
 class Learned(
     private val words: MutableMap<String, Int> = LinkedHashMap(),
-    private val seen: MutableMap<String, Int> = LinkedHashMap(),
+    private val seen: MutableMap<String, Sighting> = LinkedHashMap(),
 ) {
 
     val size: Int get() = words.size
@@ -66,21 +66,35 @@ class Learned(
      *
      * Rule 2 above is right about "teh" and wrong about "wifi", "bruh" and "yeet", and the only way to tell them
      * apart is to watch: a typo gets corrected, or fixed by hand, and does not come back the same way. A word that
-     * does - typed and left alone [SIGHTINGS] times - was meant, and is kept as if Keep had been tapped, so the
-     * third time it is not corrected. Returns true when the store changed.
+     * does - typed and left alone [SIGHTINGS] times, on at least [DAYS] different days - was meant, and is kept as
+     * if Keep had been tapped, so it is not corrected again. The days matter: the same slip three times in one
+     * hurried message is a habit of the moment, not a word. [day] is any count of days, such as days since 1970.
+     * Returns true when the store changed.
      */
-    fun sighted(word: String): Boolean {
+    fun sighted(word: String, day: Long): Boolean {
         if (word in words) return false
-        val times = (seen[word] ?: 0) + 1
-        if (times >= SIGHTINGS) {
+        val before = seen[word]
+        val now = Sighting(
+            times = (before?.times ?: 0) + 1,
+            lastDay = day,
+            days = when {
+                before == null -> 1
+                before.lastDay != day -> minOf(before.days + 1, DAYS)
+                else -> before.days
+            },
+        )
+        if (now.times >= SIGHTINGS && now.days >= DAYS) {
             seen.remove(word)
             keep(word)
             return true
         }
-        if (word !in seen && seen.size >= SEEN_LIMIT) seen.remove(seen.keys.first())
-        seen[word] = times
+        if (before == null && seen.size >= SEEN_LIMIT) seen.remove(seen.keys.first())
+        seen[word] = now
         return true
     }
+
+    /** How often a word has been seen left alone, on how many days, and the last of them. */
+    class Sighting(val times: Int, val lastDay: Long, val days: Int)
 
     /**
      * Drops the words [slip] says were typos, unless they were typed often enough to mean it. Returns how many went.
@@ -119,7 +133,8 @@ class Learned(
     fun encode(): String = words.entries.joinToString("\n") { "${it.key}:${it.value}" }
 
     /** The words seen but not yet kept, in the same shape, stored apart so nothing else mistakes them for learned. */
-    fun encodeSeen(): String = seen.entries.joinToString("\n") { "${it.key}:${it.value}" }
+    fun encodeSeen(): String =
+        seen.entries.joinToString("\n") { (word, it) -> "$word:${it.times}:${it.lastDay}:${it.days}" }
 
     companion object {
         /** Enough for how anyone writes, small enough to read and scan on every keystroke. */
@@ -136,7 +151,10 @@ class Learned(
         const val UNKNOWN = 99
 
         /** Typed and left alone this many times, a near miss of a common word is a word. */
-        const val SIGHTINGS = 2
+        const val SIGHTINGS = 3
+
+        /** ...and on this many different days. */
+        const val DAYS = 2
 
         /** Put back with backspace this many times, a correction was wrong and the word is kept. */
         const val PUT_BACKS = 2
@@ -147,7 +165,21 @@ class Learned(
         /** Shorter than this and it is more likely a slip or an initial than a word worth keeping. */
         const val SHORTEST = 3
 
-        fun decode(stored: String?, seen: String? = null): Learned = Learned(counts(stored), counts(seen))
+        fun decode(stored: String?, seen: String? = null): Learned = Learned(counts(stored), sightings(seen))
+
+        private fun sightings(stored: String?): LinkedHashMap<String, Sighting> {
+            val seen = LinkedHashMap<String, Sighting>()
+            for (line in stored.orEmpty().split("\n")) {
+                // A word never holds a colon, so the first one ends it.
+                val parts = line.split(':')
+                if (parts.size != 4 || parts[0].isEmpty()) continue
+                val times = parts[1].toIntOrNull() ?: continue
+                val lastDay = parts[2].toLongOrNull() ?: continue
+                val days = parts[3].toIntOrNull() ?: continue
+                seen[parts[0]] = Sighting(times.coerceIn(1, SIGHTINGS), lastDay, days.coerceIn(1, DAYS))
+            }
+            return seen
+        }
 
         private fun counts(stored: String?): LinkedHashMap<String, Int> {
             val words = LinkedHashMap<String, Int>()

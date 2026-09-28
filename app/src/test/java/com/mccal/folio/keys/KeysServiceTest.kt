@@ -8,6 +8,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -335,6 +336,42 @@ class KeysServiceTest {
         type("so i")
         type(" ")
         assertEquals("so I ", text)
+    }
+
+    @Test
+    fun `i as a numeral is left alone`() {
+        type("part i: ")
+        type("i) ")
+        type("i. ")
+        assertEquals("part i: i) i. ", text)
+    }
+
+    @Test
+    fun `an underlined word is only learned once the next word begins`() {
+        type("zorp")
+        actions.offered(Verdict("zorp", null, misspelled = true))
+        type(" ")
+        assertTrue(ime.taught.isEmpty())
+        type("a")
+        assertEquals(listOf("zorp"), ime.taught)
+    }
+
+    @Test
+    fun `an underlined word that is backspaced into is not learned`() {
+        type("zorp")
+        actions.offered(Verdict("zorp", null, misspelled = true))
+        type(" ")
+        actions.onBackspace()
+        type("s ")
+        assertFalse(ime.taught.contains("zorp"))
+    }
+
+    @Test
+    fun `a predicted word after text the app changed still gets its own space`() {
+        type("I want ")
+        field.editable!!.delete(field.editable!!.length - 1, field.editable!!.length)
+        actions.onSuggestion("to")
+        assertEquals("I want to ", text)
     }
 
     @Test
