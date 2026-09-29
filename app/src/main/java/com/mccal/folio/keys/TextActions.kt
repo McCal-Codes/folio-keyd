@@ -13,6 +13,9 @@ import kotlin.math.min
 /** What an "i" is followed by when it is a numeral rather than the word. */
 private val NUMERAL_ENDS = setOf('.', ')', ':')
 
+/** What goes before the space a taken suggestion left, rather than after it: "hello." and not "hello .". */
+private val BEFORE_SPACE = setOf('.', ',', '?', '!', ':', ';', ')')
+
 /** What ends a sentence, as far as guessing its next word goes. */
 private val SENTENCE_ENDS = setOf('.', '!', '?', '\n')
 
@@ -215,6 +218,18 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     private var standing: Pair<String, String>? = null
 
+    /**
+     * The word a taken suggestion or an autocorrect just put in, with the space after it, while nothing else has
+     * been typed: punctuation next goes before that space, as it does on Gboard and on an iPhone. Null otherwise.
+     */
+    private var weakSpace: String? = null
+
+    /** Where the cursor goes after [weakSpace], when the editor had said where it was. -1 when not known. */
+    private var weakAt = -1
+
+    /** Whether the editor has said the cursor got to [weakAt]. After that, anywhere else means it was moved. */
+    private var weakLanded = false
+
     /** Where the selection is, as the editor last said. -1 until it has said anything. */
     private var selStart = -1
     private var selEnd = -1
@@ -338,6 +353,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     private fun forget() {
         // The cursor went somewhere else: what is typed next is not the word after the correction.
         standing = null
+        weakSpace = null
         underlined = null
         previous = ""
         wordStart = false
@@ -361,6 +377,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         word.setLength(0)
         standing = null
         underlined = null
+        weakSpace = null
         wordChanged()
         refresh()
         // The last field's toolbar goes whatever this one says. Starting at -1 and then being told -1 is no change,
@@ -388,6 +405,16 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         if (start == selStart && end == selEnd) return false
         selStart = start
         selEnd = end
+        if (weakSpace != null) {
+            when {
+                start != end -> weakSpace = null
+                weakAt < 0 -> Unit
+                start == weakAt -> weakLanded = true
+                // Reports from before the suggestion was taken can still be on their way; only once the cursor is
+                // known to have arrived does a different place mean it was moved.
+                weakLanded -> weakSpace = null
+            }
+        }
         return true
     }
 
@@ -413,10 +440,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onText(text: String) {
         undo = null
+        val picked = weakSpace
+        weakSpace = null
         typedHere += text.length
-        if (doubleSpace(text)) return
+        val swapped = picked != null && beforeSpace(picked, text)
+        if (!swapped && doubleSpace(text)) return
         // The key already carries the right case: the layout builds an upper-case key when shift is on.
-        ime.connection?.commitText(text, 1) ?: return
+        if (!swapped) ime.connection?.commitText(text, 1) ?: return
         // A letter continues the word; anything else - a space, a full stop, a bracket - ends it.
         if (text.length == 1 && (text[0].isLetter() || text[0] == '\'')) {
             // The first letter of the next word, with no backspace in between: the correction before it stood, and
@@ -430,6 +460,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             word.append(text)
         } else {
             finished(text)
+            // An autocorrect made by this space leaves the same space a taken suggestion does.
+            if (text == " ") undo?.let { (_, replaced) -> spaceAfter(replaced.dropLast(1), -1) }
             // A space keeps the word before; a full stop starts a sentence; anything else - a comma, a bracket, a
             // digit - puts too much between the two words for one to say anything about the next.
             previous = when {
@@ -438,7 +470,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
                 else -> ""
             }
         }
-        wordStart = text.lastOrNull()?.isWhitespace() == true
+        wordStart = swapped || text.lastOrNull()?.isWhitespace() == true
         lastWasSpace = text == " "
         wordChanged()
         if (shift == Shift.ONCE) {
@@ -449,6 +481,32 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         // A space or a period may have started a sentence: ask the app again, the way it was asked when the field
         // opened. Letters never can, so they skip the round trip.
         if (!text[0].isLetter()) recapitalize()
+    }
+
+    /** Notes the space after [word] as one punctuation may take the place of. [at] is where the cursor lands. */
+    private fun spaceAfter(word: String, at: Int) {
+        weakSpace = word
+        weakAt = at
+        weakLanded = false
+    }
+
+    /**
+     * Punctuation straight after a taken suggestion goes before the space it left, and the space comes after it:
+     * "hello" taken and then a full stop is "hello. ", not "hello .". That space was the keyboard's guess, not
+     * something typed, so it gives way. Asked of the app first, in case the text is not what was left there.
+     *
+     * Never in an address, where "keyd .dev" was typed on purpose if it was typed at all.
+     */
+    private fun beforeSpace(picked: String, text: String): Boolean {
+        if (text.length != 1 || text[0] !in BEFORE_SPACE || rules.address) return false
+        val connection = ime.connection ?: return false
+        val before = connection.getTextBeforeCursor(picked.length + 1, 0)?.toString() ?: return false
+        if (before != "$picked ") return false
+        connection.beginBatchEdit()
+        connection.deleteSurroundingText(1, 0)
+        connection.commitText("$text ", 1)
+        connection.endBatchEdit()
+        return true
     }
 
     /**
@@ -510,6 +568,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     override fun onBackspace() {
+        weakSpace = null
         val connection = ime.connection ?: return
         val ahead = forward
         forward = false
@@ -603,6 +662,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     /** Holding the key down: whatever was selected went with the first delete, so don't ask again. */
     override fun onBackspaceRepeat() {
+        weakSpace = null
         val connection = ime.connection ?: return
         if (forward) return deleteAhead(connection)
         if (word.isEmpty()) previous = ""
@@ -639,6 +699,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     override fun onAction() {
+        weakSpace = null
         val connection = ime.connection ?: return
         val action = ime.editorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
             ?: EditorInfo.IME_ACTION_UNSPECIFIED
@@ -691,6 +752,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     override fun onSuggestion(chosen: String) {
         undo = null
+        weakSpace = null
         val connection = ime.connection ?: return
         val typed = word.toString()
         if (typed.isEmpty()) {
@@ -710,6 +772,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.deleteSurroundingText(typed.length, 0)
         connection.commitText("$chosen ", 1)
         connection.endBatchEdit()
+        spaceAfter(chosen, if (selStart >= 0 && selStart == selEnd) selStart - typed.length + chosen.length + 1 else -1)
         previous = chosen.substringAfterLast(' ').lowercase()
         lastWasSpace = false
         wordStart = true
@@ -727,6 +790,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      */
     override fun onSuggestedEmoji(emoji: String) {
         undo = null
+        weakSpace = null
         val connection = ime.connection ?: return
         if (word.isEmpty()) return
         connection.commitText(" $emoji ", 1)
@@ -755,6 +819,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val before = connection.getTextBeforeCursor(1, 0)
         val gap = if (before.isNullOrEmpty() || before.last().isWhitespace()) "" else " "
         connection.commitText("$gap$chosen ", 1)
+        spaceAfter(chosen, if (selStart >= 0 && selStart == selEnd) selStart + gap.length + chosen.length + 1 else -1)
         previous = chosen.substringAfterLast(' ').lowercase()
         lastWasSpace = false
         wordStart = true

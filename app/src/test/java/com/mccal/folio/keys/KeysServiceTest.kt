@@ -1116,4 +1116,121 @@ class KeysServiceTest {
         assertEquals("llo", text)
         assertEquals(1, field.selectedAsks)
     }
+
+    // ---- punctuation after a taken suggestion -------------------------------------------------------------------
+
+    @Test
+    fun `a full stop after a taken suggestion goes before its space`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("hel")
+        actions.onSuggestion("hello")
+        type(".")
+        assertEquals("hello. ", text)
+        assertEquals("the next sentence starts with a capital", Shift.ONCE, actions.shift)
+        type("Hi")
+        assertEquals("hello. Hi", text)
+    }
+
+    @Test
+    fun `every mark that sits against its word gives the space way`() {
+        for (mark in listOf(",", "?", "!", ":", ";", ")")) {
+            start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+            field.editable!!.clear()
+            type("hel")
+            actions.onSuggestion("hello")
+            type(mark)
+            assertEquals("hello$mark ", text)
+        }
+    }
+
+    @Test
+    fun `only the first key after the suggestion moves the space`() {
+        type("hel")
+        actions.onSuggestion("hello")
+        type("a.")
+        assertEquals("hello a.", text)
+    }
+
+    @Test
+    fun `a letter after a taken suggestion leaves its space alone`() {
+        type("hel")
+        actions.onSuggestion("hello")
+        type("w")
+        assertEquals("hello w", text)
+    }
+
+    @Test
+    fun `a predicted word takes punctuation the same way`() {
+        type("see ")
+        actions.onSuggestion("you")
+        type("!")
+        assertEquals("see you! ", text)
+    }
+
+    @Test
+    fun `an autocorrect's space gives way too`() {
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type("teh ")
+        type(",")
+        assertEquals("the, ", text)
+    }
+
+    @Test
+    fun `a space typed by hand is kept`() {
+        type("hello ")
+        type(".")
+        assertEquals("hello .", text)
+    }
+
+    @Test
+    fun `not once the cursor has moved away and back`() {
+        type("hel")
+        actions.selectionChanged(3, 3)
+        actions.onSuggestion("hello")
+        actions.selectionChanged(6, 6)
+        android.text.Selection.setSelection(field.editable, 2)
+        actions.selectionChanged(2, 2)
+        android.text.Selection.setSelection(field.editable, 6)
+        actions.selectionChanged(6, 6)
+        type(".")
+        assertEquals("hello .", text)
+    }
+
+    @Test
+    fun `not when the cursor has moved somewhere else`() {
+        fromOutside("one ")
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("hel")
+        actions.onSuggestion("hello")
+        android.text.Selection.setSelection(field.editable, 4)
+        type(".")
+        assertEquals("one .hello ", text)
+    }
+
+    @Test
+    fun `reports from before the suggestion was taken do not count as a move`() {
+        type("hel")
+        actions.selectionChanged(3, 3)
+        actions.onSuggestion("hello")
+        actions.selectionChanged(2, 2)
+        type(".")
+        assertEquals("hello. ", text)
+    }
+
+    @Test
+    fun `never in an address`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("exa")
+        actions.onSuggestion("example")
+        type(".")
+        assertEquals("example .", text)
+    }
+
+    @Test
+    fun `two spaces still make a full stop after the word that follows`() {
+        type("hel")
+        actions.onSuggestion("hello")
+        type("there  ")
+        assertEquals("hello there. ", text)
+    }
 }
