@@ -103,7 +103,10 @@ object Suggestions {
             if (word.equals(typed, ignoreCase = true)) continue
             if (words.rank(index) == Dictionary.KNOWN_ONLY) continue
             if (!possessive && isPossessive(word)) continue
-            val cost = completionCost(words.rank(index), word.length - typed.length)
+            // Past the apostrophe, what is left is an ending - "re", "ll", "d" - and which one is meant is a question
+            // of how common each is, not of how many letters it has: "you'" is "you're" far more often than "you'd".
+            val extra = if (possessive) 0 else word.length - typed.length
+            val cost = completionCost(words.rank(index), extra)
             scored.merge(word, cost, ::min)
         }
 
