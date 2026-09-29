@@ -1,6 +1,6 @@
 a:06
 A:06
-A's:06
+A's:90
 aaaah:41
 aaah:38
 aagh:42
@@ -3451,7 +3451,7 @@ azure's:45
 azures:80
 B:33
 b:33
-B's:33
+B's:80
 baa:42
 baa's:42
 baaed:90
@@ -7061,7 +7061,7 @@ byway's:80
 byways:80
 C:31
 c:31
-C's:31
+C's:80
 cab:33
 cab's:33
 cabaret:41
@@ -7327,8 +7327,8 @@ campus:36
 campus's:36
 campuses:46
 can:15
-can's:15
-can't:15
+can's:70
+can't:16
 canada:35
 Canadian:38
 Canadian's:38
@@ -13038,7 +13038,7 @@ czech:40
 czechoslovakia:42
 D:29
 d:29
-D's:29
+D's:80
 dab:43
 dab's:43
 dabbed:80
@@ -16017,7 +16017,7 @@ domino:42
 domino's:42
 dominoes:44
 don:14
-don's:14
+don's:70
 don't:14
 dona:41
 donald:36
@@ -16807,7 +16807,7 @@ dyslexics:90
 dyson:41
 E:31
 e:31
-E's:31
+E's:80
 each:25
 eager:37
 eagerer:80
@@ -19287,7 +19287,7 @@ ezekiel:42
 ezra:39
 F:34
 f:34
-F's:34
+F's:80
 fabian:42
 fabio:41
 fable:44
@@ -22098,7 +22098,7 @@ fuzzy:39
 fyi:42
 G:34
 g:34
-G's:34
+G's:80
 gab:42
 gab's:42
 gabbed:80
@@ -24265,7 +24265,7 @@ gyu:42
 H:32
 h:32
 h'm:32
-H's:32
+H's:80
 ha:27
 haberdasheries:90
 haberdashery:90
@@ -24851,7 +24851,7 @@ havana:40
 have:13
 have's:13
 haven:24
-haven's:24
+haven's:80
 haven't:24
 havens:45
 haves:46
@@ -24906,9 +24906,9 @@ hazing's:44
 hazings:90
 hazy:43
 he:12
-he'd:12
-he'll:12
-he's:12
+he'd:27
+he'll:24
+he's:20
 head:24
 head's:24
 headache:35
@@ -25278,7 +25278,7 @@ herded:45
 herding:44
 herds:42
 here:16
-here's:16
+here's:27
 hereabouts:45
 hereafter:41
 hereafter's:41
@@ -26165,7 +26165,7 @@ hovered:46
 hovering:41
 hovers:46
 how:17
-how's:17
+how's:20
 howard:34
 howdy:37
 howe:42
@@ -26574,11 +26574,11 @@ hyun:38
 hyung:40
 I:03
 i:03
-I'd:03
-I'll:03
-I'm:03
-I's:03
-I've:03
+I'd:23
+I'll:19
+I'm:14
+I's:80
+I've:21
 ian:35
 ibrahim:41
 ice:29
@@ -28977,9 +28977,9 @@ isthmus:80
 isthmus's:80
 isthmuses:80
 it:08
-it'd:08
-it'll:08
-it's:08
+it'd:25
+it'll:27
+it's:12
 Italian:33
 Italian's:33
 Italians:39
@@ -29035,7 +29035,7 @@ izzie:42
 izzy:40
 j:34
 J:34
-J's:34
+J's:90
 jab:40
 jab's:40
 jabbed:80
@@ -29767,7 +29767,7 @@ juxtaposition's:80
 juxtapositions:80
 K:36
 k:36
-K's:36
+K's:80
 kabir:41
 kabul:42
 kahn:41
@@ -30296,7 +30296,7 @@ kyoto:40
 kyung:40
 l:27
 L:27
-L's:27
+L's:90
 lab:32
 lab's:32
 label:37
@@ -31074,7 +31074,7 @@ lessons:35
 lest:41
 lester:38
 let:18
-let's:18
+let's:21
 letdown:45
 letdown's:45
 letdowns:80
@@ -32243,7 +32243,7 @@ lyricists:90
 lyrics:38
 m:30
 M:30
-M's:30
+M's:90
 ma:27
 ma'am:27
 ma's:27
@@ -35618,7 +35618,7 @@ myths:41
 myung:42
 N:33
 n:33
-N's:33
+N's:80
 nab:42
 nabbed:43
 nabbing:80
@@ -36752,7 +36752,7 @@ nypd:38
 O:28
 o:28
 o'clock:28
-O's:28
+O's:80
 oaf:42
 oaf's:42
 oafs:80
@@ -38188,7 +38188,7 @@ ozone's:42
 ozzy:41
 P:35
 p:35
-P's:35
+P's:80
 pa:34
 pa's:34
 pablo:37
@@ -43387,7 +43387,7 @@ quoting:41
 Quran:45
 r:35
 R:35
-R's:35
+R's:90
 rabb:41
 rabbi:38
 rabbi's:38
@@ -46965,7 +46965,7 @@ ryo:40
 ryu:41
 S:27
 s:27
-S's:27
+S's:80
 Sabbath:41
 Sabbath's:41
 Sabbaths:80
@@ -48813,9 +48813,9 @@ shawls:80
 shawn:36
 shay:41
 she:16
-she'd:16
-she'll:16
-she's:16
+she'd:31
+she'll:26
+she's:22
 shea:41
 sheaf:80
 sheaf's:80
@@ -54144,7 +54144,7 @@ systematically:43
 systems:35
 T:28
 t:28
-T's:28
+T's:80
 tab:38
 tab's:38
 tabbed:80
@@ -55084,7 +55084,7 @@ Thanksgiving:36
 Thanksgiving's:36
 Thanksgivings:90
 that:09
-that's:09
+that's:16
 thatch:80
 thatch's:80
 thatched:80
@@ -55160,7 +55160,7 @@ therapists:43
 therapy:34
 therapy's:34
 there:16
-there's:16
+there's:21
 thereabout:90
 thereabouts:45
 thereafter:43
@@ -55195,10 +55195,10 @@ thesis:39
 thesis's:39
 theta:40
 they:16
-they'd:16
-they'll:16
-they're:16
-they've:16
+they'd:27
+they'll:27
+they're:23
+they've:27
 thi:42
 thick:35
 thick's:35
@@ -57323,7 +57323,7 @@ tyrone:42
 tyson:40
 U:35
 u:35
-U's:35
+U's:80
 uber:42
 ubiquitous:46
 ubiquity:90
@@ -58391,7 +58391,7 @@ utterly:38
 utters:80
 V:37
 v:37
-V's:37
+V's:80
 vacancies:44
 vacancy:42
 vacancy's:42
@@ -59294,7 +59294,7 @@ vultures:41
 vying:45
 W:36
 w:36
-W's:36
+W's:80
 wackier:90
 wackiest:90
 wacko:42
@@ -59614,7 +59614,7 @@ washouts:80
 washroom:42
 washroom's:42
 washrooms:80
-wasn't:24
+wasn't:25
 wasp:41
 wasp's:41
 wasps:43
@@ -59742,10 +59742,10 @@ wayside's:45
 waysides:80
 wayward:42
 we:11
-we'd:11
-we'll:11
-we're:11
-we've:11
+we'd:28
+we'll:23
+we're:17
+we've:25
 weak:32
 weaken:42
 weakened:41
@@ -60011,7 +60011,7 @@ wharf:42
 wharf's:42
 wharves:80
 what:11
-what's:11
+what's:18
 whatcha:40
 whatchamacallit:46
 whatchamacallit's:46
@@ -60050,7 +60050,7 @@ whence:43
 whenever:32
 whens:80
 where:19
-where's:19
+where's:27
 whereabouts:37
 whereabouts's:37
 whereas:38
@@ -60185,11 +60185,11 @@ whizzed:80
 whizzes:80
 whizzing:44
 who:18
-who'd:18
-who'll:18
-who're:18
-who's:18
-who've:18
+who'd:32
+who'll:28
+who're:22
+who's:25
+who've:22
 whoa:27
 whodunit:90
 whodunit's:90
@@ -60628,7 +60628,7 @@ wombs:80
 women:26
 women's:26
 won:22
-won's:22
+won's:60
 won't:22
 wonder:28
 wonder's:28
@@ -60814,8 +60814,8 @@ worthy:35
 worthy's:35
 wot:80
 would:19
-would've:19
-wouldn't:24
+would've:27
+wouldn't:25
 woulds:80
 wound:33
 wound's:33
@@ -60968,7 +60968,7 @@ wyatt:37
 wyoming:41
 x:35
 X:35
-X's:35
+X's:90
 xander:41
 xavier:40
 xena:38
@@ -60989,8 +60989,8 @@ xylophone's:46
 xylophones:80
 Y:29
 y:29
-y'all:29
-Y's:29
+y'all:32
+Y's:80
 yacht:38
 yacht's:38
 yachted:80
@@ -61165,11 +61165,11 @@ yorker:42
 yorkshire:41
 yoshida:42
 you:00
-you'd:00
-you'll:00
-you're:00
-you's:00
-you've:00
+you'd:27
+you'll:24
+you're:20
+you's:80
+you've:24
 young:25
 young's:25
 younger:33
@@ -61225,7 +61225,7 @@ yvette:42
 yvonne:39
 z:38
 Z:38
-Z's:38
+Z's:90
 zac:40
 zach:37
 zachary:41

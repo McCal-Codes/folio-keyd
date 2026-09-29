@@ -12,6 +12,8 @@ import android.view.inputmethod.EditorInfo
 enum class KeyKind {
     CHAR, SHIFT, BACKSPACE, LAYER, SPACE, ACTION, GLOBE, HIDE, SELECT_ALL, COPY, PASTE, CLIPBOARD, EMOJI,
     SUGGESTION, VOICE, CURSOR_PAD, UNDO, REDO, CUT,
+    /** The emoji the word being typed is the name of, at the end of the strip. Its output is the emoji. */
+    SUGGESTED_EMOJI,
     /** The strip asking whether to keep a word or add a rule: the question, its Yes, and its No. */
     OFFER, OFFER_YES, OFFER_NO,
     /** The one-handed keyboard's rail: back to the full width, and over to the other edge. */

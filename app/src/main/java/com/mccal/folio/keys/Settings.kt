@@ -64,6 +64,8 @@ data class Settings(
     val spellCheck: Boolean = true,
     /** Remember words it does not know, so it stops arguing with your own vocabulary. */
     val learn: Boolean = true,
+    /** The emoji a word is the name of, at the end of the strip: "pizza" offers 🍕. Only ever offered. */
+    val suggestEmoji: Boolean = true,
     /** A capital at the start of a sentence. */
     val autoCapitalise: Boolean = true,
     /** Two spaces in a row become a full stop and a space, the way every phone keyboard has since the first one. */
@@ -131,6 +133,7 @@ data class Settings(
             putBoolean(AUTOCORRECT, autocorrect)
             putBoolean(SPELL_CHECK, spellCheck)
             putBoolean(LEARN, learn)
+            putBoolean(SUGGEST_EMOJI, suggestEmoji)
             putBoolean(AUTO_CAPITALISE, autoCapitalise)
             putBoolean(DOUBLE_SPACE, doubleSpaceFullStop)
             putBoolean(NUMBER_ROW, numberRow)
@@ -171,6 +174,7 @@ data class Settings(
         const val AUTOCORRECT = "autocorrect"
         const val SPELL_CHECK = "spellCheck"
         const val LEARN = "learn"
+        const val SUGGEST_EMOJI = "suggestEmoji"
         const val AUTO_CAPITALISE = "autoCapitalise"
         const val DOUBLE_SPACE = "doubleSpace"
         const val NUMBER_ROW = "numberRow"
@@ -312,6 +316,7 @@ data class Settings(
                 autocorrect = read(AUTOCORRECT, fallback.autocorrect),
                 spellCheck = read(SPELL_CHECK, fallback.spellCheck),
                 learn = read(LEARN, fallback.learn),
+                suggestEmoji = read(SUGGEST_EMOJI, fallback.suggestEmoji),
                 autoCapitalise = read(AUTO_CAPITALISE, fallback.autoCapitalise),
                 doubleSpaceFullStop = read(DOUBLE_SPACE, fallback.doubleSpaceFullStop),
                 numberRow = read(NUMBER_ROW, fallback.numberRow),

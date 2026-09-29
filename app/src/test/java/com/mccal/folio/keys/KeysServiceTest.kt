@@ -87,6 +87,9 @@ class KeysServiceTest {
             taught += word
         }
 
+        val remembered = mutableListOf<String>()
+        override fun rememberEmoji(emoji: String) { remembered += emoji }
+
         val corrections = mutableListOf<Boolean>()
         override fun learn(word: String, corrected: Boolean) {
             corrections += corrected
@@ -1004,5 +1007,25 @@ class KeysServiceTest {
         type("hi. ")
         assertEquals(Shift.OFF, ime.shift)
     }
-}
 
+    // ---- the emoji at the end of the strip ----------------------------------------------------------------------
+
+    @Test
+    fun `the strip's emoji goes in after the word, which stays as typed`() {
+        type("pizza")
+        actions.onSuggestedEmoji("🍕")
+        assertEquals("pizza 🍕 ", text)
+        assertEquals(listOf("🍕"), ime.remembered)
+        assertTrue("the word is not learned", "pizza" !in ime.taught)
+        // The space after the emoji was put in by the tap, so a space typed now is not the second of a double space.
+        type("yum ")
+        assertTrue(text, text.endsWith("🍕 yum "))
+    }
+
+    @Test
+    fun `with nothing typed, the emoji does nothing`() {
+        actions.onSuggestedEmoji("🍕")
+        assertEquals("", text)
+        assertTrue(ime.remembered.isEmpty())
+    }
+}
