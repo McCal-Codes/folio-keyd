@@ -513,10 +513,12 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val connection = ime.connection ?: return
         val ahead = forward
         forward = false
+        // Worked out once for either direction, and only if needed: asking the app is a blocking call, and a browser
+        // is slow to answer.
+        val selecting by lazy { hasSelection(connection) }
         if (ahead) {
             // A selection goes whole whichever way the key deletes, which is what the ordinary delete below does.
-            val selected = connection.getSelectedText(0)
-            if (selected.isNullOrEmpty()) {
+            if (!selecting) {
                 deleteAhead(connection)
                 return
             }
@@ -545,16 +547,27 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         wordStart = false
         // Deleting back into the text before: the word before is no longer the one that was finished.
         if (word.isEmpty()) previous = ""
-        // Asking for the selection is a blocking call into the app. Worth it once, to delete a selection whole.
-        val selected = connection.getSelectedText(0)
-        if (!selected.isNullOrEmpty()) {
+        if (selecting) {
             connection.commitText("", 1)
             word.setLength(0)
+            // The editor has not said where the cursor went yet. Until it does, the next press asks rather than
+            // trusting a selection that is already gone.
+            selStart = -1
+            selEnd = -1
         } else {
             deleteBehind(connection)
         }
         wordChanged()
         recapitalize()
+    }
+
+    /**
+     * Whether something is selected. The editor reports every move through [selectionMoved], so that answer is used
+     * when there is one; the app is only asked, a blocking call into it, when it has not said.
+     */
+    private fun hasSelection(connection: InputConnection): Boolean {
+        if (selStart >= 0 && selEnd >= 0) return selStart != selEnd
+        return !connection.getSelectedText(0).isNullOrEmpty()
     }
 
     /**

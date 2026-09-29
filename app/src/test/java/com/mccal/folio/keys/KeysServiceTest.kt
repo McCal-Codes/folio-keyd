@@ -33,6 +33,13 @@ class KeysServiceTest {
         val keys = mutableListOf<Int>()
         /** An app that doesn't handle its own action answers false. */
         var handles = true
+
+        /** How often the app was asked what is selected: a blocking call, slow in a browser. */
+        var selectedAsks = 0
+        override fun getSelectedText(flags: Int): CharSequence? {
+            selectedAsks++
+            return super.getSelectedText(flags)
+        }
         override fun performEditorAction(actionCode: Int): Boolean {
             performed += actionCode
             return handles
@@ -1057,5 +1064,56 @@ class KeysServiceTest {
         actions.onSuggestedEmoji("🍕")
         assertEquals("", text)
         assertTrue(ime.remembered.isEmpty())
+    }
+
+    // ---- what backspace asks the app ----------------------------------------------------------------------------
+
+    /** Selects [start] to [end] in the field and tells the keyboard, as the editor's selection report would. */
+    private fun select(start: Int, end: Int) {
+        android.text.Selection.setSelection(field.editable, start, end)
+        actions.selectionChanged(start, end)
+        field.selectedAsks = 0
+    }
+
+    @Test
+    fun `backspace does not ask the app for a selection it already knows is not there`() {
+        type("hello")
+        select(5, 5)
+        actions.onBackspace()
+        assertEquals("hell", text)
+        assertEquals(0, field.selectedAsks)
+    }
+
+    @Test
+    fun `a selection it knows about goes whole, without asking`() {
+        type("hello world")
+        select(0, 6)
+        actions.onBackspace()
+        assertEquals("world", text)
+        assertEquals(0, field.selectedAsks)
+        // Until the editor says where the cursor went, the next press asks rather than trusting the old selection.
+        actions.onBackspace()
+        assertEquals(1, field.selectedAsks)
+    }
+
+    @Test
+    fun `shift and backspace ask at most once`() {
+        type("hello")
+        android.text.Selection.setSelection(field.editable, 1, 3)
+        field.selectedAsks = 0
+        actions.onBackspaceStart(true)
+        actions.onBackspace()
+        assertEquals("hlo", text)
+        assertEquals("not known, so asked, but only once", 1, field.selectedAsks)
+    }
+
+    @Test
+    fun `when the editor has not said where the selection is, backspace asks`() {
+        type("hello")
+        android.text.Selection.setSelection(field.editable, 0, 2)
+        field.selectedAsks = 0
+        actions.onBackspace()
+        assertEquals("llo", text)
+        assertEquals(1, field.selectedAsks)
     }
 }
