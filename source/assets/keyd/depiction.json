@@ -63,6 +63,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.3.1",
+          "notes": {
+            "en": "Hold the globe for your languages and the period for symbols, swipe two fingers to undo, and an emoji at the end of the strip. Gesture tips, hold delay and backspace speed, and shift with backspace deletes forward. Contractions are ranked by how often each is typed, and Undo comes back for installs that had a 0.3.0 beta."
+          }
+        },
+        {
           "version": "0.3.0",
           "notes": {
             "en": "Emoji search, next-word prediction, contractions, and a strip that offers to keep a word or always fix it. Per-app settings, swipe up on Z X C V A to edit, slide from shift to select, a toolbar you arrange, one-handed mode, vibration strength and pure black. Fewer wrong fixes, accents offered instead of forced, and typos no longer learned."
