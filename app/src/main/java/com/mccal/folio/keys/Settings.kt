@@ -1,6 +1,7 @@
 package com.mccal.folio.keys
 
 import android.content.SharedPreferences
+import android.view.ViewConfiguration
 
 /**
  * What someone has decided the keyboard should do.
@@ -54,6 +55,19 @@ enum class ToolKey(val kind: KeyKind) {
     SELECT_ALL(KeyKind.SELECT_ALL), CUT(KeyKind.CUT), COPY(KeyKind.COPY), PASTE(KeyKind.PASTE),
     CLIPBOARD(KeyKind.CLIPBOARD), VOICE(KeyKind.VOICE),
 }
+
+/**
+ * How long a key is held before what is behind it opens: accents, the period's symbols, the globe's language list.
+ * [FOLLOW_PHONE] is Android's own Touch and hold delay, which someone may already have set in accessibility.
+ */
+enum class HoldDelay(private val ms: Long) {
+    FOLLOW_PHONE(0), SHORTER(250), LONGER(600);
+
+    val millis: Long get() = if (this == FOLLOW_PHONE) ViewConfiguration.getLongPressTimeout().toLong() else ms
+}
+
+/** How fast a held backspace keeps deleting, as the gap between deletes. The wait before it starts is the same. */
+enum class BackspaceSpeed(val millis: Long) { SLOWER(90), NORMAL(55), FASTER(35) }
 
 data class Settings(
     /** The row above the keys that offers words. Off means no strip, and no autocorrect either. */
@@ -121,6 +135,15 @@ data class Settings(
     val shiftSelect: Boolean = true,
     /** With text selected, the toolbar counts it and offers styles. Never in a password field. */
     val selectionTools: Boolean = true,
+    /** Two fingers swiped left across the keys undo, right redo. */
+    val twoFingerUndo: Boolean = true,
+    /**
+     * What holding the period on the letters offers, in order: at most [MAX_PERIOD_SYMBOLS], each once, no spaces.
+     * Empty means holding the period does nothing more than tapping it.
+     */
+    val periodSymbols: String = DEFAULT_PERIOD_SYMBOLS,
+    val holdDelay: HoldDelay = HoldDelay.FOLLOW_PHONE,
+    val backspaceSpeed: BackspaceSpeed = BackspaceSpeed.NORMAL,
 ) {
 
     fun save(prefs: SharedPreferences) {
@@ -160,6 +183,10 @@ data class Settings(
             putBoolean(EDIT_SWIPES, editSwipes)
             putBoolean(SHIFT_SELECT, shiftSelect)
             putBoolean(SELECTION_TOOLS, selectionTools)
+            putBoolean(TWO_FINGER_UNDO, twoFingerUndo)
+            putString(PERIOD_SYMBOLS, periodSymbols)
+            putString(HOLD_DELAY, holdDelay.name)
+            putString(BACKSPACE_SPEED, backspaceSpeed.name)
         }.apply()
     }
 
@@ -199,6 +226,34 @@ data class Settings(
         const val EDIT_SWIPES = "editSwipes"
         const val SHIFT_SELECT = "shiftSelect"
         const val SELECTION_TOOLS = "selectionTools"
+        const val TWO_FINGER_UNDO = "twoFingerUndo"
+        const val PERIOD_SYMBOLS = "periodSymbols"
+        const val HOLD_DELAY = "holdDelay"
+        const val BACKSPACE_SPEED = "backspaceSpeed"
+
+        /** The period's symbols someone gets without choosing: the punctuation that isn't on the letters already. */
+        const val DEFAULT_PERIOD_SYMBOLS = ",?!'\":;-"
+
+        /** Eight fit in a row above the period on a phone-width screen, each still wide enough for a fingertip. */
+        const val MAX_PERIOD_SYMBOLS = 8
+
+        /**
+         * What was typed into the Symbols field, as it is kept: spaces and repeats taken out, in the order typed, and
+         * no more than [MAX_PERIOD_SYMBOLS]. Counted by code point, so an emoji is one symbol rather than two halves.
+         */
+        fun periodSymbols(typed: String): String {
+            val kept = LinkedHashSet<Int>()
+            typed.codePoints().forEach { point ->
+                if (!Character.isWhitespace(point) && !Character.isSpaceChar(point) && !Character.isISOControl(point)) {
+                    if (kept.size < MAX_PERIOD_SYMBOLS) kept += point
+                }
+            }
+            return kept.joinToString("") { String(Character.toChars(it)) }
+        }
+
+        /** The symbols one by one, the way the row above the period shows them. */
+        fun symbolList(symbols: String): List<String> =
+            symbols.codePoints().toArray().map { String(Character.toChars(it)) }
 
         /** Buttons besides Hide. More than this and a narrow screen can't give each one a big enough target. */
         const val MAX_TOOLS = 7
@@ -292,6 +347,10 @@ data class Settings(
                 editSwipes = read(EDIT_SWIPES, fallback.editSwipes),
                 shiftSelect = read(SHIFT_SELECT, fallback.shiftSelect),
                 selectionTools = read(SELECTION_TOOLS, fallback.selectionTools),
+                twoFingerUndo = read(TWO_FINGER_UNDO, fallback.twoFingerUndo),
+                periodSymbols = periodSymbols(prefs.getString(PERIOD_SYMBOLS, null) ?: fallback.periodSymbols),
+                holdDelay = choice(prefs, HOLD_DELAY, fallback.holdDelay),
+                backspaceSpeed = choice(prefs, BACKSPACE_SPEED, fallback.backspaceSpeed),
             )
         }
 
