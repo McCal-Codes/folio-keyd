@@ -901,6 +901,7 @@ class KeysService : InputMethodService(), Ime {
 
     private fun ClipboardPanel.feel(settings: Settings) {
         vibration = settings.vibration
+        holdDelay = settings.holdDelay
         pureBlack = settings.pureBlack
     }
 
@@ -1074,6 +1075,40 @@ class KeysService : InputMethodService(), Ime {
         // Switching this way (rather than asking the person to pick from a list) is what lets the voice keyboard
         // hand back to Keyd with its own "back to keyboard" button when it's done.
         runCatching { switchInputMethod(id, subtype) }
+    }
+
+    /** Keyd's own entry in Android's list of turned-on keyboards, and the languages turned on for it there. */
+    private fun ourSubtypes(): Pair<String, List<InputMethodSubtype>>? {
+        val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        return runCatching {
+            val method = manager.enabledInputMethodList.firstOrNull {
+                it.packageName == packageName && it.serviceName == KeysService::class.java.name
+            } ?: return null
+            method.id to manager.getEnabledInputMethodSubtypeList(method, true)
+        }.getOrNull()
+    }
+
+    private fun InputMethodSubtype.language() = Language.of(languageTag.ifEmpty { @Suppress("DEPRECATION") locale })
+
+    /** Asked when the globe is held rather than kept: languages can be turned on and off while Keyd is running. */
+    override fun languages(): List<Language> = ourSubtypes()?.second.orEmpty().map { it.language() }.distinct()
+
+    override fun switchLanguage(language: Language) {
+        if (language == actions.language) return
+        val (id, subtypes) = ourSubtypes() ?: return
+        val subtype = subtypes.firstOrNull { it.language() == language } ?: return
+        DevLog.event(this, "language", "picked" to 1)
+        // The same call the voice key uses; Android then tells onCurrentInputMethodSubtypeChanged, as its picker would.
+        runCatching { switchInputMethod(id, subtype) }
+    }
+
+    override fun pickKeyboard() {
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
+    }
+
+    override fun openLanguageSettings() {
+        runCatching { startActivity(languageSettings(this)) }
+        requestHideSelf(0)
     }
 
     override fun switchKeyboard() {

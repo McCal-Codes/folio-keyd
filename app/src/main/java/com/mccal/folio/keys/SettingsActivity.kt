@@ -53,6 +53,8 @@ class SettingsActivity : Activity() {
         APP(R.string.row_per_app, APPS),
         KEYS(R.string.page_keys, MAIN),
         TOOLBAR(R.string.row_toolbar, KEYS),
+        PERIOD(R.string.page_period, KEYS),
+        LANGUAGES(R.string.row_languages, MAIN),
         LOOK(R.string.page_look, MAIN),
         FEEL(R.string.page_feel, MAIN),
         CLIPBOARD(R.string.page_clipboard, MAIN),
@@ -108,6 +110,8 @@ class SettingsActivity : Activity() {
         Settings.settleToolbar(prefs, Settings.updated(this), Settings.firstInstalled(this))
         settings = Settings.load(prefs)
         page = savedInstanceState?.getString(PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() }
+            // Language settings, from the list the globe opens. The only page another screen may open this on.
+            ?: Page.LANGUAGES.takeIf { intent?.getStringExtra(EXTRA_PAGE) == Page.LANGUAGES.name }
             // Like Folio: the first time Settings opens after an update, it opens on what's new.
             ?: if (WhatsNew.shouldShow(this, versionName())) Page.WHATS_NEW else Page.MAIN
         app = savedInstanceState?.getString(APP)
@@ -224,6 +228,8 @@ class SettingsActivity : Activity() {
             Page.APP -> app(column, app.orEmpty())
             Page.KEYS -> keys(column)
             Page.TOOLBAR -> toolbar(column)
+            Page.PERIOD -> period(column)
+            Page.LANGUAGES -> languagePage(column)
             Page.LOOK -> look(column)
             Page.FEEL -> feel(column)
             Page.CLIPBOARD -> clipboard(column)
@@ -263,7 +269,7 @@ class SettingsActivity : Activity() {
         if (DevLog.crashedSinceLooked(this)) crashCard(column)
         group(column) {
             nav(it, SettingsIcon.Glyph.LANGUAGES, "#0071E3", getString(R.string.row_languages), languages()) {
-                openLanguages()
+                show(Page.LANGUAGES)
             }
             val count = Shortcuts.decode(prefs.getString(SHORTCUTS, null)).size
             nav(
@@ -993,8 +999,27 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_number_row), settings.numberRow) { on -> settings.copy(numberRow = on) }
             toggle(it, getString(R.string.settings_accents), settings.accents) { on -> settings.copy(accents = on) }
             toggle(it, getString(R.string.settings_preview), settings.keyPreview) { on -> settings.copy(keyPreview = on) }
+            nav(it, null, null, getString(R.string.row_period), spacedSymbols(settings.periodSymbols)) { show(Page.PERIOD) }
         }
         footer(column, "${getString(R.string.settings_number_row_note)} ${getString(R.string.settings_accents_note)}")
+        header(column, getString(R.string.header_hold_delay))
+        group(column) {
+            pick(it, listOf(
+                getString(R.string.hold_follow_phone) to HoldDelay.FOLLOW_PHONE,
+                getString(R.string.hold_shorter) to HoldDelay.SHORTER,
+                getString(R.string.hold_longer) to HoldDelay.LONGER,
+            ), settings.holdDelay) { value -> settings.copy(holdDelay = value) }
+        }
+        footer(column, getString(R.string.footer_hold_delay))
+        header(column, getString(R.string.header_backspace_speed))
+        group(column) {
+            pick(it, listOf(
+                getString(R.string.speed_slower) to BackspaceSpeed.SLOWER,
+                getString(R.string.speed_normal) to BackspaceSpeed.NORMAL,
+                getString(R.string.speed_faster) to BackspaceSpeed.FASTER,
+            ), settings.backspaceSpeed) { value -> settings.copy(backspaceSpeed = value) }
+        }
+        footer(column, getString(R.string.footer_backspace_speed))
         header(column, getString(R.string.header_editing))
         group(column) {
             switchRow(
@@ -1003,11 +1028,16 @@ class SettingsActivity : Activity() {
             ) { on -> change(settings.copy(editSwipes = on)) }
             toggle(it, getString(R.string.settings_shift_select), settings.shiftSelect) { on -> settings.copy(shiftSelect = on) }
             toggle(it, getString(R.string.settings_selection_tools), settings.selectionTools) { on -> settings.copy(selectionTools = on) }
+            switchRow(
+                it, getString(R.string.settings_two_finger), settings.twoFingerUndo,
+                subtitle = getString(R.string.settings_two_finger_note),
+            ) { on -> change(settings.copy(twoFingerUndo = on)) }
             val buttons = settings.toolbar.size
             nav(it, null, null, getString(R.string.row_toolbar),
                 resources.getQuantityString(R.plurals.value_buttons, buttons, buttons)) { show(Page.TOOLBAR) }
         }
         footer(column, getString(R.string.footer_editing))
+        footer(column, getString(R.string.footer_shift_backspace))
         header(column, getString(R.string.header_flicks))
         group(column) {
             toggle(it, getString(R.string.settings_flick_down), settings.flickForAlternate) { on -> settings.copy(flickForAlternate = on) }
@@ -1031,6 +1061,53 @@ class SettingsActivity : Activity() {
             link(it, getString(R.string.row_tips_again)) {
                 Tips.reset(prefs)
                 toast(getString(R.string.toast_tips_again))
+            }
+        }
+    }
+
+    /** The period's symbols with room between them, as the row above the period shows them: ", ? ! '". */
+    private fun spacedSymbols(symbols: String): String =
+        Settings.symbolList(symbols).joinToString(" ").ifEmpty { getString(R.string.value_off) }
+
+    // ---- The period's symbols ------------------------------------------------------------------------------------
+
+    /**
+     * What holding the period offers: a picture of the row, the field the symbols are typed into, and the way back
+     * to the usual ones. Saved as they are typed, tidied - spaces and repeats out, eight at most - and the picture
+     * shows the tidied row, so what it shows is what the keyboard will.
+     */
+    private fun period(column: LinearLayout) {
+        val preview = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            gravity = Gravity.CENTER
+            minHeight = dp(48f)
+            setPadding(dp(12f), dp(4f), dp(12f), dp(4f))
+            background = GradientDrawable().apply { setColor(Color.parseColor("#4B4B50")); cornerRadius = dp(12f).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(12f) }
+        }
+        fun showRow(symbols: String) {
+            val row = Settings.symbolList(symbols)
+            preview.text = row.joinToString("   ").ifEmpty { " " }
+            preview.visibility = if (row.isEmpty()) View.INVISIBLE else View.VISIBLE
+            preview.contentDescription = if (row.isEmpty()) getString(R.string.period_preview_none)
+                else getString(R.string.period_preview, row.joinToString(" "))
+        }
+        showRow(settings.periodSymbols)
+        column.addView(preview)
+        group(column) {
+            question(it, getString(R.string.period_field), settings.periodSymbols, multiLine = false) { typed ->
+                val symbols = Settings.periodSymbols(typed)
+                if (symbols != settings.periodSymbols) change(settings.copy(periodSymbols = symbols))
+                showRow(symbols)
+            }
+        }
+        footer(column, getString(R.string.period_note))
+        group(column) {
+            link(it, getString(R.string.period_reset)) {
+                change(settings.copy(periodSymbols = Settings.DEFAULT_PERIOD_SYMBOLS))
+                render(keepScroll = true)
             }
         }
     }
@@ -1396,6 +1473,53 @@ class SettingsActivity : Activity() {
         return tags.map { Language.of(it).ownName }.distinct().joinToString(", ").ifEmpty { null }
     }
 
+    /**
+     * The languages turned on for Keyd, the one being typed in marked, then the rest Keyd has. Which are on is
+     * Android's to keep, so the page lists them and sends anyone who wants a change to Android's own list.
+     */
+    private fun languagePage(column: LinearLayout) {
+        footer(column, getString(R.string.languages_note))
+        val on = turnedOn()
+        val typing = typingIn()
+        if (on.isNotEmpty()) {
+            header(column, getString(R.string.header_turned_on))
+            group(column) { card ->
+                for (language in on) {
+                    if (language == typing) value(card, language.ownName, getString(R.string.value_typing_now))
+                    else plain(card, language.ownName)
+                }
+            }
+        }
+        val rest = Language.entries.filter { it !in on }
+        if (rest.isNotEmpty()) {
+            header(column, getString(R.string.header_also_in_keyd))
+            group(column) { card -> rest.forEach { plain(card, it.ownName) } }
+        }
+        group(column) { link(it, getString(R.string.languages_turn_on)) { openLanguages() } }
+        footer(column, getString(R.string.languages_turn_on_note))
+    }
+
+    /** Keyd's languages turned on in Android, in Android's order, each once. */
+    private fun turnedOn(): List<Language> {
+        val manager = getSystemService(InputMethodManager::class.java) ?: return emptyList()
+        val method = ourMethod() ?: return emptyList()
+        return runCatching {
+            manager.getEnabledInputMethodSubtypeList(method, true).map { Language.of(it.languageTag.ifEmpty { it.locale }) }
+        }.getOrDefault(emptyList()).distinct()
+    }
+
+    /** The language Keyd is typing in, or null while another keyboard is the one in use. */
+    private fun typingIn(): Language? {
+        val method = ourMethod() ?: return null
+        val current = runCatching {
+            AndroidSettings.Secure.getString(contentResolver, AndroidSettings.Secure.DEFAULT_INPUT_METHOD)
+        }.getOrNull()
+        if (current != method.id) return null
+        val subtype = runCatching { getSystemService(InputMethodManager::class.java)?.currentInputMethodSubtype }.getOrNull()
+            ?: return null
+        return Language.of(subtype.languageTag.ifEmpty { subtype.locale })
+    }
+
     /** Which languages are on is Android's to keep, per keyboard; this opens that list for Keyd directly. */
     private fun openLanguages() {
         val method = ourMethod()
@@ -1699,6 +1823,14 @@ class SettingsActivity : Activity() {
         show()
     }
 
+    /** A row that only says something: read, not pressed. */
+    private fun plain(card: LinearLayout, title: String) {
+        row(card, iconSpace = false).apply {
+            addView(label(title))
+            isFocusable = true
+        }
+    }
+
     private fun value(card: LinearLayout, title: String, value: String) {
         row(card, iconSpace = false).apply {
             addView(label(title))
@@ -1747,3 +1879,13 @@ class SettingsActivity : Activity() {
         const val SHOWN_PAIRS = 10
     }
 }
+
+/** Which page Settings opens on, when something outside it asks for one. Only Languages is honoured. */
+private const val EXTRA_PAGE = "com.mccal.folio.keys.PAGE"
+
+/** Keyd's Settings, open on its Languages page, from outside the app: the globe's list is in the keyboard's window. */
+internal fun languageSettings(context: Context): Intent =
+    Intent(context, SettingsActivity::class.java)
+        .putExtra(EXTRA_PAGE, "LANGUAGES")
+        // A task of its own, as Keyd's settings are when opened from Android's list, started over on this page.
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

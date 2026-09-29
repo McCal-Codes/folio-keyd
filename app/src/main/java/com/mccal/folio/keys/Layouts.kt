@@ -25,6 +25,8 @@ enum class KeyKind {
     SELECTION, STYLE, STYLE_CHOICE, STYLE_NOTE,
     /** A gesture tip in the strip: the tip itself (read, not pressed), and its Got it. */
     TIP, TIP_DONE,
+    /** The list holding the globe opens: one of Keyd's languages, then Android's picker and Keyd's language page. */
+    LANGUAGE, OTHER_KEYBOARDS, LANGUAGE_SETTINGS,
 }
 
 /**
@@ -52,6 +54,8 @@ data class Key(
     val hint: String? = null,
     /** What a swipe up does on this key instead of its capital, for the five keys that have one. */
     val edit: EditSwipe? = null,
+    /** The period beside the space bar, which holding opens the symbols chosen in Settings for. */
+    val holdsSymbols: Boolean = false,
 )
 
 typealias Row = List<Key>
@@ -196,7 +200,7 @@ object Layouts {
         }
         val tail = when {
             rules.kind == FieldKind.EMAIL || rules.kind == FieldKind.URL -> emptyList()
-            punctuation -> listOf(Key("."))
+            punctuation -> listOf(Key(".", holdsSymbols = true))
             else -> emptyList()
         }
         return listOf(layerKey, Key("🌐", KeyKind.GLOBE)) + extras.take(1) +

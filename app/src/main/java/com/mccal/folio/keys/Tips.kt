@@ -106,16 +106,13 @@ class Tips(private val shown: Map<Tip, Int> = emptyMap(), val day: Long = -1) {
             prefs.edit().remove(KEY).remove(DAY).apply()
         }
 
-        // Tips for gestures this build does not have yet. Each is off until its switch exists; wiring one is a
-        // matter of returning that switch here, and telling the keyboard when the gesture is used.
+        /** Two fingers swiped left to undo, while that is switched on. */
+        internal fun twoFingerUndo(settings: Settings): Boolean = settings.twoFingerUndo
 
-        /** Two fingers swiped left to undo: wire to its setting when it lands. */
-        internal fun twoFingerUndo(settings: Settings): Boolean = false
+        /** Holding the globe for the language list, which is always there. */
+        internal fun globeLanguages(settings: Settings): Boolean = true
 
-        /** Holding the globe for the language list: wire to its setting when it lands. */
-        internal fun globeLanguages(settings: Settings): Boolean = false
-
-        /** Holding the period for more symbols: wire to its setting when it lands. */
-        internal fun periodSymbols(settings: Settings): Boolean = false
+        /** Holding the period for more symbols, unless someone emptied the list. */
+        internal fun periodSymbols(settings: Settings): Boolean = settings.periodSymbols.isNotEmpty()
     }
 }

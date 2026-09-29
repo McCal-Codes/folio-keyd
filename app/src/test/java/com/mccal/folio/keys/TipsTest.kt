@@ -51,19 +51,23 @@ class TipsTest {
             tips = tips.finish(tip).shownOn(tip, day)
             day++
         }
-        assertEquals(listOf(Tip.CURSOR_SWIPE, Tip.DELETE_WORD, Tip.EDIT_SWIPES, Tip.SHIFT_SELECT), seen)
+        assertEquals(listOf(Tip.CURSOR_SWIPE, Tip.DELETE_WORD, Tip.EDIT_SWIPES, Tip.SHIFT_SELECT, Tip.TWO_FINGER_UNDO, Tip.GLOBE_LANGUAGES, Tip.PERIOD_SYMBOLS), seen)
     }
 
     @Test
     fun `a gesture that is switched off gets no tip`() {
-        val settings = Settings(cursorSwipe = false, deleteWordSwipe = false, editSwipes = false)
+        val settings = Settings(cursorSwipe = false, deleteWordSwipe = false, editSwipes = false, twoFingerUndo = false, periodSymbols = "")
         assertEquals(Tip.SHIFT_SELECT, Tips().next(settings, today))
-        assertNull(Tips().next(settings.copy(shiftSelect = false), today))
+        // The globe's list is always there, so it is the one tip left when every switch is off.
+        assertEquals(Tip.GLOBE_LANGUAGES, Tips().next(settings.copy(shiftSelect = false), today))
+        assertNull(Tips().finish(Tip.GLOBE_LANGUAGES).next(settings.copy(shiftSelect = false), today))
     }
 
     @Test
-    fun `the tips for gestures this build does not have stay hidden`() {
-        for (tip in listOf(Tip.TWO_FINGER_UNDO, Tip.GLOBE_LANGUAGES, Tip.PERIOD_SYMBOLS)) assertFalse(tip.on(Settings()))
+    fun `the newer gestures' tips follow their own switches`() {
+        for (tip in listOf(Tip.TWO_FINGER_UNDO, Tip.GLOBE_LANGUAGES, Tip.PERIOD_SYMBOLS)) assertTrue(tip.on(Settings()))
+        assertFalse(Tip.TWO_FINGER_UNDO.on(Settings(twoFingerUndo = false)))
+        assertFalse(Tip.PERIOD_SYMBOLS.on(Settings(periodSymbols = "")))
     }
 
     @Test

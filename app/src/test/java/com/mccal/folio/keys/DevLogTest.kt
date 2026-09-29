@@ -149,8 +149,15 @@ class DevLogTest {
 
     @Test fun settingsGoInAsSwitchesOnly() {
         val lines = DevLog.switches(Settings())
-        // Every field of Settings, each one name=value where the value is a switch or a choice's name.
-        assertEquals(Settings::class.java.declaredFields.count { !java.lang.reflect.Modifier.isStatic(it.modifiers) }, lines.size)
+        // Every field of Settings but the period's symbols, which are typed, each one name=value where the value is a
+        // switch or a choice's name.
+        assertEquals(Settings::class.java.declaredFields.count { !java.lang.reflect.Modifier.isStatic(it.modifiers) } - 1, lines.size)
+        assertTrue(lines.none { it.startsWith("periodSymbols") })
+        assertTrue("holdDelay=FOLLOW_PHONE" in lines)
+        assertTrue("backspaceSpeed=NORMAL" in lines)
+        assertTrue("twoFingerUndo=true" in lines)
+        // Symbols that look like a choice's name still stay out.
+        assertTrue(DevLog.switches(Settings(periodSymbols = "OK")).none { it.startsWith("periodSymbols") })
         assertTrue(lines.all { Regex("[a-zA-Z]+=(true|false|[A-Z_]+(\\+[A-Z_]+)*)").matches(it) })
         assertTrue("keyStyle=FOLIO" in lines)
         assertTrue("toolbar=EMOJI+UNDO+CURSOR_PAD+COPY+PASTE+CLIPBOARD+VOICE" in lines)
