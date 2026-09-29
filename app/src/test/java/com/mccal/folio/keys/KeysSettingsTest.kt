@@ -141,4 +141,16 @@ class KeysSettingsTest {
         val a = open(intent)
         assertNotNull(a.text("Keys and gestures"))
     }
+
+    @Test
+    fun `the Developer page has a field to try Keyd in, that never teaches it a word`() {
+        val a = open()
+        a.tap("Developer")
+        val field = a.all().filterIsInstance<android.widget.EditText>().first { it.hint == "Type to test Keyd" }
+        assertTrue(field.imeOptions and android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0)
+        a.tap("Web address")
+        assertEquals(android.text.InputType.TYPE_TEXT_VARIATION_URI, field.inputType and android.text.InputType.TYPE_MASK_VARIATION)
+        assertEquals(android.view.inputmethod.EditorInfo.IME_ACTION_GO, field.imeOptions and android.view.inputmethod.EditorInfo.IME_MASK_ACTION)
+        assertTrue("still no learning", field.imeOptions and android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0)
+    }
 }
