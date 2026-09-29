@@ -490,11 +490,12 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     /**
-     * Shift held down, or tapped on for one letter, then backspace: this press deletes forward. Not with caps lock,
-     * which is for typing capitals, where a backspace in the middle of them is fixing what was typed.
+     * Shift held down under another finger, then backspace: this press deletes forward. Only while it is held: a
+     * shift tapped for the next word's capital, then a backspace to fix a typo, is the commonest correction there
+     * is, and it has to go backwards.
      */
     override fun onBackspaceStart(shiftHeld: Boolean) {
-        forward = shiftHeld || (shift == Shift.ONCE && shiftByHand)
+        forward = shiftHeld
     }
 
     override fun onBackspace() {
@@ -554,6 +555,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     private fun deleteAhead(connection: InputConnection) {
         val after = connection.getTextAfterCursor(AHEAD, 0)
         if (!after.isNullOrEmpty()) connection.deleteSurroundingText(0, Words.firstCharacterLength(after))
+        lastWasSpace = false
         shiftUsed()
     }
 

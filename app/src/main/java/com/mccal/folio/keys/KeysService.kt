@@ -907,6 +907,7 @@ class KeysService : InputMethodService(), Ime {
 
     private fun CursorPad.feel(settings: Settings) {
         vibration = settings.vibration
+        repeatMs = settings.backspaceSpeed.millis
         pureBlack = settings.pureBlack
     }
 

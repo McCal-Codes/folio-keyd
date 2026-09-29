@@ -174,4 +174,11 @@ class PeriodSymbolsTest {
         assertEquals(HoldDelay.LONGER, back.holdDelay)
         assertEquals(BackspaceSpeed.SLOWER, back.backspaceSpeed)
     }
+
+    @Test
+    fun `an emoji with its variation, skin tone or flag is one symbol`() {
+        assertEquals(listOf("❤️", "👍🏽", "🇫🇷", "?"), Settings.symbolList(Settings.periodSymbols("❤️👍🏽🇫🇷?")))
+        assertEquals("a second flag is not taken apart by the repeats rule", listOf("🇫🇷", "🇩🇪"),
+            Settings.symbolList(Settings.periodSymbols("🇫🇷🇩🇪🇫🇷")))
+    }
 }

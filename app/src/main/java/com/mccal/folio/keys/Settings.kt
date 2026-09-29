@@ -251,21 +251,33 @@ data class Settings(
 
         /**
          * What was typed into the Symbols field, as it is kept: spaces and repeats taken out, in the order typed, and
-         * no more than [MAX_PERIOD_SYMBOLS]. Counted by code point, so an emoji is one symbol rather than two halves.
+         * no more than [MAX_PERIOD_SYMBOLS]. Counted as the characters a person sees, so ❤️, 👍🏽 or a flag is one
+         * symbol, not the two or three code points it is made of.
          */
         fun periodSymbols(typed: String): String {
-            val kept = LinkedHashSet<Int>()
-            typed.codePoints().forEach { point ->
-                if (!Character.isWhitespace(point) && !Character.isSpaceChar(point) && !Character.isISOControl(point)) {
-                    if (kept.size < MAX_PERIOD_SYMBOLS) kept += point
-                }
+            val kept = LinkedHashSet<String>()
+            for (one in symbolList(typed)) {
+                val point = one.codePointAt(0)
+                if (Character.isWhitespace(point) || Character.isSpaceChar(point) || Character.isISOControl(point)) continue
+                if (kept.size < MAX_PERIOD_SYMBOLS) kept += one
             }
-            return kept.joinToString("") { String(Character.toChars(it)) }
+            return kept.joinToString("")
         }
 
         /** The symbols one by one, the way the row above the period shows them. */
-        fun symbolList(symbols: String): List<String> =
-            symbols.codePoints().toArray().map { String(Character.toChars(it)) }
+        fun symbolList(symbols: String): List<String> {
+            val out = mutableListOf<String>()
+            val breaks = android.icu.text.BreakIterator.getCharacterInstance()
+            breaks.setText(symbols)
+            var start = breaks.first()
+            var end = breaks.next()
+            while (end != android.icu.text.BreakIterator.DONE) {
+                out += symbols.substring(start, end)
+                start = end
+                end = breaks.next()
+            }
+            return out
+        }
 
         /** Buttons besides Hide. More than this and a narrow screen can't give each one a big enough target. */
         const val MAX_TOOLS = 7

@@ -63,6 +63,10 @@ class Tips(private val shown: Map<Tip, Int> = emptyMap(), val day: Long = -1) {
     fun due(settings: Settings, rules: FieldRules, today: Long): Tip? {
         if (!settings.gestureTips || rules.password) return null
         if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) return null
+        // Email and web addresses have no period key to hold, so that tip waits for a field that does.
+        if (rules.kind == FieldKind.EMAIL || rules.kind == FieldKind.URL) {
+            return next(settings.copy(periodSymbols = ""), today)
+        }
         return next(settings, today)
     }
 

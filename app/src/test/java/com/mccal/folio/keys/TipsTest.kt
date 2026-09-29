@@ -356,4 +356,13 @@ class TipsTest {
         assertNull(keys.tip)
         assertTrue(Tips.load(prefs).done(Tip.EDIT_SWIPES))
     }
+
+    @Test
+    fun `no period tip in a field without a period key`() {
+        val rest = Tips().finish(Tip.CURSOR_SWIPE).finish(Tip.DELETE_WORD).finish(Tip.EDIT_SWIPES)
+            .finish(Tip.SHIFT_SELECT).finish(Tip.TWO_FINGER_UNDO).finish(Tip.GLOBE_LANGUAGES)
+        assertEquals(Tip.PERIOD_SYMBOLS, rest.due(Settings(), FieldRules(), today))
+        assertNull(rest.due(Settings(), FieldRules(kind = FieldKind.EMAIL), today))
+        assertNull(rest.due(Settings(), FieldRules(kind = FieldKind.URL), today))
+    }
 }

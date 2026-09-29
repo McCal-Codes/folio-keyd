@@ -73,15 +73,23 @@ class ForwardDeleteTest {
     }
 
     @Test
-    fun `shift then backspace takes the letter after the cursor`() {
+    fun `shift held then backspace takes the letter after the cursor`() {
         text("abc", "def")
         actions.onShift()
-        backspace()
+        backspace(shiftHeld = true)
         assertEquals("abcef", text)
         assertEquals(3, cursor)
         assertEquals("shift is used up, as a letter uses it", Shift.OFF, actions.shift)
         backspace()
         assertEquals("the next one goes backwards again", "abef", text)
+    }
+
+    @Test
+    fun `a shift tapped for a capital, then backspace, still fixes the typo behind it`() {
+        text("I met teh ", "")
+        actions.onShift()
+        backspace()
+        assertEquals("I met teh", text)
     }
 
     @Test
@@ -104,7 +112,7 @@ class ForwardDeleteTest {
     fun `at the end of the text it does nothing`() {
         text("abc", "")
         actions.onShift()
-        backspace()
+        backspace(shiftHeld = true)
         assertEquals("abc", text)
         assertEquals(Shift.OFF, actions.shift)
     }
@@ -123,7 +131,7 @@ class ForwardDeleteTest {
     fun `held with shift it keeps deleting forward, though shift went with the first`() {
         text("ab", "cdefg")
         actions.onShift()
-        actions.onBackspaceStart(false)
+        actions.onBackspaceStart(true)
         repeat(3) { actions.onBackspaceRepeat() }
         assertEquals("abfg", text)
         assertEquals(Shift.OFF, actions.shift)

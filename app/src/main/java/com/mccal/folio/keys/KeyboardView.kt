@@ -108,8 +108,8 @@ class KeyboardView(context: Context) : View(context) {
 
         /**
          * Backspace went down. The moment to decide which way this press deletes: with shift held down by another
-         * finger ([shiftHeld]), or tapped on for one letter, it takes the character after the cursor, for the tap and
-         * for every repeat of the hold that may follow.
+         * finger ([shiftHeld]), it takes the character after the cursor, for the tap and for every repeat of the hold
+         * that may follow.
          */
         fun onBackspaceStart(shiftHeld: Boolean) {}
 
@@ -403,6 +403,8 @@ class KeyboardView(context: Context) : View(context) {
         closePopup()
         closeStyleMenu()
         closeLanguageMenu()
+        pill = null
+        repeat.removeCallbacks(pillFade)
         for (press in presses.values) cancelHold(press)
         presses.clear()
         stopRepeat()
@@ -1279,7 +1281,8 @@ class KeyboardView(context: Context) : View(context) {
         val left = globe.box.left.coerceIn(keysLeft, max(keysLeft, keysRight - across))
         val bottom = globe.box.top - POPUP_LIFT_DP * dp
         // As tall as a fingertip where there is room, and shorter rather than off the top where there is not.
-        val row = min(MENU_ITEM_DP * dp, (bottom - panelPad - 2 * pad - gap) / keys.size)
+        // Never shorter than its own text, though: past that the list climbs over the toolbar rather than overlap.
+        val row = max(MENU_MIN_ITEM_DP * dp, min(MENU_ITEM_DP * dp, (bottom - panelPad - 2 * pad - gap) / keys.size))
         val top = bottom - 2 * pad - gap - row * keys.size
         var y = top + pad
         val items = keys.mapIndexed { index, key ->
@@ -2159,6 +2162,7 @@ class KeyboardView(context: Context) : View(context) {
         const val MENU_DIVIDER_DP = 9f
         const val MENU_CHECK_DP = 32f      // room at the end of a row for the tick
         const val MENU_MIN_WIDTH_DP = 190f
+        const val MENU_MIN_ITEM_DP = 30f   // the list's rows at their shortest, still taller than the 16 dp text
         const val TWO_FINGER_START_DP = 10f  // two fingers going the same way this far may be a swipe
         const val TWO_FINGER_DP = 40f        // and this far, both of them, is one
         const val TWO_FINGER_BIAS = 1.5f     // clearly more across than up or down
