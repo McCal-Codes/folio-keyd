@@ -29,9 +29,11 @@ frequency list contains misspellings, and some of them are said often. The cut i
 languages, and anything below it is dropped rather than kept at a low score - a rare real word costs someone one
 correction, whereas a common misspelling promoted into a dictionary corrupts every suggestion near it.
 """
+import bisect
 import math
 import os
 import re
+import statistics
 import sys
 import unicodedata
 
@@ -97,6 +99,17 @@ def frequencies(path):
     return positions
 
 
+def counts_of(path):
+    """Word to how many times it was said. The same list as [frequencies], with the numbers kept."""
+    counts = {}
+    for line in open(path, encoding="utf-8"):
+        parts = line.split(" ")
+        word = parts[0].strip().lower()
+        if word and word not in counts and len(parts) > 1:
+            counts[word] = int(parts[1])
+    return counts
+
+
 def score(position, band):
     """0 is the commonest word there is. Anything with no frequency data sits below everything that has some."""
     if position:
@@ -104,23 +117,130 @@ def score(position, band):
     return min(99, 60 + band * 10)
 
 
-def position_of(word, positions):
+def position_of(word, positions, apostrophes=None):
     """
     Where a word sits in the frequency list, looking past the apostrophe problem.
 
     The list has had its apostrophes stripped, so "don't" is not in it under that spelling - it was counted as
-    "don". Without this, every contraction in English scores as a word nobody has ever used, and "don't", "can't"
-    and "I'm" are never suggested and never used to fix anything. The stem's count came from the contraction, so
-    the stem's position is the contraction's, give or take the handful of times the stem stands alone.
+    "don" and "'t". Without this, every contraction in English scores as a word nobody has ever used, and "don't",
+    "can't" and "I'm" are never suggested and never used to fix anything.
+
+    [apostrophes] is where [apostrophe_positions] puts each contraction by its own count. Anything it does not
+    cover falls back on its stem: "abbey's" is as common as "abbey", which is a guess, but not a harmful one.
     """
     direct = positions.get(word)
     if direct:
         return direct
     if "'" in word:
+        if apostrophes is not None and word in apostrophes:
+            return apostrophes[word]
         stem = word.split("'")[0]
         if stem:            # "I'm" has a one-letter stem, and is not a rare word
             return positions.get(stem)
     return None
+
+
+# The endings the frequency list split off as words of their own: "you're" is there as "you" and "'re". Every one
+# of these is a contraction; "'s" is too, but it is also every possessive in English, so only the contractions the
+# keyboard's own table knows are counted as "'s" ones.
+CONTRACTION_ENDINGS = {"t", "re", "ll", "ve", "d", "m"}
+
+CONTRACTIONS_KT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "java", "com",
+                               "mccal", "folio", "keys", "Contractions.kt")
+
+
+def english_contractions():
+    """
+    The keyboard's own table of contractions, read from Contractions.kt so the two can never disagree.
+
+    Returns the bare spellings that are never words on their own ("dont", "youre") and every contraction the table
+    puts back, lowercase.
+    """
+    source = open(CONTRACTIONS_KT, encoding="utf-8").read()
+
+    def block(name):
+        body = re.search(name + r" = mapOf\((.*?)\n    \)", source, re.S).group(1)
+        return dict(re.findall(r'"([^"]+)" to "([^"]+)"', body))
+
+    sure = block("ENGLISH_SURE")
+    maybe = block("ENGLISH_MAYBE")
+    return set(sure), {value.lower() for value in list(sure.values()) + list(maybe.values()) if "'" in value}
+
+
+def apostrophe_positions(words, counts):
+    """
+    Where each English contraction belongs in the frequency list, from what the list does say about it.
+
+    Ranking a contraction by its stem, as this used to, made "you're", "you'll", "you'd" and "you've" all exactly as
+    common as "you", the commonest word in the list, so they tied and the strip put them in alphabetical order:
+    "you'd" first. The list has three honest things to say about each one instead, and a contraction is the
+    smallest of them:
+
+    * **Its stem.** "you'll" can be no commoner than "you", which was counted every time it was said.
+    * **Its ending.** Every "'ll" said was one of the "'ll" contractions, so none of them is commoner than all of
+      them together. For "'m" that is exact: "I'm" is the only one.
+    * **Its spelling without the apostrophe**, where that is never a word: "youre" is what subtitlers typed when
+      they left it out, and they left it out about as often for one contraction as another. How often is measured
+      on the ones whose stem is not a word either - "didn" said is "didn't" said - and it comes to about seven
+      hundred times the bare count. A bare spelling missing from the list was said less than its last word was.
+
+    A contraction whose bare spelling is a word too - "its", "well", "ill" - cannot use the third, so those share
+    what their ending has left once the others are counted, in proportion to how often each one's stem is said:
+    "'ll" goes mostly to "I'll" because "I" is said far more than "she". Where nothing is left over, the ending
+    was already used up and all that is known is the first two.
+
+    A possessive of a stem that also has contractions - "Don's", "you's" - is left with no count at all. Its stem's
+    count is mostly the contractions ("don" was said four million times, nearly all of them in "don't"), so ranking
+    it by its stem put "Don's" level with "don't" and "you's" ahead of "you're". So is a letter's plural - "I's",
+    "A's" - as the list's "i" and "a" are the pronoun and the article.
+    """
+    bare_only, known = english_contractions()
+    floor = min(counts.values())
+    ratio = statistics.median(counts[stem] / counts[stem + "t"] for stem in NOT_WORDS
+                              if stem in counts and stem + "t" in counts)
+    groups = {}
+    for word in words:
+        lower = word.lower()
+        stem, _, ending = lower.partition("'")
+        if not ending or stem not in counts:
+            continue
+        if ending in CONTRACTION_ENDINGS or lower in known:
+            groups.setdefault(ending, set()).add(lower)
+
+    found = {}
+    for ending, members in groups.items():
+        whole = counts.get("'" + ending, math.inf)
+
+        def most(word):
+            return min(counts[word.partition("'")[0]], whole)
+
+        spelled = {word for word in members if word.replace("'", "") in bare_only}
+        for word in spelled:
+            found[word] = min(most(word), counts.get(word.replace("'", ""), floor) * ratio)
+        rest = members - spelled
+        left = whole - sum(found[word] for word in spelled) if whole != math.inf else 0
+        said = sum(counts[word.partition("'")[0]] for word in rest)
+        for word in rest:
+            share = left * counts[word.partition("'")[0]] / said if left > 0 else math.inf
+            found[word] = min(most(word), share)
+
+    contracted = {word.partition("'")[0] for word in found}
+    ranked = sorted(counts.values(), reverse=True)
+    negated = [-count for count in ranked]
+
+    def position(count):
+        return bisect.bisect_left(negated, -count) + 1
+
+    positions = {word: position(count) for word, count in found.items()}
+    for word in words:
+        lower = word.lower()
+        stem, _, ending = lower.partition("'")
+        if ending != "s" or lower in found:
+            continue
+        if len(stem) == 1 or stem in contracted:
+            positions[lower] = None
+    print(f"contractions ranked by their own counts: {len(found)} (bare spelling said {ratio:.0f} times less)")
+    return positions
 
 
 def fold(word):
@@ -188,7 +308,8 @@ def spoken_only(frequency_file, destination):
 def main(final_dir, frequency_file, destination):
     words = scowl_words(final_dir)
     positions = frequencies(frequency_file)
-    entries = {word: score(position_of(word.lower(), positions), band) for word, band in words.items()}
+    apostrophes = apostrophe_positions(words, counts_of(frequency_file))
+    entries = {word: score(position_of(word.lower(), positions, apostrophes), band) for word, band in words.items()}
 
     spoken = 0
     have = {word.lower() for word in entries}
