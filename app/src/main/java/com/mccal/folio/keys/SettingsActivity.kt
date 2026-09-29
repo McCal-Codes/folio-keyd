@@ -687,6 +687,13 @@ class SettingsActivity : Activity() {
         group(column) { toggle(it, getString(R.string.settings_learn), settings.learn) { on -> settings.copy(learn = on) } }
         footer(column, getString(R.string.settings_learn_note))
         group(column) {
+            switchRow(
+                it, getString(R.string.settings_suggest_emoji), settings.suggestEmoji,
+                subtitle = getString(R.string.settings_suggest_emoji_sub), enabled = settings.suggestions,
+            ) { on -> change(settings.copy(suggestEmoji = on)) }
+        }
+        footer(column, getString(R.string.settings_suggest_emoji_note))
+        group(column) {
             toggle(it, getString(R.string.settings_capitals), settings.autoCapitalise) { on -> settings.copy(autoCapitalise = on) }
             toggle(it, getString(R.string.settings_double_space), settings.doubleSpaceFullStop) { on -> settings.copy(doubleSpaceFullStop = on) }
         }
