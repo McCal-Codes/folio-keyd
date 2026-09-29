@@ -10,6 +10,7 @@ under Settings › About › What's New.
 - Searching emoji for a word like the Spanish "corazón" puts the red heart first, not a face that has the word.
 - "don" and "won" are no longer offered as you type "do" and "wo". "won" is still a word.
 - Gesture tips show with Suggestions turned off.
+- Copied text older than an hour is deleted from the phone, not just hidden from the list.
 
 ## [0.3.1] - 2026-09-29
 
