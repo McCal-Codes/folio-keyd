@@ -9,8 +9,13 @@
 #   source/packages/keyd/app.json                   where the release asset will be, and what it hashes to
 #
 # Needs FOLIO_RELEASE_STORE_FILE (outside the repo), FOLIO_RELEASE_STORE_PASSWORD, FOLIO_RELEASE_KEY_ALIAS and
-# FOLIO_RELEASE_KEY_PASSWORD. Upload both APKs to a GitHub release tagged v<version> with exactly those file names,
-# or the addresses in app.json lead nowhere.
+# FOLIO_RELEASE_KEY_PASSWORD. Any that are not set come from their usual places: the keystore at ~/folio-release.jks,
+# the alias "folio", and the password from the macOS Keychain item "folio-release-keystore", which asks before every
+# use (see scripts/README.md for the one command that stores it). The key password is the keystore's unless it is set.
+#
+# A beta (a version with a "-", like 0.3.2-beta.1) is for McCal's phone only, so it leaves source/ alone. A release
+# writes app.json: upload Keyd to a GitHub release tagged v<version> with exactly that file name, or the address in
+# app.json leads nowhere.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd -P)
@@ -19,6 +24,14 @@ version=$(sed -n 's/^val keysVersion = "\(.*\)"$/\1/p' "$root/app/build.gradle.k
 out="$root/dist/Keyd-$version"
 repo="McCal-Codes/folio-keyd"
 
+export FOLIO_RELEASE_STORE_FILE=${FOLIO_RELEASE_STORE_FILE:-$HOME/folio-release.jks}
+export FOLIO_RELEASE_KEY_ALIAS=${FOLIO_RELEASE_KEY_ALIAS:-folio}
+if [[ -z "${FOLIO_RELEASE_STORE_PASSWORD:-}" ]] && command -v security >/dev/null; then
+    echo "Asking the Keychain for the keystore password (approve it in the dialog)."
+    FOLIO_RELEASE_STORE_PASSWORD=$(security find-generic-password -s folio-release-keystore -a "$USER" -w 2>/dev/null || true)
+    export FOLIO_RELEASE_STORE_PASSWORD
+fi
+export FOLIO_RELEASE_KEY_PASSWORD=${FOLIO_RELEASE_KEY_PASSWORD:-${FOLIO_RELEASE_STORE_PASSWORD:-}}
 for name in FOLIO_RELEASE_STORE_FILE FOLIO_RELEASE_STORE_PASSWORD FOLIO_RELEASE_KEY_ALIAS FOLIO_RELEASE_KEY_PASSWORD; do
     [[ -n "${!name:-}" ]] || { echo "Missing $name." >&2; exit 1; }
 done
@@ -48,7 +61,7 @@ for variant in release dev; do
     (cd "$out" && shasum -a 256 "$name" >> SHA256SUMS.txt)
     sha=$(shasum -a 256 "$out/$name" | cut -d' ' -f1)
     size=$(stat -f%z "$out/$name" 2>/dev/null || stat -c%s "$out/$name")
-    [[ $variant == release ]] || continue
+    [[ $variant == release && $version != *-* ]] || continue
     mkdir -p "$root/source/packages/$package"
     cat > "$root/source/packages/$package/app.json" <<JSON
 {
@@ -64,6 +77,8 @@ cmp -s <(grep SHA-256 "$out/signing-certificate-release.txt") <(grep SHA-256 "$o
 
 echo "Signed release: $out"
 grep "SHA-256" "$out/signing-certificate.txt" || true
-echo "Upload Keyd to the v$version release: gh release create v$version -R $repo $out/Keyd-$version.apk"
-echo "Keyd Dev is for your phone only: adb install -r -i com.mccal.folio $out/Keyd-Dev-$version.apk"
-echo "source/packages/keyd/app.json now points at v$version. Commit it after the release is up."
+echo "Keyd Dev is for your phone only: scripts/phone.sh install $out/Keyd-Dev-$version.apk"
+if [[ $version != *-* ]]; then
+    echo "Upload Keyd to the v$version release: gh release create v$version -R $repo $out/Keyd-$version.apk"
+    echo "source/packages/keyd/app.json now points at v$version. Commit it after the release is up."
+fi
