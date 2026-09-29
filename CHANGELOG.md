@@ -4,7 +4,7 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
-## [0.3.1] - Unreleased
+## [0.3.1] - 2026-09-29
 
 ### Added
 - **Languages:** hold the globe for a list of the languages you have turned on. Tapping it still goes to your next keyboard.
