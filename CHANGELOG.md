@@ -4,6 +4,24 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.3.1] - Unreleased
+
+### Added
+- **Languages:** hold the globe for a list of the languages you have turned on. Tapping it still goes to your next keyboard.
+- **Period symbols:** hold the period for , ? ! ' " : ; and -, and choose your own in Settings.
+- **Two fingers to undo:** swipe two fingers left to undo and right to redo. "Undo Typing" shows over the toolbar.
+- **Emoji in the strip:** a word that names an emoji, like pizza, offers it at the end of the strip.
+- **Gesture tips:** once each, a tip in the strip for a gesture you might not find by looking.
+- **Hold delay and backspace speed** in Keys and gestures.
+- **Delete forward:** shift and backspace together delete the letter after the cursor.
+
+### Changed
+- Contractions are ranked by how often each is really typed, so "you'" offers you're first, not you'd.
+
+### Fixed
+- Undo comes back to the toolbar for installs that had a 0.3.0 beta.
+- Long suggestions no longer run into the next slot in the strip.
+
 ## [0.3.0] - 2026-09-28
 
 ### Added
