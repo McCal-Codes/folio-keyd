@@ -26,3 +26,19 @@ jobs:
         with:
           name: test-reports
           path: app/build/reports/tests/
+
+  # The release rules a machine can see (tools/check-release-rules.sh): no AI credit, and a changelog line for what
+  # ships. Pull requests only, since both are about what a pull request contains.
+  release-rules:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Notes and credit rules
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: bash tools/check-release-rules.sh "origin/${{ github.base_ref }}"
