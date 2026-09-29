@@ -281,6 +281,19 @@ class DictionaryTest {
         }
     }
 
+    /**
+     * The frequency list counted every "don't" as a "don" and every "won't" as a "won", so both ranked as common
+     * words and the strip offered them for "do" and "wo". "won" is still a word, the past of win, and must stay one.
+     */
+    @Test
+    fun `the stems of don't and won't are not offered as common words`() {
+        val near = proximity()
+        assertTrue("don" !in Suggestions.forWord("do", dictionary, near).take(3))
+        assertTrue("won" !in Suggestions.forWord("wo", dictionary, near).take(3))
+        assertTrue(dictionary.contains("won"))
+        assertEquals(null, Suggestions.correction("won", dictionary, near))
+    }
+
     /** Typed up to the apostrophe, the commonest contraction comes first, and never a possessive of its stem. */
     @Test
     fun `the apostrophe offers the commonest contraction first`() {

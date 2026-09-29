@@ -16016,7 +16016,7 @@ dominique:41
 domino:42
 domino's:42
 dominoes:44
-don:14
+don:70
 don's:70
 don't:14
 dona:41
@@ -24850,7 +24850,7 @@ haunts:41
 havana:40
 have:13
 have's:13
-haven:24
+haven:80
 haven's:80
 haven't:24
 havens:45
@@ -60627,7 +60627,7 @@ wombats:80
 wombs:80
 women:26
 women's:26
-won:22
+won:60
 won's:60
 won't:22
 wonder:28
