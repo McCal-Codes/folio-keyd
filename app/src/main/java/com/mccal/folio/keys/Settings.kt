@@ -1,6 +1,7 @@
 package com.mccal.folio.keys
 
 import android.content.SharedPreferences
+import android.view.ViewConfiguration
 
 /**
  * What someone has decided the keyboard should do.
@@ -55,6 +56,19 @@ enum class ToolKey(val kind: KeyKind) {
     CLIPBOARD(KeyKind.CLIPBOARD), VOICE(KeyKind.VOICE),
 }
 
+/**
+ * How long a key is held before what is behind it opens: accents, the period's symbols, the globe's language list.
+ * [FOLLOW_PHONE] is Android's own Touch and hold delay, which someone may already have set in accessibility.
+ */
+enum class HoldDelay(private val ms: Long) {
+    FOLLOW_PHONE(0), SHORTER(250), LONGER(600);
+
+    val millis: Long get() = if (this == FOLLOW_PHONE) ViewConfiguration.getLongPressTimeout().toLong() else ms
+}
+
+/** How fast a held backspace keeps deleting, as the gap between deletes. The wait before it starts is the same. */
+enum class BackspaceSpeed(val millis: Long) { SLOWER(90), NORMAL(55), FASTER(35) }
+
 data class Settings(
     /** The row above the keys that offers words. Off means no strip, and no autocorrect either. */
     val suggestions: Boolean = true,
@@ -64,6 +78,8 @@ data class Settings(
     val spellCheck: Boolean = true,
     /** Remember words it does not know, so it stops arguing with your own vocabulary. */
     val learn: Boolean = true,
+    /** The emoji a word is the name of, at the end of the strip: "pizza" offers 🍕. Only ever offered. */
+    val suggestEmoji: Boolean = true,
     /** A capital at the start of a sentence. */
     val autoCapitalise: Boolean = true,
     /** Two spaces in a row become a full stop and a space, the way every phone keyboard has since the first one. */
@@ -121,6 +137,17 @@ data class Settings(
     val shiftSelect: Boolean = true,
     /** With text selected, the toolbar counts it and offers styles. Never in a password field. */
     val selectionTools: Boolean = true,
+    /** A tip in the strip, once each, for a gesture nobody would find by looking. See [Tips]. */
+    val gestureTips: Boolean = true,
+    /** Two fingers swiped left across the keys undo, right redo. */
+    val twoFingerUndo: Boolean = true,
+    /**
+     * What holding the period on the letters offers, in order: at most [MAX_PERIOD_SYMBOLS], each once, no spaces.
+     * Empty means holding the period does nothing more than tapping it.
+     */
+    val periodSymbols: String = DEFAULT_PERIOD_SYMBOLS,
+    val holdDelay: HoldDelay = HoldDelay.FOLLOW_PHONE,
+    val backspaceSpeed: BackspaceSpeed = BackspaceSpeed.NORMAL,
 ) {
 
     fun save(prefs: SharedPreferences) {
@@ -129,6 +156,7 @@ data class Settings(
             putBoolean(AUTOCORRECT, autocorrect)
             putBoolean(SPELL_CHECK, spellCheck)
             putBoolean(LEARN, learn)
+            putBoolean(SUGGEST_EMOJI, suggestEmoji)
             putBoolean(AUTO_CAPITALISE, autoCapitalise)
             putBoolean(DOUBLE_SPACE, doubleSpaceFullStop)
             putBoolean(NUMBER_ROW, numberRow)
@@ -160,6 +188,11 @@ data class Settings(
             putBoolean(EDIT_SWIPES, editSwipes)
             putBoolean(SHIFT_SELECT, shiftSelect)
             putBoolean(SELECTION_TOOLS, selectionTools)
+            putBoolean(GESTURE_TIPS, gestureTips)
+            putBoolean(TWO_FINGER_UNDO, twoFingerUndo)
+            putString(PERIOD_SYMBOLS, periodSymbols)
+            putString(HOLD_DELAY, holdDelay.name)
+            putString(BACKSPACE_SPEED, backspaceSpeed.name)
         }.apply()
     }
 
@@ -168,6 +201,7 @@ data class Settings(
         const val AUTOCORRECT = "autocorrect"
         const val SPELL_CHECK = "spellCheck"
         const val LEARN = "learn"
+        const val SUGGEST_EMOJI = "suggestEmoji"
         const val AUTO_CAPITALISE = "autoCapitalise"
         const val DOUBLE_SPACE = "doubleSpace"
         const val NUMBER_ROW = "numberRow"
@@ -199,6 +233,51 @@ data class Settings(
         const val EDIT_SWIPES = "editSwipes"
         const val SHIFT_SELECT = "shiftSelect"
         const val SELECTION_TOOLS = "selectionTools"
+        const val GESTURE_TIPS = "gestureTips"
+        /** Set once someone arranges the toolbar themselves, so no later fix-up mistakes their list for a default. */
+        const val TOOLBAR_ARRANGED = "toolbarArranged"
+        /** Set once [giveBetasUndo] has looked, so it looks only once. */
+        const val TOOLBAR_BETA_CHECKED = "toolbarBetaChecked"
+        const val TWO_FINGER_UNDO = "twoFingerUndo"
+        const val PERIOD_SYMBOLS = "periodSymbols"
+        const val HOLD_DELAY = "holdDelay"
+        const val BACKSPACE_SPEED = "backspaceSpeed"
+
+        /** The period's symbols someone gets without choosing: the punctuation that isn't on the letters already. */
+        const val DEFAULT_PERIOD_SYMBOLS = ",?!'\":;-"
+
+        /** Eight fit in a row above the period on a phone-width screen, each still wide enough for a fingertip. */
+        const val MAX_PERIOD_SYMBOLS = 8
+
+        /**
+         * What was typed into the Symbols field, as it is kept: spaces and repeats taken out, in the order typed, and
+         * no more than [MAX_PERIOD_SYMBOLS]. Counted as the characters a person sees, so ❤️, 👍🏽 or a flag is one
+         * symbol, not the two or three code points it is made of.
+         */
+        fun periodSymbols(typed: String): String {
+            val kept = LinkedHashSet<String>()
+            for (one in symbolList(typed)) {
+                val point = one.codePointAt(0)
+                if (Character.isWhitespace(point) || Character.isSpaceChar(point) || Character.isISOControl(point)) continue
+                if (kept.size < MAX_PERIOD_SYMBOLS) kept += one
+            }
+            return kept.joinToString("")
+        }
+
+        /** The symbols one by one, the way the row above the period shows them. */
+        fun symbolList(symbols: String): List<String> {
+            val out = mutableListOf<String>()
+            val breaks = android.icu.text.BreakIterator.getCharacterInstance()
+            breaks.setText(symbols)
+            var start = breaks.first()
+            var end = breaks.next()
+            while (end != android.icu.text.BreakIterator.DONE) {
+                out += symbols.substring(start, end)
+                start = end
+                end = breaks.next()
+            }
+            return out
+        }
 
         /** Buttons besides Hide. More than this and a narrow screen can't give each one a big enough target. */
         const val MAX_TOOLS = 7
@@ -214,6 +293,12 @@ data class Settings(
         )
 
         /**
+         * When the arranged toolbar was first built, 28 September 2026 at 15:48 UTC, a little before 0.3.0 beta 1.
+         * Only 0.2 was out before then, so an install first made after it cannot have come from 0.2.
+         */
+        const val TOOLBAR_ARRIVED = 1_790_610_498_000L
+
+        /**
          * Writes down the toolbar of someone who never arranged one, once, the first time Keyd runs without one.
          *
          * A fresh install gets the usual list, Undo and all. Someone coming from 0.2 keeps the six buttons they had:
@@ -222,21 +307,53 @@ data class Settings(
          * by itself; [updated] covers someone who never did. Decided once and kept, so what counts as an update
          * cannot change the toolbar under someone later.
          */
-        fun settleToolbar(prefs: SharedPreferences, updated: Boolean) {
-            if (prefs.contains(TOOLBAR)) return
-            val list = toolbar(prefs, if (updated) TOOLBAR_BEFORE_UNDO else DEFAULT_TOOLBAR)
-            prefs.edit()
-                .putString(TOOLBAR, list.joinToString(",") { it.name })
-                .remove(VOICE_KEY)
-                .remove(CURSOR_PAD_KEY)
-                .apply()
+        fun settleToolbar(prefs: SharedPreferences, updated: Boolean, firstInstalled: Long? = null) {
+            if (!prefs.contains(TOOLBAR)) {
+                // An update over a 0.3 beta is not an update from 0.2: that install never had the six to keep.
+                val from02 = updated && !sinceTheToolbar(firstInstalled)
+                val list = toolbar(prefs, if (from02) TOOLBAR_BEFORE_UNDO else DEFAULT_TOOLBAR)
+                prefs.edit()
+                    .putString(TOOLBAR, list.joinToString(",") { it.name })
+                    .remove(VOICE_KEY)
+                    .remove(CURSOR_PAD_KEY)
+                    .apply()
+            }
+            giveBetasUndo(prefs, firstInstalled)
         }
+
+        /**
+         * Puts Undo back for someone the betas mistook for a 0.2 upgrade, once.
+         *
+         * 0.3.0 beta 1 had no settling step and only wrote the toolbar down when a setting changed, so an install of
+         * it that nobody touched had no list stored. Beta 2 then saw an update with no list and settled it as 0.2's
+         * six, Undo and all left out, and every later version kept that. Such a list is exactly the six, and the
+         * install is younger than the toolbar itself, which no 0.2 install is. Someone who arranged their toolbar is
+         * never touched, and neither is anyone first installed before the toolbar existed, or when Android will not
+         * say when that was: they may really have come from 0.2.
+         */
+        fun giveBetasUndo(prefs: SharedPreferences, firstInstalled: Long?) {
+            if (prefs.getBoolean(TOOLBAR_BETA_CHECKED, false)) return
+            val edit = prefs.edit().putBoolean(TOOLBAR_BETA_CHECKED, true)
+            val stored = prefs.getString(TOOLBAR, null)
+            if (stored == TOOLBAR_BEFORE_UNDO.joinToString(",") { it.name } &&
+                !prefs.getBoolean(TOOLBAR_ARRANGED, false) && sinceTheToolbar(firstInstalled)
+            ) edit.putString(TOOLBAR, DEFAULT_TOOLBAR.joinToString(",") { it.name })
+            edit.apply()
+        }
+
+        /** Whether this install began after the toolbar could be arranged, so it never ran 0.2. */
+        private fun sinceTheToolbar(firstInstalled: Long?) = firstInstalled != null && firstInstalled >= TOOLBAR_ARRIVED
 
         /** Whether this install has been updated since it was first installed. False if Android will not say. */
         fun updated(context: android.content.Context): Boolean = runCatching {
             val info = context.packageManager.getPackageInfo(context.packageName, 0)
             info.lastUpdateTime > info.firstInstallTime
         }.getOrDefault(false)
+
+        /** When this app was first installed, kept by Android through every update. Null if it will not say. */
+        fun firstInstalled(context: android.content.Context): Long? = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+        }.getOrNull()?.takeIf { it > 0 }
 
         /** The stored list: names in order, anything unknown or repeated left out, and no more than [MAX_TOOLS]. */
         fun parseToolbar(stored: String): List<ToolKey> =
@@ -266,6 +383,7 @@ data class Settings(
                 autocorrect = read(AUTOCORRECT, fallback.autocorrect),
                 spellCheck = read(SPELL_CHECK, fallback.spellCheck),
                 learn = read(LEARN, fallback.learn),
+                suggestEmoji = read(SUGGEST_EMOJI, fallback.suggestEmoji),
                 autoCapitalise = read(AUTO_CAPITALISE, fallback.autoCapitalise),
                 doubleSpaceFullStop = read(DOUBLE_SPACE, fallback.doubleSpaceFullStop),
                 numberRow = read(NUMBER_ROW, fallback.numberRow),
@@ -292,6 +410,11 @@ data class Settings(
                 editSwipes = read(EDIT_SWIPES, fallback.editSwipes),
                 shiftSelect = read(SHIFT_SELECT, fallback.shiftSelect),
                 selectionTools = read(SELECTION_TOOLS, fallback.selectionTools),
+                gestureTips = read(GESTURE_TIPS, fallback.gestureTips),
+                twoFingerUndo = read(TWO_FINGER_UNDO, fallback.twoFingerUndo),
+                periodSymbols = periodSymbols(prefs.getString(PERIOD_SYMBOLS, null) ?: fallback.periodSymbols),
+                holdDelay = choice(prefs, HOLD_DELAY, fallback.holdDelay),
+                backspaceSpeed = choice(prefs, BACKSPACE_SPEED, fallback.backspaceSpeed),
             )
         }
 

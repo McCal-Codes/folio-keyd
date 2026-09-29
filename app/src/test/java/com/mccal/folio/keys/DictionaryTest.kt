@@ -248,6 +248,53 @@ class DictionaryTest {
         }
     }
 
+    /**
+     * Each contraction is ranked by its own count, not its stem's. Ranked by the stem, "you're", "you'll" and "you'd"
+     * all scored the same as "you" and the strip put them in alphabetical order, "you'd" first.
+     */
+    @Test
+    fun `contractions are ranked against each other by how often each is said`() {
+        fun scoreOf(word: String): Int {
+            val range = dictionary.startingWith(word)
+            return dictionary.rank(range.first { dictionary.word(it).equals(word, ignoreCase = true) })
+        }
+        // Commonest first, as the frequency list has them. Neighbours may tie; none may be out of order.
+        val order = listOf(
+            "it's", "I'm", "don't", "can't", "that's", "we're", "I'll", "you're", "won't", "they're", "you'll", "you'd",
+        )
+        for ((commoner, rarer) in order.zipWithNext()) {
+            assertTrue("$commoner=${scoreOf(commoner)} $rarer=${scoreOf(rarer)}", scoreOf(commoner) <= scoreOf(rarer))
+        }
+        // The same stem never ties: that is where the alphabet used to decide.
+        val apart = listOf(
+            "you're" to "you'll", "you'll" to "you'd", "I'm" to "I'll", "I'll" to "I'd", "we're" to "we'll",
+            "it's" to "it'd", "they're" to "they'll", "it's" to "can't", "I'm" to "you're",
+        )
+        for ((commoner, rarer) in apart) {
+            assertTrue("$commoner=${scoreOf(commoner)} $rarer=${scoreOf(rarer)}", scoreOf(commoner) < scoreOf(rarer))
+        }
+        // And none of them is as common as the word it is built on. "don" and "won" are not in this: nearly every
+        // time the list counted them, they were "don't" and "won't".
+        for (word in order.filterNot { it == "don't" || it == "won't" }) {
+            val stem = word.substringBefore('\'')
+            assertTrue("$word=${scoreOf(word)} $stem=${scoreOf(stem)}", scoreOf(stem) < scoreOf(word))
+        }
+    }
+
+    /** Typed up to the apostrophe, the commonest contraction comes first, and never a possessive of its stem. */
+    @Test
+    fun `the apostrophe offers the commonest contraction first`() {
+        val english = Contractions.of(Language.ENGLISH)
+        val first = mapOf(
+            "you'" to "you're", "i'" to "I'm", "we'" to "we're", "they'" to "they're", "don'" to "don't",
+            "can'" to "can't", "won'" to "won't", "it'" to "it's", "that'" to "that's",
+        )
+        fun strip(typed: String) = Suggestions.forWord(typed, dictionary, proximity(), contractions = english)
+        val wrong = first.filter { (typed, wanted) -> strip(typed).firstOrNull() != wanted }
+            .mapValues { (typed, _) -> strip(typed) }
+        assertEquals("offered the wrong word first: $wrong", emptyMap<String, List<String>>(), wrong)
+    }
+
     /** A shortcut is an exact answer to exactly this word, so nothing the dictionary guesses should outrank it. */
     @Test
     fun `a shortcut is offered ahead of anything the dictionary thinks`() {

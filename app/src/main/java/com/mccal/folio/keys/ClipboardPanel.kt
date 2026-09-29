@@ -84,6 +84,9 @@ internal class ClipboardPanel(context: Context) : View(context) {
     /** Keyd's own Vibration choice. Off means off here too, not only on the letters. */
     var vibration: Vibration = Vibration.MEDIUM
 
+    /** How long a pinned clip is held before it offers to become a shortcut: the keyboard's own hold delay. */
+    var holdDelay: HoldDelay = HoldDelay.FOLLOW_PHONE
+
     /** A black board when dark, as on the letters. */
     var pureBlack: Boolean = false
         set(value) {
@@ -282,7 +285,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
                 held = false
                 val clip = clips.getOrNull(pressed)
                 if (clip != null && clip.pinned && partAt(event.x) == Part.TEXT) {
-                    postDelayed(hold, ViewConfiguration.getLongPressTimeout().toLong())
+                    postDelayed(hold, holdDelay.millis)
                 }
             }
             MotionEvent.ACTION_MOVE -> {

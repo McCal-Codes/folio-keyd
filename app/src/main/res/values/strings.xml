@@ -35,6 +35,10 @@
     <string name="settings_suggestions">Suggestions</string>
     <string name="settings_autocorrect">Fix clear typos</string>
     <string name="settings_learn">Learn new words</string>
+    <string name="settings_suggest_emoji">Suggest an emoji</string>
+    <string name="settings_suggest_emoji_sub">When a word has one</string>
+    <string name="settings_suggest_emoji_note">Emoji come from Unicode\'s own emoji names, in the language you are typing, so pizza offers 🍕. Nothing is looked up online.</string>
+    <string name="suggested_emoji">Emoji %1$s</string>
     <string name="settings_learn_note">Remembers words it does not know, so it stops suggesting something else instead. Never from a password field, or from an app that asks it not to.</string>
     <string name="settings_capitals">Capital at the start of a sentence</string>
     <string name="settings_capitals_note">Only where the app asks for it.</string>

@@ -49,6 +49,12 @@ class KeysService : InputMethodService(), Ime {
     /** The app the last field was in, so the strip's question does not follow someone into the next one. */
     private var offeredIn: String? = null
 
+    /** Whether this field has had its one chance at a gesture tip, taken or not. */
+    private var tipAsked = false
+
+    /** The tips that will not be shown again, read when a field opens, so a swipe never has to read preferences. */
+    private var tipsDone: MutableSet<Tip> = HashSet()
+
     /** Counts a selection once it has stopped moving. See [onUpdateSelection]. */
     private val countSelection = Runnable { if (isInputViewShown) actions.countSelection() }
 
@@ -118,7 +124,7 @@ class KeysService : InputMethodService(), Ime {
     override fun onCreate() {
         super.onCreate()
         DevLog.catchCrashes(this)
-        Settings.settleToolbar(prefs, Settings.updated(this))
+        Settings.settleToolbar(prefs, Settings.updated(this), Settings.firstInstalled(this))
         spanTheCutout()
         // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
         background.post {
@@ -308,6 +314,11 @@ class KeysService : InputMethodService(), Ime {
         // waiting, which only ever gets asked in a gap like this one.
         if (word.isEmpty() && previous.isNotEmpty() && keyboard?.offer == null) {
             actions.offered(Verdict(word, null, misspelled = false))
+            // A tip, when it is time for one, has this gap instead of what might come next.
+            if (keyboard?.tip != null || placeTip()) {
+                keyboard?.suggestions = emptyList()
+                return
+            }
             val shift = actions.shift
             background.postDelayed(
                 {
@@ -315,6 +326,7 @@ class KeysService : InputMethodService(), Ime {
                     main.post {
                         if (mine != asked) return@post
                         keyboard?.typedFirst = false
+                        keyboard?.suggestedEmoji = null
                         keyboard?.suggestions = found
                     }
                 },
@@ -325,12 +337,14 @@ class KeysService : InputMethodService(), Ime {
         }
         if (word.length < 2) {
             actions.offered(Verdict(word, null, misspelled = false))
+            keyboard?.suggestedEmoji = null
             keyboard?.suggestions = emptyList()
             return
         }
         val keys = keyboard?.placements
         val language = actions.language
         val contractions = Contractions.of(language)
+        val emojiOn = actions.settings.suggestEmoji
         background.postDelayed(
             {
                 val started = android.os.SystemClock.elapsedRealtime()
@@ -358,9 +372,17 @@ class KeysService : InputMethodService(), Ime {
                         (learned?.count(word.lowercase()) ?: 0) == 0 &&
                         shortcuts?.expand(word) == null
                 }.getOrDefault(false)
+                // The emoji names are read the first time a word could use them, after this word's answer rather than
+                // ahead of it, so the first suggestions never wait on a second file. Until then, no emoji.
+                val names = emojiNames?.takeIf { emojiNamesFor == language }
+                if (emojiOn && names == null) background.post { loadEmojiNames(language) }
+                val emoji = if (!emojiOn) null else runCatching {
+                    Suggestions.emoji(word, words, names)?.let { SuggestedEmoji(it, names?.nameOf(it) ?: it) }
+                }.getOrNull()
                 // Timings and counts only: the word itself never goes in the log.
                 val took = android.os.SystemClock.elapsedRealtime() - started
-                DevLog.event(this, "suggest", "ms" to took, "found" to found.size, "fixed" to if (fix != null) 1 else 0)
+                DevLog.event(this, "suggest", "ms" to took, "found" to found.size, "fixed" to if (fix != null) 1 else 0,
+                    "emoji" to if (emoji != null) 1 else 0)
                 if (took > DevLog.SLOW_MS) DevLog.problem(this, "slow-suggestion", "ms" to took)
                 main.post {
                     // A job already running cannot be cancelled, so it checks on the way out whether the word it
@@ -369,7 +391,8 @@ class KeysService : InputMethodService(), Ime {
                     if (mine != asked) return@post
                     actions.offered(Verdict(word, fix, misspelled = unknown, suggestions = found))
                     keyboard?.typedFirst = true
-                    keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
+                    keyboard?.suggestedEmoji = emoji
+                    keyboard?.suggestions = if (found.isEmpty() && emoji == null) emptyList() else listOf(word) + found
                 }
             },
             suggesting,
@@ -454,6 +477,36 @@ class KeysService : InputMethodService(), Ime {
             }
             offer?.let { main.post { place(it) } }
         }
+    }
+
+    /**
+     * A gesture tip in this gap between words, if one is due: after [Tips.AFTER_CHARS] typed in this field, and at most
+     * once per field; [Tips.due] says the rest. True when one went on screen.
+     *
+     * Every keystroke of a word passes through here, so the cheap tests come first and the preferences are only
+     * read once per field, the first time the count is reached.
+     */
+    private fun placeTip(): Boolean {
+        if (tipAsked || actions.typedHere < Tips.AFTER_CHARS) return false
+        tipAsked = true
+        val keys = keyboard ?: return false
+        val today = System.currentTimeMillis() / DAY_MS
+        val tips = Tips.load(prefs)
+        val tip = tips.due(actions.settings, actions.rules, today) ?: return false
+        // Counted as it goes on screen: put away by typing, it has still been shown once.
+        val now = tips.shownOn(tip, today)
+        now.save(prefs)
+        if (now.done(tip)) tipsDone += tip
+        keys.tip = tip
+        return true
+    }
+
+    override fun tipDone(tip: Tip) = gestureUsed(tip)
+
+    override fun gestureUsed(tip: Tip) {
+        if (keyboard?.tip == tip) keyboard?.tip = null
+        if (!tipsDone.add(tip)) return
+        Tips.load(prefs).finish(tip).save(prefs)
     }
 
     /**
@@ -616,6 +669,8 @@ class KeysService : InputMethodService(), Ime {
             addView(arrows)
         }
     }
+
+    override fun rememberEmoji(emoji: String) = remember(emoji)
 
     private fun remember(value: String) {
         val grid = emoji ?: return
@@ -816,6 +871,10 @@ class KeysService : InputMethodService(), Ime {
         val app = info?.packageName
         if (!chosen.offerRules || actions.rules.ephemeral || app != offeredIn) keyboard?.offer = null
         offeredIn = app
+        // A tip is for the field it was shown in. Read again here, in case Settings has asked for them all again.
+        keyboard?.tip = null
+        tipAsked = false
+        tipsDone = Tips.load(prefs).finished().toMutableSet()
         // Ask the editor to keep telling us where the cursor is. Most will not, which is why nothing depends on it.
         currentInputConnection?.requestCursorUpdates(InputConnection.CURSOR_UPDATE_MONITOR)
     }
@@ -842,11 +901,13 @@ class KeysService : InputMethodService(), Ime {
 
     private fun ClipboardPanel.feel(settings: Settings) {
         vibration = settings.vibration
+        holdDelay = settings.holdDelay
         pureBlack = settings.pureBlack
     }
 
     private fun CursorPad.feel(settings: Settings) {
         vibration = settings.vibration
+        repeatMs = settings.backspaceSpeed.millis
         pureBlack = settings.pureBlack
     }
 
@@ -1015,6 +1076,40 @@ class KeysService : InputMethodService(), Ime {
         // Switching this way (rather than asking the person to pick from a list) is what lets the voice keyboard
         // hand back to Keyd with its own "back to keyboard" button when it's done.
         runCatching { switchInputMethod(id, subtype) }
+    }
+
+    /** Keyd's own entry in Android's list of turned-on keyboards, and the languages turned on for it there. */
+    private fun ourSubtypes(): Pair<String, List<InputMethodSubtype>>? {
+        val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        return runCatching {
+            val method = manager.enabledInputMethodList.firstOrNull {
+                it.packageName == packageName && it.serviceName == KeysService::class.java.name
+            } ?: return null
+            method.id to manager.getEnabledInputMethodSubtypeList(method, true)
+        }.getOrNull()
+    }
+
+    private fun InputMethodSubtype.language() = Language.of(languageTag.ifEmpty { @Suppress("DEPRECATION") locale })
+
+    /** Asked when the globe is held rather than kept: languages can be turned on and off while Keyd is running. */
+    override fun languages(): List<Language> = ourSubtypes()?.second.orEmpty().map { it.language() }.distinct()
+
+    override fun switchLanguage(language: Language) {
+        if (language == actions.language) return
+        val (id, subtypes) = ourSubtypes() ?: return
+        val subtype = subtypes.firstOrNull { it.language() == language } ?: return
+        DevLog.event(this, "language", "picked" to 1)
+        // The same call the voice key uses; Android then tells onCurrentInputMethodSubtypeChanged, as its picker would.
+        runCatching { switchInputMethod(id, subtype) }
+    }
+
+    override fun pickKeyboard() {
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
+    }
+
+    override fun openLanguageSettings() {
+        runCatching { startActivity(languageSettings(this)) }
+        requestHideSelf(0)
     }
 
     override fun switchKeyboard() {

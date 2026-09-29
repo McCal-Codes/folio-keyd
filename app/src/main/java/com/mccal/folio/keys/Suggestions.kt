@@ -103,7 +103,10 @@ object Suggestions {
             if (word.equals(typed, ignoreCase = true)) continue
             if (words.rank(index) == Dictionary.KNOWN_ONLY) continue
             if (!possessive && isPossessive(word)) continue
-            val cost = completionCost(words.rank(index), word.length - typed.length)
+            // Past the apostrophe, what is left is an ending - "re", "ll", "d" - and which one is meant is a question
+            // of how common each is, not of how many letters it has: "you'" is "you're" far more often than "you'd".
+            val extra = if (possessive) 0 else word.length - typed.length
+            val cost = completionCost(words.rank(index), extra)
             scored.merge(word, cost, ::min)
         }
 
@@ -342,6 +345,19 @@ object Suggestions {
                 Shift.LOCKED -> it.uppercase()
             }
         }
+    }
+
+    /**
+     * The emoji to offer at the end of the strip for [typed], or null.
+     *
+     * An exact match only, from the names Unicode gives emoji in this language: see [EmojiSearch.exact]. Not for the
+     * commonest words, the "the", "with" and "you" that emoji names and keywords are full of; an emoji offered after
+     * every one of those is noise, and nobody reaches for one there.
+     */
+    fun emoji(typed: String, words: Words?, names: EmojiSearch?): String? {
+        if (names == null || typed.length < 2) return null
+        if (words != null && (rankOf(typed.lowercase(), words) ?: Int.MAX_VALUE) <= GRAMMAR) return null
+        return names.exact(typed)
     }
 
     /**
@@ -616,6 +632,12 @@ object Suggestions {
      * Set by measuring on sentences the lists were not built from: 16 moved little, and past 40 nothing improved.
      */
     private const val CONTEXT_BONUS = 40
+
+    /**
+     * As common as this and a word is grammar, not a thing: "you", "the", "and", "with", "not", "like". Set by
+     * reading which English words emoji names and keywords share with the top of the word list.
+     */
+    private const val GRAMMAR = 16
 
     /** How much better the best candidate must be than the next one before it is worth acting on alone. */
     private const val MARGIN = 6

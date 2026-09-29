@@ -227,7 +227,9 @@ internal object DevLog {
      * true, false or an enum's name is left out, so if Settings ever holds words they still cannot reach a report.
      */
     internal fun switches(settings: Settings): List<String> =
-        settings.toString().substringAfter('(').substringBeforeLast(')')
+        // The period's symbols are typed by the person, so they are left out before anything else: a row of capital
+        // letters would pass for a choice's name, and a bracket would upset the list below.
+        settings.copy(periodSymbols = "").toString().substringAfter('(').substringBeforeLast(')')
             // A list of choices, like the toolbar's buttons, goes in as its names joined by +, or NONE when empty.
             .replace(LIST) { match -> match.groupValues[1].split(", ").filter { it.isNotEmpty() }.joinToString("+").ifEmpty { "NONE" } }
             .split(", ")

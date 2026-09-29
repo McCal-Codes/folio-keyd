@@ -17,6 +17,20 @@ object Words {
         while (cut > 0 && !before[cut - 1].isWhitespace()) cut--
         return before.length - cut
     }
+
+    /**
+     * How many chars the first character of [after] takes, as a person counts characters: an emoji with its skin
+     * tone, a flag, a family joined into one, a letter with its accent typed separately. Deleting fewer than that
+     * leaves half a character behind, which shows as a box or a different emoji.
+     */
+    fun firstCharacterLength(after: CharSequence): Int {
+        if (after.isEmpty()) return 0
+        val breaks = android.icu.text.BreakIterator.getCharacterInstance()
+        breaks.setText(after.toString())
+        val end = breaks.following(0)
+        return if (end == android.icu.text.BreakIterator.DONE || end <= 0) Character.charCount(Character.codePointAt(after, 0))
+            else end
+    }
 }
 
 /** What a key is read as by a screen reader. Two keys must never read the same, or they can't be told apart. */
@@ -31,7 +45,7 @@ object Spoken {
         }
         KeyKind.CHAR -> key.edit?.takeIf { editSwipes }?.let { "${key.label}, swipe up to ${it.verb}" } ?: key.label
         KeyKind.SPACE -> "Space, swipe to move the cursor"
-        KeyKind.GLOBE -> "Switch keyboard"
+        KeyKind.GLOBE -> "Switch keyboard, hold for languages"
         KeyKind.LAYER -> when (key.output) {
             Layer.LETTERS.name -> "Letters"
             Layer.SYMBOLS.name -> "More symbols"
@@ -50,12 +64,18 @@ object Spoken {
         KeyKind.VOICE -> "Voice typing, opens your phone's voice keyboard"
         KeyKind.CURSOR_PAD -> "Cursor pad"
         KeyKind.SUGGESTION -> key.output
+        // "Emoji pizza": what it is, then its Unicode name, since the glyph read on its own says nothing.
+        KeyKind.SUGGESTED_EMOJI -> key.label
         KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO -> key.label
+        KeyKind.TIP, KeyKind.TIP_DONE -> key.label
         KeyKind.FULL_WIDTH, KeyKind.OTHER_SIDE -> key.label
         // The count is drawn with a middle dot between its halves; read aloud, a comma is the pause it stands for.
         KeyKind.SELECTION -> key.label.replace(" · ", ", ")
         KeyKind.STYLE -> "Style, bold, italic, script or monospace"
         KeyKind.STYLE_CHOICE, KeyKind.STYLE_NOTE -> key.label
         KeyKind.ACTION -> key.label
+        KeyKind.LANGUAGE -> key.label
+        // Drawn with an ellipsis, since each opens something; read without one.
+        KeyKind.OTHER_KEYBOARDS, KeyKind.LANGUAGE_SETTINGS -> key.label.removeSuffix("…")
     }
 }

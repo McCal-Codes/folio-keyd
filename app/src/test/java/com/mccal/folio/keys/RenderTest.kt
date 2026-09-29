@@ -150,6 +150,22 @@ class RenderTest {
     }
 
     @Test
+    fun `a gesture tip in the strip, as a phone would draw it`() {
+        render("tip-phone-dark", 411, 891, night = true) {
+            letters(it)
+            it.tip = Tip.CURSOR_SWIPE
+        }
+        render("tip-phone-light", 411, 891, night = false) {
+            letters(it)
+            it.tip = Tip.DELETE_WORD
+        }
+        for (tip in Tip.entries) render("tip-narrow-${tip.id}-dark", 360, 780, night = true) {
+            letters(it)
+            it.tip = tip
+        }
+    }
+
+    @Test
     fun `the keyboard, as a phone would draw it`() {
         render("phone-dark", 411, 891, night = true) { letters(it) }
         render("phone-light", 411, 891, night = false) { letters(it) }

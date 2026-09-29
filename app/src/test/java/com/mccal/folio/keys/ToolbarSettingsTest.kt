@@ -77,6 +77,26 @@ class ToolbarSettingsTest {
     }
 
     @Test
+    fun `keys and gestures ends with the tips, whose switch saves and whose reset brings them back`() {
+        val a = open()
+        val prefs = a.getSharedPreferences("keys", Context.MODE_PRIVATE)
+        Tips().finish(Tip.CURSOR_SWIPE).shownOn(Tip.DELETE_WORD, 5).save(prefs)
+        a.tap("Keys and gestures")
+        assertNotNull(a.text("TIPS"))
+        assertNotNull(a.text("Once each, in the suggestion strip"))
+        a.tap("Show gesture tips")
+        assertFalse(a.stored().gestureTips)
+        a.tap("Show gesture tips")
+        assertTrue(a.stored().gestureTips)
+        a.tap("Show them all again")
+        assertEquals("Tips will show again", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
+        val tips = Tips.load(prefs)
+        assertTrue(tips.finished().isEmpty())
+        assertEquals(0, tips.times(Tip.DELETE_WORD))
+        assertEquals(-1L, tips.day)
+    }
+
+    @Test
     fun `the toolbar page lists the buttons in order, Hide first, and the rest below`() {
         val a = openToolbar()
         assertNotNull(a.text("ON THE TOOLBAR"))
@@ -101,6 +121,8 @@ class ToolbarSettingsTest {
             listOf(ToolKey.EMOJI, ToolKey.UNDO, ToolKey.COPY, ToolKey.CURSOR_PAD, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE),
             a.stored().toolbar,
         )
+        // Arranged by hand, so no later fix-up may take it for a default.
+        assertTrue(a.getSharedPreferences("keys", Context.MODE_PRIVATE).getBoolean(Settings.TOOLBAR_ARRANGED, false))
         a.named("Move Emoji down").performClick()
         assertEquals(ToolKey.UNDO, a.stored().toolbar.first())
         assertFalse(a.named("Move Undo up").isEnabled)

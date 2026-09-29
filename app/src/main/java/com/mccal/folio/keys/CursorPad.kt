@@ -82,6 +82,9 @@ internal class CursorPad(context: Context) : View(context) {
     /** Keyd's own Vibration choice. Off means off here too, not only on the letters. */
     var vibration: Vibration = Vibration.MEDIUM
 
+    /** How fast a held key repeats, from Backspace speed, the same as on the letters. */
+    var repeatMs: Long = REPEAT_MS
+
     /** A black board when dark, as on the letters. */
     var pureBlack: Boolean = false
         set(value) {
@@ -122,7 +125,7 @@ internal class CursorPad(context: Context) : View(context) {
             val key = KEYS.getOrNull(pressed) ?: return
             repeated = true
             fire(key)
-            repeat.postDelayed(this, REPEAT_MS)
+            repeat.postDelayed(this, repeatMs)
         }
     }
 

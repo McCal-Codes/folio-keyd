@@ -20,7 +20,10 @@ import android.view.View
 @android.annotation.SuppressLint("ViewConstructor")
 internal class SettingsIcon(context: Context, private val glyph: Glyph, private val tile: Int) : View(context) {
 
-    enum class Glyph { LANGUAGES, SHORTCUTS, TYPING, KEYS, LOOK, SOUND, CLIPBOARD, PRIVACY, WARNING }
+    enum class Glyph {
+        LANGUAGES, SHORTCUTS, TYPING, KEYS, LOOK, SOUND, CLIPBOARD, PRIVACY, WARNING,
+        UNDO, EMOJI, TIP, SEARCH, BACKSPACE, SELECT, MOVE, SYMBOLS, TIMER,
+    }
 
     private val density = context.resources.displayMetrics.density
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.FILL }
@@ -29,6 +32,8 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
         strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
     }
     private val back = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tile }
+    /** The tile's own color as a line, for what a glyph cuts out of itself, like the cross in backspace. */
+    private val punch by lazy { Paint(stroke).apply { color = tile } }
     private val box = RectF()
     private val path = Path()
 
@@ -93,6 +98,27 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
                 canvas.drawPath(path, stroke)
                 canvas.drawLine(cx, cy - g * .12f, cx, cy + g * .1f, stroke)
                 canvas.drawCircle(cx, cy + g * .24f, stroke.strokeWidth * .7f, fill)
+            }
+            Glyph.UNDO -> Icons.undo(canvas, cx, cy, g, stroke)
+            Glyph.EMOJI -> Icons.smiley(canvas, cx, cy, g, stroke, fill)
+            Glyph.TIP -> Icons.bulb(canvas, cx, cy, g, stroke)
+            Glyph.SEARCH -> Icons.magnifier(canvas, cx, cy, g, stroke)
+            Glyph.BACKSPACE -> Icons.backspace(canvas, cx, cy, g, fill, punch)
+            Glyph.SELECT -> Icons.selectAll(canvas, cx, cy, g, stroke, fill)
+            Glyph.MOVE -> Icons.move(canvas, cx, cy, g, stroke)
+            Glyph.SYMBOLS -> {
+                // The punctuation holding the period offers, as it is written.
+                fill.textSize = g * .82f
+                fill.textAlign = Paint.Align.CENTER
+                fill.isFakeBoldText = true
+                canvas.drawText("?!", cx, cy - (fill.descent() + fill.ascent()) / 2, fill)
+            }
+            Glyph.TIMER -> {
+                // A clock face: how long a hold takes.
+                val r = g * .42f
+                canvas.drawCircle(cx, cy, r, stroke)
+                canvas.drawLine(cx, cy, cx, cy - r * .62f, stroke)
+                canvas.drawLine(cx, cy, cx + r * .45f, cy + r * .2f, stroke)
             }
             Glyph.PRIVACY -> {
                 // A padlock.

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keys for Keyd 0.3.1: the globe's language list, shift and backspace, two fingers to undo, the period's symbols,
+     and how long a hold and a held backspace take. -->
+<resources>
+    <!-- The list holding the globe opens -->
+    <string name="globe_other_keyboards">Other keyboards…</string>
+    <string name="globe_language_settings">Language settings…</string>
+
+    <!-- What two fingers just did, over the toolbar -->
+    <string name="pill_undo">Undo Typing</string>
+    <string name="pill_redo">Redo Typing</string>
+
+    <!-- Languages -->
+    <string name="languages_note">Hold the globe to pick one of these. Tapping it still goes to your next keyboard.</string>
+    <string name="header_turned_on">TURNED ON</string>
+    <string name="header_also_in_keyd">ALSO IN KEYD</string>
+    <string name="value_typing_now">Typing now</string>
+    <string name="languages_turn_on">Turn languages on or off…</string>
+    <string name="languages_turn_on_note">Opens Android’s settings for Keyd, where languages are turned on.</string>
+
+    <!-- Keys and gestures -->
+    <string name="row_period">Hold the period for</string>
+    <string name="header_hold_delay">HOLD DELAY</string>
+    <string name="hold_follow_phone">Follow phone</string>
+    <string name="hold_shorter">Shorter</string>
+    <string name="hold_longer">Longer</string>
+    <string name="footer_hold_delay">How long you hold a key before accents, symbols or the language list open. Follow phone uses Android’s own Touch and hold delay.</string>
+    <string name="header_backspace_speed">BACKSPACE SPEED</string>
+    <string name="speed_slower">Slower</string>
+    <string name="speed_normal">Normal</string>
+    <string name="speed_faster">Faster</string>
+    <string name="footer_backspace_speed">How fast a held backspace keeps deleting.</string>
+    <string name="settings_two_finger">Two fingers to undo</string>
+    <string name="settings_two_finger_note">Swipe left to undo, right to redo</string>
+    <string name="footer_shift_backspace">Holding shift while you press backspace deletes the letter after the cursor instead.</string>
+
+    <!-- Keys and gestures › Period symbols -->
+    <string name="page_period">Period symbols</string>
+    <string name="period_field">Symbols</string>
+    <string name="period_note">Up to 8, in the order you type them here. Leave it empty and holding the period does nothing.</string>
+    <string name="period_reset">Back to the usual symbols</string>
+    <string name="period_preview">Holding the period shows %1$s</string>
+    <string name="period_preview_none">Holding the period shows nothing</string>
+</resources>

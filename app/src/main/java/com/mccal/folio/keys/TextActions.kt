@@ -75,6 +75,9 @@ interface Ime {
     /** Swap the letters for the emoji grid, or back again. */
     fun showEmoji(showing: Boolean)
 
+    /** An emoji typed from outside the grid, put at the front of its recents as a tap there would be. */
+    fun rememberEmoji(emoji: String) {}
+
     /** Swap the letters for what has been copied lately, or back. */
     fun showClipboard(showing: Boolean)
 
@@ -107,6 +110,23 @@ interface Ime {
 
     /** How much is selected now, for the toolbar, or null when nothing is or the toolbar should not say. */
     fun selected(selection: Selected?) {}
+
+    /** The strip's tip was answered with Got it. */
+    fun tipDone(tip: Tip) {}
+
+    /** A gesture with a tip was used: its tip is not needed any more. */
+    fun gestureUsed(tip: Tip) {}
+    /** Keyd's languages that are turned on in Android, in Android's order. Empty if Android will not say. */
+    fun languages(): List<Language> = emptyList()
+
+    /** Switch to one of those, the way Android's own picker would. */
+    fun switchLanguage(language: Language) {}
+
+    /** Android's list of every keyboard on the phone. */
+    fun pickKeyboard() {}
+
+    /** Keyd's own Languages page in Settings. */
+    fun openLanguageSettings() {}
 }
 
 /**
@@ -122,11 +142,31 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     var shift = Shift.OFF
         private set
 
+    /**
+     * Whether shift is on for one letter because the person tapped it, rather than because a sentence is starting.
+     * Only then does backspace delete forward: after a full stop shift comes on by itself, and a backspace there is
+     * someone taking back the space they just typed.
+     */
+    private var shiftByHand = false
+
+    /**
+     * This backspace press deletes the character after the cursor, decided when it went down and kept for every
+     * repeat of the hold, since the shift that decided it is used up by the first delete.
+     */
+    private var forward = false
+
     /** What the person has chosen. Re-read whenever a field opens, so a change takes effect without a restart. */
     var settings = Settings()
 
     /** Which language the keyboard is in. Android decides, through the subtype the person picked. */
     var language = Language.ENGLISH
+
+    /**
+     * Characters typed from the keys since this field opened: a count, nothing more. A gesture tip waits for some, so
+     * it never greets someone the moment the keyboard appears.
+     */
+    var typedHere = 0
+        private set
 
     /** Whether the last thing typed was the space that ended a word, for the double-space full stop. */
     private var lastWasSpace = false
@@ -298,9 +338,12 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     /** A new field: read what it asks for, start on the right layer, and capitalise if it wants that. */
     fun startInput(info: EditorInfo?) {
         rules = Layouts.rulesFor(info)
+        typedHere = 0
         layer = if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) Layer.NUMBERS else Layer.LETTERS
         val capitals = autoCaps(info)
         shift = if (settings.autoCapitalise && capitals) Shift.ONCE else Shift.OFF
+        shiftByHand = false
+        forward = false
         // The field says whether the cursor is at the start of a sentence; that is all that is known about before it.
         previous = if (capitals) SENTENCE_START else ""
         wordStart = capitals
@@ -359,6 +402,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onText(text: String) {
         undo = null
+        typedHere += text.length
         if (doubleSpace(text)) return
         // The key already carries the right case: the layout builds an upper-case key when shift is on.
         ime.connection?.commitText(text, 1) ?: return
@@ -388,6 +432,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         wordChanged()
         if (shift == Shift.ONCE) {
             shift = Shift.OFF
+            shiftByHand = false
             refresh()
         }
         // A space or a period may have started a sentence: ask the app again, the way it was asked when the field
@@ -407,6 +452,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val wanted = if (autoCaps(ime.editorInfo)) Shift.ONCE else Shift.OFF
         if (wanted != shift) {
             shift = wanted
+            shiftByHand = false
             refresh()
         }
     }
@@ -443,8 +489,28 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.endBatchEdit()
     }
 
+    /**
+     * Shift held down under another finger, then backspace: this press deletes forward. Only while it is held: a
+     * shift tapped for the next word's capital, then a backspace to fix a typo, is the commonest correction there
+     * is, and it has to go backwards.
+     */
+    override fun onBackspaceStart(shiftHeld: Boolean) {
+        forward = shiftHeld
+    }
+
     override fun onBackspace() {
         val connection = ime.connection ?: return
+        val ahead = forward
+        forward = false
+        if (ahead) {
+            // A selection goes whole whichever way the key deletes, which is what the ordinary delete below does.
+            val selected = connection.getSelectedText(0)
+            if (selected.isNullOrEmpty()) {
+                deleteAhead(connection)
+                return
+            }
+            shiftUsed()
+        }
         // Backspace straight after a correction puts back what was actually typed. This is the whole reason a
         // correction is allowed to happen on its own: it is never more than one key away from being undone.
         undo?.let { (typed, replaced) ->
@@ -481,9 +547,31 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         recapitalize()
     }
 
+    /**
+     * The character after the cursor, whole: an emoji with its skin tone or a flag goes in one press, as it does
+     * going backwards. Nothing at the end of the text. What is before the cursor is untouched, so the word being
+     * typed and a correction waiting to be put back both still stand.
+     */
+    private fun deleteAhead(connection: InputConnection) {
+        val after = connection.getTextAfterCursor(AHEAD, 0)
+        if (!after.isNullOrEmpty()) connection.deleteSurroundingText(0, Words.firstCharacterLength(after))
+        lastWasSpace = false
+        shiftUsed()
+    }
+
+    /** Shift has done its one thing, the way a letter uses it up. */
+    private fun shiftUsed() {
+        if (shift != Shift.ONCE) return
+        shift = Shift.OFF
+        shiftByHand = false
+        refresh()
+    }
+
     /** Holding the key down: whatever was selected went with the first delete, so don't ask again. */
     override fun onBackspaceRepeat() {
-        ime.connection?.deleteSurroundingText(1, 0) ?: return
+        val connection = ime.connection ?: return
+        if (forward) return deleteAhead(connection)
+        connection.deleteSurroundingText(1, 0)
         if (word.isNotEmpty()) word.setLength(word.length - 1) else previous = ""
         underlined = null
         wordStart = false
@@ -507,6 +595,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             Shift.ONCE -> Shift.LOCKED
             Shift.LOCKED -> Shift.OFF
         }
+        shiftByHand = shift == Shift.ONCE
         refresh()
     }
 
@@ -540,9 +629,25 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onHide() = ime.hideKeyboard()
 
-    override fun onEmojiPanel() = ime.showEmoji(true)
+    // The other panels have backspaces of their own, which always delete backwards: shift is not on screen there.
+    override fun onEmojiPanel() {
+        forward = false
+        ime.showEmoji(true)
+    }
+
+    override fun languageChoices(): List<Language> = ime.languages()
+
+    override fun onLanguage(language: Language) = ime.switchLanguage(language)
+
+    override fun onOtherKeyboards() = ime.pickKeyboard()
+
+    override fun onLanguageSettings() = ime.openLanguageSettings()
 
     override fun onOffer(offer: Insights.Offer, accepted: Boolean) = ime.answered(offer, accepted)
+
+    override fun onTipDone(tip: Tip) = ime.tipDone(tip)
+
+    override fun onGesture(tip: Tip) = ime.gestureUsed(tip)
 
     /**
      * A suggestion, taken.
@@ -579,6 +684,28 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     /**
+     * The emoji at the end of the strip, taken: the word stays exactly as typed, and the emoji goes in after it with a
+     * space either side, "pizza 🍕 ", ready for the next word. The emoji follows the word rather than replacing it,
+     * as Gboard's and iOS's do, because the word was the point and the emoji is a flourish on it.
+     *
+     * Nothing is learned from it and nothing is corrected: the word was not finished by a space, so the pending fix,
+     * if there was one, is simply not made. It goes in the emoji recents, the same as a tap on the grid.
+     */
+    override fun onSuggestedEmoji(emoji: String) {
+        undo = null
+        val connection = ime.connection ?: return
+        if (word.isEmpty()) return
+        connection.commitText(" $emoji ", 1)
+        ime.rememberEmoji(emoji)
+        // The emoji is not a word to predict from, and a space after it is not the second of a double space.
+        previous = ""
+        lastWasSpace = false
+        wordStart = true
+        word.setLength(0)
+        wordChanged()
+    }
+
+    /**
      * A word the strip predicted, taken after a space: it goes in with a space after it, as a typed word would.
      *
      * The same as typing its first letter as far as everything else is concerned - a correction before it has
@@ -599,6 +726,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         wordStart = true
         if (shift == Shift.ONCE) {
             shift = Shift.OFF
+            shiftByHand = false
             refresh()
         }
         wordChanged()
@@ -613,7 +741,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     // The editing a field always supports, through Android's own menu actions rather than by reading the text.
     override fun onSelectAll() = menu(android.R.id.selectAll)
 
-    override fun onClipboardPanel() = ime.showClipboard(true)
+    override fun onClipboardPanel() {
+        forward = false
+        ime.showClipboard(true)
+    }
 
     override fun onCopy() {
         menu(android.R.id.copy)
@@ -669,7 +800,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onVoice() = ime.startVoice()
 
-    override fun onCursorPad() = ime.showCursorPad(true)
+    override fun onCursorPad() {
+        forward = false
+        ime.showCursorPad(true)
+    }
 
     override fun onOneHanded(side: OneHanded) = ime.oneHanded(side)
 
@@ -718,5 +852,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
         /** Enough for the editor's menu to be useful without becoming a list to read. */
         const val MAX_SUGGESTIONS_IN_SPAN = 3
+
+        /** How far past the cursor to read for the next character: longer than any emoji sequence in use. */
+        const val AHEAD = 32
     }
 }

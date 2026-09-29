@@ -15,7 +15,6 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -70,6 +69,9 @@ class KeyboardView(context: Context) : View(context) {
 
         /** A word from the strip, tapped. */
         fun onSuggestion(word: String)
+
+        /** The emoji at the end of the strip, tapped: it goes in after the word. */
+        fun onSuggestedEmoji(emoji: String) {}
         fun onHide()
 
         /** Hand over to the phone's voice keyboard. */
@@ -80,6 +82,15 @@ class KeyboardView(context: Context) : View(context) {
 
         /** The strip's question, answered: Keep or Always when [accepted], No when not. */
         fun onOffer(offer: Insights.Offer, accepted: Boolean) {}
+
+        /** The strip's tip was answered with Got it. */
+        fun onTipDone(tip: Tip) {}
+
+        /**
+         * A gesture with a tip was used, so there is no need to teach it. Called once per swipe, when it begins,
+         * never per step. Gestures added later call this with their own [Tip].
+         */
+        fun onGesture(tip: Tip) {}
 
         /** The one-handed rail was used: back to the full width, or over to the other edge. Already on screen. */
         fun onOneHanded(side: OneHanded) {}
@@ -94,6 +105,25 @@ class KeyboardView(context: Context) : View(context) {
 
         /** A choice from the Style menu, for the selected text. */
         fun onStyle(style: TextStyle) {}
+
+        /**
+         * Backspace went down. The moment to decide which way this press deletes: with shift held down by another
+         * finger ([shiftHeld]), it takes the character after the cursor, for the tap and for every repeat of the hold
+         * that may follow.
+         */
+        fun onBackspaceStart(shiftHeld: Boolean) {}
+
+        /** Keyd's languages that are turned on in Android, in Android's order, for the list the globe opens. */
+        fun languageChoices(): List<Language> = emptyList()
+
+        /** A language picked from the globe's list. */
+        fun onLanguage(language: Language) {}
+
+        /** Other keyboards, from the globe's list: Android's own picker. */
+        fun onOtherKeyboards() {}
+
+        /** Language settings, from the globe's list: Keyd's own page for them. */
+        fun onLanguageSettings() {}
     }
 
     var listener: Listener? = null
@@ -105,6 +135,19 @@ class KeyboardView(context: Context) : View(context) {
      * either way, so nothing on the screen moves as you start and finish a word.
      */
     var suggestions: List<String> = emptyList()
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
+    /**
+     * The emoji the word being typed is the name of, and that name: the strip's last place before the mic. Null when
+     * the word has none, and whenever [suggestions] is empty, since it only ever sits beside them.
+     */
+    var suggestedEmoji: SuggestedEmoji? = null
         set(value) {
             if (field == value) return
             field = value
@@ -140,6 +183,19 @@ class KeyboardView(context: Context) : View(context) {
         }
 
     /**
+     * A gesture tip for the strip, handed over by the service at a gap between words. It sits where the question does,
+     * behind the question and behind any words, and goes on the next key typed the same way.
+     */
+    var tip: Tip? = null
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
+    /**
      * How much of the field is selected, when anything is. The toolbar then counts it and offers Style, Cut, Copy and
      * Paste, since those are what a selection is for; it goes back to the usual buttons when the selection does.
      */
@@ -156,10 +212,15 @@ class KeyboardView(context: Context) : View(context) {
     /** Whether the question is on screen now, rather than waiting behind the word being typed. */
     internal val offerShowing: Boolean get() = tools.firstOrNull()?.key?.kind == KeyKind.OFFER
 
+    /** Whether the tip is on screen now. */
+    internal val tipShowing: Boolean get() = tools.firstOrNull()?.key?.kind == KeyKind.TIP
+
     /** What the person has chosen: which of the keyboard's habits are switched on. */
     var settings: Settings = Settings()
         set(value) {
             field = value
+            // Split once here rather than on every press of the period.
+            periodItems = Settings.symbolList(value.periodSymbols)
             theme = Theme.of(context, value.appearance, value.highContrast, value.keyStyle, value.pureBlack)
             // The toolbar's keys depend on two of these switches, so it is placed again now rather than waiting on a
             // layout pass that only comes if the size changed.
@@ -273,9 +334,16 @@ class KeyboardView(context: Context) : View(context) {
      * [choice] follows the finger, so sliding along the row picks one and letting go takes it. Letting go without
      * having moved takes the first, which is what the keycap promised in its corner.
      */
-    private class Popup(val items: List<String>, val boxes: List<Box>, var choice: Int)
+    private class Popup(val items: List<String>, val boxes: List<Box>, var choice: Int) {
+        /** The same row as keys, so a screen reader can find each one and type it. */
+        val placements: List<Placement> = items.mapIndexed { index, item -> Placement(Key(item), boxes[index]) }
+    }
 
     private var popup: Popup? = null
+        set(value) {
+            field = value
+            keyNodes.invalidateRoot()
+        }
 
     private class Press(val origin: Placement, val downX: Float, val downY: Float) {
         var placement: Placement = origin
@@ -293,6 +361,13 @@ class KeyboardView(context: Context) : View(context) {
 
         /** Pending hold, cancelled the moment the finger lifts or moves on. */
         var hold: Runnable? = null
+
+        /** Where the finger is now, for the two-finger swipe, which has to know where the other finger is too. */
+        var x = downX
+        var y = downY
+
+        /** The press was one of two fingers that swiped to undo or redo. It types nothing, whatever it was on. */
+        var twoFinger = false
     }
 
     private val repeat = Handler(Looper.getMainLooper())
@@ -303,9 +378,12 @@ class KeyboardView(context: Context) : View(context) {
             press.handled = true
             putOfferAway()
             listener?.onBackspaceRepeat()
-            repeat.postDelayed(this, REPEAT_MS)
+            repeat.postDelayed(this, settings.backspaceSpeed.millis)
         }
     }
+
+    /** What holding the period offers, from [Settings.periodSymbols]. */
+    private var periodItems: List<String> = Settings.symbolList(Settings.DEFAULT_PERIOD_SYMBOLS)
 
     private val keyNodes = KeyNodes()
     /**
@@ -324,6 +402,9 @@ class KeyboardView(context: Context) : View(context) {
     fun forgetTouches() {
         closePopup()
         closeStyleMenu()
+        closeLanguageMenu()
+        pill = null
+        repeat.removeCallbacks(pillFade)
         for (press in presses.values) cancelHold(press)
         presses.clear()
         stopRepeat()
@@ -341,6 +422,8 @@ class KeyboardView(context: Context) : View(context) {
         stopRepeat()   // a keyboard hidden mid-hold must not keep deleting
         closePopup()
         closeStyleMenu()
+        closeLanguageMenu()
+        repeat.removeCallbacks(pillFade)
         for (press in presses.values) cancelHold(press)
         presses.clear()
     }
@@ -568,6 +651,7 @@ class KeyboardView(context: Context) : View(context) {
         if (selected != null && settings.selectionTools && !rules.password) return placeSelection(selected)
         if (suggestions.isNotEmpty() && !rules.password) return placeSuggestions()
         if (offer != null && !rules.password) return placeOffer()
+        if (tip != null && !rules.password) return placeTip()
         val left = keysLeft
         val right = keysRight
         val top = panelPad
@@ -659,16 +743,29 @@ class KeyboardView(context: Context) : View(context) {
         val bottom = top + toolbarHeight
         // The mic keeps the last slot while a word is being typed, where Gboard, Samsung and SwiftKey all keep it:
         // voice is most wanted exactly when typing has started to feel slow.
-        val mic = if (showVoice) min((right - left) / (suggestions.size + 1), TOOL_SLOT_DP * dp) else 0f
-        val words = right - mic
+        // The emoji, when there is one, takes a place the size of the mic's just before it. On a cover screen or half
+        // a split keyboard it is the words that give up the room, never the mic or the emoji.
+        val emoji = suggestedEmoji
+        val icons = (if (showVoice) 1 else 0) + (if (emoji != null) 1 else 0)
+        val icon = if (icons > 0) min((right - left) / (suggestions.size + icons), TOOL_SLOT_DP * dp) else 0f
+        val mic = if (showVoice) icon else 0f
+        val emojiWidth = if (emoji != null) icon else 0f
+        val words = right - mic - emojiWidth
         val slot = (words - left) / suggestions.size
-        val placed = suggestions.mapIndexedTo(ArrayList(suggestions.size + 1)) { index, word ->
+        val placed = suggestions.mapIndexedTo(ArrayList(suggestions.size + 2)) { index, word ->
             Placement(
                 Key(word, KeyKind.SUGGESTION, output = word),
                 Box(left + index * slot, top, left + (index + 1) * slot, bottom),
             )
         }
-        if (mic > 0f) placed += Placement(Key("Voice", KeyKind.VOICE), Box(words, top, right, bottom))
+        if (emoji != null) {
+            val label = context.getString(R.string.suggested_emoji, emoji.name)
+            placed += Placement(
+                Key(label, KeyKind.SUGGESTED_EMOJI, output = emoji.glyph),
+                Box(words, top, words + emojiWidth, bottom),
+            )
+        }
+        if (mic > 0f) placed += Placement(Key("Voice", KeyKind.VOICE), Box(right - mic, top, right, bottom))
         return placed
     }
 
@@ -710,9 +807,32 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun offerTextSize() = min(toolbarHeight * 0.38f, 15 * dp)
 
+    /**
+     * The bulb, the tip, and Got it at the end of the row where the question's answers go, with the same reach.
+     *
+     * The tip is one sentence and not cut short if it can help it: on a narrow window it is drawn smaller, down to
+     * [MIN_COUNT_DP], before it is ever ellipsized. A screen reader gets all of it either way.
+     */
+    private fun placeTip(): List<Placement> {
+        val shown = tip ?: return emptyList()
+        val left = keysLeft
+        val right = keysRight
+        val narrow = (boardRight - boardLeft) / dp < NARROW_OFFER_DP
+        val said = context.getString(if (narrow) shown.short else shown.text)
+        val done = context.getString(R.string.tip_got_it)
+        text.textSize = offerTextSize()
+        sizedAt = -1f
+        val doneLeft = right - max(OFFER_BUTTON_DP * dp, text.measureText(done) + 2 * OFFER_BUTTON_PAD_DP * dp)
+        return listOf(
+            Placement(Key(said, KeyKind.TIP), Box(left, panelPad, doneLeft - OFFER_GAP_DP * dp, panelPad + toolbarHeight)),
+            Placement(Key(done, KeyKind.TIP_DONE), Box(doneLeft, 0f, right, panelPad + toolbarHeight)),
+        )
+    }
+
     /** The next key typed answers nothing, and the question goes. Only once it has been seen: one waiting stays. */
     private fun putOfferAway() {
         if (offerShowing) offer = null
+        if (tipShowing) tip = null
     }
 
     /** Text from a key, a flick or a held key's row: the one place it leaves, so the question can go first. */
@@ -742,8 +862,28 @@ class KeyboardView(context: Context) : View(context) {
                 canvas.drawText(label, box.left, baseline, text)
                 text.textAlign = Paint.Align.CENTER
             }
-            KeyKind.OFFER_YES, KeyKind.OFFER_NO -> {
-                val yes = placement.key.kind == KeyKind.OFFER_YES
+            KeyKind.TIP -> {
+                val glyph = min(toolbarHeight * 0.5f, 20 * dp)
+                stroke.color = theme.label
+                stroke.strokeWidth = max(1.5f * dp, glyph * 0.08f)
+                Icons.bulb(canvas, box.left + glyph / 2 + 2 * dp, cy, glyph, stroke)
+                val start = box.left + glyph + 8 * dp
+                val room = box.right - start
+                var label = placement.key.label
+                val wide = text.measureText(label)
+                if (wide > room) text.textSize = max(MIN_COUNT_DP * dp, text.textSize * room / wide)
+                if (text.measureText(label) > room) {
+                    val fits = text.breakText(label, true, room - text.measureText("…"), null)
+                    label = label.take(fits).trimEnd() + "…"
+                }
+                val line = cy - (text.descent() + text.ascent()) / 2
+                text.color = theme.label
+                text.textAlign = Paint.Align.LEFT
+                canvas.drawText(label, start, line, text)
+                text.textAlign = Paint.Align.CENTER
+            }
+            KeyKind.OFFER_YES, KeyKind.OFFER_NO, KeyKind.TIP_DONE -> {
+                val yes = placement.key.kind != KeyKind.OFFER_NO
                 val pill = OFFER_PILL_DP * dp
                 scratch.set(box.left, cy - pill / 2, box.right, cy + pill / 2)
                 fill.color = if (yes) theme.accent else theme.altKey
@@ -783,8 +923,10 @@ class KeyboardView(context: Context) : View(context) {
             drawKeyFace(canvas, placement, held)
         }
         drawStyleMenu(canvas)
+        drawLanguageMenu(canvas)
         drawPreview(canvas)
         drawPopup(canvas)
+        drawPill(canvas)
     }
 
     /** The row of alternates, drawn last so it sits over everything. */
@@ -925,6 +1067,11 @@ class KeyboardView(context: Context) : View(context) {
                 val literal = typedFirst && placement === tools.first()
                 text.textSize = min(box.height * 0.40f, 17 * dp)
                 sizedAt = -1f
+                // A narrow strip - a cover screen, half a split keyboard, an emoji beside the mic - is where a long
+                // word would run into its neighbour, so it is set smaller to fit its share instead.
+                val room = box.width - 2 * OFFER_GAP_DP * dp
+                val wide = text.measureText(placement.key.label)
+                if (wide > room && room > 0f) text.textSize = max(MIN_COUNT_DP * dp, text.textSize * room / wide)
                 text.color = if (literal) theme.hint else theme.label
                 canvas.drawText(
                     placement.key.label, cx, cy - (text.descent() + text.ascent()) / 2, text,
@@ -933,6 +1080,16 @@ class KeyboardView(context: Context) : View(context) {
                     fill.color = theme.hint
                     canvas.drawRect(box.left, cy - size * 0.5f, box.left + max(1f, dp * 0.5f), cy + size * 0.5f, fill)
                 }
+                continue
+            }
+            if (placement.key.kind == KeyKind.SUGGESTED_EMOJI) {
+                // After a line like the ones between the words, and in the emoji's own colors.
+                text.textSize = min(box.height * 0.46f, 20 * dp)
+                sizedAt = -1f
+                text.color = theme.label
+                canvas.drawText(placement.key.output, cx, cy - (text.descent() + text.ascent()) / 2, text)
+                fill.color = theme.hint
+                canvas.drawRect(box.left, cy - size * 0.5f, box.left + max(1f, dp * 0.5f), cy + size * 0.5f, fill)
                 continue
             }
             Icons.tool(canvas, placement.key.kind, cx, cy, size, stroke, fill)
@@ -973,7 +1130,7 @@ class KeyboardView(context: Context) : View(context) {
      */
     private fun previewLabel(press: Press): String? {
         val key = press.placement.key
-        if (key.kind != KeyKind.CHAR) return null
+        if (key.kind != KeyKind.CHAR || press.twoFinger) return null
         press.edit?.let { return it.label }
         if (rules.password || !settings.keyPreview || press.editing) return null
         return key.label
@@ -1088,6 +1245,172 @@ class KeyboardView(context: Context) : View(context) {
         canvas.restore()
     }
 
+    // ---- the globe's language list ------------------------------------------------------------------------------
+
+    /**
+     * The languages, then the two ways out, in a column above the globe.
+     *
+     * Held open, [opener] is the finger that held the globe: sliding it up over the list picks with [choice], and
+     * letting go on one takes it, the way the accents work. Let go anywhere else and the list stays open for a tap.
+     * [divider] is where the line between the languages and the two ways out is drawn.
+     */
+    private class LanguageMenu(val panel: Box, val items: List<Placement>, val divider: Float) {
+        var opener: Press? = null
+        var choice = -1
+    }
+
+    private var languageMenu: LanguageMenu? = null
+
+    /** What the list is showing: the languages, then Other keyboards and Language settings. Empty when it is closed. */
+    internal val languageMenuItems: List<Placement> get() = languageMenu?.items.orEmpty()
+
+    private fun openLanguageMenu(globe: Placement, opener: Press?) {
+        closePopup()
+        closeStyleMenu()
+        val languages = listener?.languageChoices().orEmpty().ifEmpty { listOf(language) }
+        val keys = languages.map { Key(it.ownName, KeyKind.LANGUAGE, output = it.name) } + listOf(
+            Key(context.getString(R.string.globe_other_keyboards), KeyKind.OTHER_KEYBOARDS),
+            Key(context.getString(R.string.globe_language_settings), KeyKind.LANGUAGE_SETTINGS),
+        )
+        text.textSize = MENU_TEXT_DP * dp
+        sizedAt = -1f
+        val pad = MENU_INSET_DP * dp
+        val gap = MENU_DIVIDER_DP * dp
+        val widest = keys.maxOf { text.measureText(it.label) }
+        val across = min(keysRight - keysLeft, max(MENU_MIN_WIDTH_DP * dp, widest + 2 * MENU_TEXT_PAD_DP * dp + MENU_CHECK_DP * dp))
+        val left = globe.box.left.coerceIn(keysLeft, max(keysLeft, keysRight - across))
+        val bottom = globe.box.top - POPUP_LIFT_DP * dp
+        // As tall as a fingertip where there is room, and shorter rather than off the top where there is not.
+        // Never shorter than its own text, though: past that the list climbs over the toolbar rather than overlap.
+        val row = max(MENU_MIN_ITEM_DP * dp, min(MENU_ITEM_DP * dp, (bottom - panelPad - 2 * pad - gap) / keys.size))
+        val top = bottom - 2 * pad - gap - row * keys.size
+        var y = top + pad
+        val items = keys.mapIndexed { index, key ->
+            if (index == languages.size) y += gap
+            Placement(key, Box(left + pad, y, left + across - pad, y + row)).also { y += row }
+        }
+        val divider = top + pad + languages.size * row + gap / 2
+        languageMenu = LanguageMenu(Box(left, top, left + across, bottom), items, divider).also { it.opener = opener }
+        keyNodes.invalidateRoot()
+        invalidate()
+    }
+
+    private fun closeLanguageMenu() {
+        if (languageMenu == null) return
+        languageMenu = null
+        keyNodes.invalidateRoot()
+        invalidate()
+    }
+
+    private fun drawLanguageMenu(canvas: Canvas) {
+        val menu = languageMenu ?: return
+        val radius = theme.keyRadiusDp * dp
+        val panel = menu.panel
+        scratch.set(panel.left, panel.top, panel.right, panel.bottom)
+        fill.color = theme.preview
+        canvas.drawRoundRect(scratch, radius, radius, fill)
+        fill.color = theme.hint
+        canvas.drawRect(panel.left + MENU_TEXT_PAD_DP * dp, menu.divider, panel.right - MENU_TEXT_PAD_DP * dp,
+            menu.divider + max(1f, dp * 0.5f), fill)
+        text.textSize = MENU_TEXT_DP * dp
+        sizedAt = -1f
+        text.textAlign = Paint.Align.LEFT
+        for ((index, item) in menu.items.withIndex()) {
+            val box = item.box
+            val lit = index == menu.choice || isHeld(item)
+            if (lit) {
+                scratch.set(box.left, box.top, box.right, box.bottom)
+                fill.color = theme.accent
+                canvas.drawRoundRect(scratch, radius * 0.7f, radius * 0.7f, fill)
+            }
+            val ink = if (lit) theme.onAccent else theme.label
+            text.color = ink
+            val cy = (box.top + box.bottom) / 2
+            canvas.drawText(item.key.label, box.left + MENU_TEXT_PAD_DP * dp - MENU_INSET_DP * dp, cy - (text.descent() + text.ascent()) / 2, text)
+            if (item.key.kind == KeyKind.LANGUAGE && item.key.output == language.name) {
+                // A tick, drawn rather than typed, so it looks the same whatever font the phone has.
+                val size = MENU_CHECK_DP * dp * 0.45f
+                val cx = box.right - MENU_CHECK_DP * dp / 2
+                stroke.color = ink
+                stroke.strokeWidth = max(1.5f * dp, size * 0.14f)
+                canvas.drawLine(cx - size / 2, cy, cx - size / 8, cy + size * 0.38f, stroke)
+                canvas.drawLine(cx - size / 8, cy + size * 0.38f, cx + size / 2, cy - size * 0.4f, stroke)
+            }
+        }
+        text.textAlign = Paint.Align.CENTER
+    }
+
+    // ---- the pill a two-finger swipe leaves ----------------------------------------------------------------------
+
+    /** "Undo Typing" or "Redo Typing", over the toolbar until [pillUntil], fading for the last part of that. */
+    private var pill: String? = null
+    private var pillUntil = 0L
+    private val pillFade = Runnable { invalidate() }
+
+    /** What the pill says while it is on screen. */
+    internal val pillLabel: String?
+        get() = pill?.takeIf { android.os.SystemClock.uptimeMillis() < pillUntil }
+
+    private fun showPill(label: String) {
+        pill = label
+        pillUntil = android.os.SystemClock.uptimeMillis() + PILL_MS
+        repeat.removeCallbacks(pillFade)
+        repeat.postDelayed(pillFade, PILL_MS - PILL_FADE_MS)
+        announce(label)
+        invalidate()
+    }
+
+    /**
+     * Said aloud by a screen reader, since the pill is only drawn. The same event View's own announcement sends,
+     * built here because that call is on its way out of Android.
+     */
+    private fun announce(words: String) {
+        val manager = context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+        if (manager == null || !manager.isEnabled) return
+        val event = AccessibilityEvent(AccessibilityEvent.TYPE_ANNOUNCEMENT)
+        onInitializeAccessibilityEvent(event)
+        event.text.add(words)
+        event.contentDescription = null
+        parent?.requestSendAccessibilityEvent(this, event)
+    }
+
+    private fun drawPill(canvas: Canvas) {
+        val label = pill ?: return
+        val left = pillUntil - android.os.SystemClock.uptimeMillis()
+        if (left <= 0) {
+            pill = null
+            return
+        }
+        val alpha = min(1f, left.toFloat() / PILL_FADE_MS)
+        if (left < PILL_FADE_MS) postInvalidateOnAnimation()
+        text.textSize = min(15 * dp, OFFER_PILL_DP * dp * 0.45f)
+        sizedAt = -1f
+        val tall = OFFER_PILL_DP * dp
+        val icon = tall * 0.42f
+        val across = text.measureText(label) + icon + 3 * PILL_PAD_DP * dp
+        // Over the toolbar, or where it would be; the board's middle, not the window's, when it is one-handed.
+        val cx = (boardLeft + boardRight) / 2
+        val cy = panelPad + max(toolbarHeight, tall + 4 * dp) / 2
+        scratch.set(cx - across / 2, cy - tall / 2, cx + across / 2, cy + tall / 2)
+        fill.color = theme.key
+        fill.alpha = (255 * alpha).roundToInt()
+        canvas.drawRoundRect(scratch, tall / 2, tall / 2, fill)
+        fill.alpha = 255
+        stroke.color = theme.label
+        stroke.alpha = (255 * alpha).roundToInt()
+        stroke.strokeWidth = max(1.5f * dp, icon * 0.1f)
+        val iconX = scratch.left + PILL_PAD_DP * dp + icon / 2
+        if (label == context.getString(R.string.pill_redo)) Icons.redo(canvas, iconX, cy, icon, stroke)
+        else Icons.undo(canvas, iconX, cy, icon, stroke)
+        stroke.alpha = 255
+        text.color = theme.label
+        text.alpha = (255 * alpha).roundToInt()
+        text.textAlign = Paint.Align.LEFT
+        canvas.drawText(label, iconX + icon / 2 + PILL_PAD_DP * dp, cy - (text.descent() + text.ascent()) / 2, text)
+        text.textAlign = Paint.Align.CENTER
+        text.alpha = 255
+    }
+
     private fun blend(color: Int, tint: Int): Int {
         val a = Color.alpha(tint) / 255f
         fun mix(c: Int, t: Int) = (c * (1 - a) + t * a).roundToInt().coerceIn(0, 255)
@@ -1127,15 +1450,21 @@ class KeyboardView(context: Context) : View(context) {
     private fun openPendingHold() {
         val label = pendingHold ?: return
         val placement = placedKeys.firstOrNull { it.key.label == label } ?: return
-        val items = Alternates.forKey(placement.key.label, placement.key.hint, language)
+        if (placement.key.kind == KeyKind.GLOBE) return openLanguageMenu(placement, null)
+        val items = if (placement.key.holdsSymbols) periodItems
+            else Alternates.forKey(placement.key.label, placement.key.hint, language)
         // The same rule a finger gets: one alternate is taken, not offered.
         if (items.size < 2) return
         popup = openPopup(placement, items)
     }
 
-    /** The rail first, then the Style menu: both sit close enough to keys that a key's slop would take them. */
+    /**
+     * The globe's list, the rail, then the Style menu: all sit close enough to keys that a key's slop would take
+     * them, and the list sits over the keys.
+     */
     private fun keyAt(x: Float, y: Float): Placement? =
-        rail.firstOrNull { it.box.contains(x, y) } ?: styleMenu?.choices?.firstOrNull { it.box.contains(x, y) }
+        languageMenu?.items?.firstOrNull { it.box.contains(x, y) }
+            ?: rail.firstOrNull { it.box.contains(x, y) } ?: styleMenu?.choices?.firstOrNull { it.box.contains(x, y) }
             ?: nearest(placedKeys, x, y) ?: nearest(tools, x, y) ?: nearest(rail, x, y)
 
     /**
@@ -1183,6 +1512,7 @@ class KeyboardView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_CANCEL -> {
                 closePopup()
+                languageMenu?.opener = null
                 for (press in presses.values) cancelHold(press)
                 presses.clear()
                 stopRepeat()
@@ -1194,6 +1524,15 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun down(pointer: Int, x: Float, y: Float) {
         if (popup != null && presses.isEmpty()) closePopup()   // left open by a press that never ended
+        languageMenu?.let { menu ->
+            // The list is open for a tap: one of its rows is pressed like a key, and anywhere else only closes it.
+            // Nothing else is typed, since a finger reaching for a row and missing it meant the list, not the key.
+            if (menu.opener != null) return
+            if (menu.items.none { it.box.contains(x, y) }) {
+                closeLanguageMenu()
+                return
+            }
+        }
         styleMenu?.let { menu ->
             // Any key closes the menu, and does what it does; a touch on the menu itself, between its choices, only
             // closes it. Style is left to close it, so tapping it again doesn't open it straight back up.
@@ -1209,6 +1548,15 @@ class KeyboardView(context: Context) : View(context) {
         Haptics.feel(this, settings.vibration)
         if (settings.sound) feedback.play(placement.key.kind, settings.muteWithBluetooth)
         if (placement.key.kind == KeyKind.BACKSPACE) {
+            // A shift held down while backspace is pressed was held for this, and letting go of it changes nothing.
+            var shiftHeld = false
+            for (other in presses.values) {
+                if (other !== press && other.origin.key.kind == KeyKind.SHIFT && !other.swiping) {
+                    other.handled = true
+                    shiftHeld = true
+                }
+            }
+            listener?.onBackspaceStart(shiftHeld)
             repeatingFor = press
             repeat.postDelayed(repeatBackspace, FIRST_REPEAT_MS)
         }
@@ -1243,13 +1591,19 @@ class KeyboardView(context: Context) : View(context) {
      * has set for touch and hold in accessibility.
      */
     private fun startHold(press: Press) {
-        if (press.origin.key.kind != KeyKind.CHAR) return
-        val hint = press.origin.key.hint
-        val items = if (settings.accents) {
-            Alternates.forKey(press.origin.key.label, hint, language)
-        } else {
-            listOfNotNull(hint)   // the corner digit still works; only the accents are switched off
+        if (press.origin.key.kind == KeyKind.GLOBE) {
+            // Tapped, the globe still goes to the next keyboard; held, it lists the languages.
+            val task = Runnable {
+                Haptics.feel(this, settings.vibration, Haptics.Touch.HOLD)
+                press.handled = true
+                listener?.onGesture(Tip.GLOBE_LANGUAGES)
+                openLanguageMenu(press.origin, press)
+            }
+            press.hold = task
+            repeat.postDelayed(task, settings.holdDelay.millis)
+            return
         }
+        val items = holdItems(press.origin.key)
         if (items.isEmpty()) return
         val task = Runnable {
             Haptics.feel(this, settings.vibration, Haptics.Touch.HOLD)
@@ -1258,12 +1612,24 @@ class KeyboardView(context: Context) : View(context) {
                 press.handled = true
                 type(items.first())
             } else {
+                if (press.origin.key.holdsSymbols) listener?.onGesture(Tip.PERIOD_SYMBOLS)
                 popup = openPopup(press.origin, items)
             }
             invalidate()
         }
         press.hold = task
-        repeat.postDelayed(task, ViewConfiguration.getLongPressTimeout().toLong())
+        repeat.postDelayed(task, settings.holdDelay.millis)
+    }
+
+    /**
+     * What holding a key offers: the period's symbols on the period, the accents and the corner digit on a letter,
+     * or only the digit with accents switched off. Nothing for any other key.
+     */
+    private fun holdItems(key: Key): List<String> = when {
+        key.kind != KeyKind.CHAR -> emptyList()
+        key.holdsSymbols -> periodItems
+        settings.accents -> Alternates.forKey(key.label, key.hint, language)
+        else -> listOfNotNull(key.hint)   // the corner digit still works; only the accents are switched off
     }
 
     /**
@@ -1333,7 +1699,18 @@ class KeyboardView(context: Context) : View(context) {
     /** Swipe the space bar to move the cursor, and the backspace to take a word at a time. */
     private fun move(pointer: Int, x: Float, y: Float) {
         val press = presses[pointer] ?: return
+        press.x = x
+        press.y = y
         val dy = y - press.downY
+        languageMenu?.let { menu ->
+            if (menu.opener !== press) return@let
+            val over = menu.items.indexOfFirst { it.box.contains(x, y) }
+            if (over != menu.choice) {
+                menu.choice = over
+                invalidate()
+            }
+            return
+        }
         val open = popup
         if (open != null) {
             val over = open.boxes.indexOfFirst { x >= it.left && x < it.right }
@@ -1345,33 +1722,48 @@ class KeyboardView(context: Context) : View(context) {
             }
             return
         }
+        if (press.twoFinger) return
         val dx = x - press.downX
+        // Two fingers on the way across the keys together. Until they have gone far enough to count, the gestures
+        // one finger would start - the cursor, a selection, deleting a word - wait, so neither goes off underneath.
+        val partner = partnerOf(press)
+        val paired = partner != null && pairedDirection(press, partner) != 0
+        if (partner != null && paired) {
+            cancelHold(press)
+            cancelHold(partner)
+            if (twoFingerSwipe(press, partner)) return
+        }
         when (press.origin.key.kind) {
             // The space bar is wide and a fast thumb wanders across it. The swipe only begins after a deliberate
             // journey - a whole key's worth - and counts its characters from there, so a drifted space is a space.
             // Down off the space bar puts the keyboard away, the way swiping a sheet down closes it. Checked
             // before the cursor, because a downward journey is not a sideways one however far it goes.
-            KeyKind.SPACE -> if (
+            KeyKind.SPACE -> if (paired) {
+                Unit
+            } else if (
                 settings.swipeDownToHide && !press.swiping && dy > HIDE_DP * dp && abs(dy) > abs(dx)
             ) {
                 cancelHold(press)
                 press.swiping = true
                 listener?.onHide()
             } else if (settings.cursorSwipe && (press.swiping || abs(dx) > CURSOR_START_DP * dp)) {
+                if (!press.swiping) listener?.onGesture(Tip.CURSOR_SWIPE)
                 val steps = cursorSteps(press, x, dx)
                 if (steps != 0) listener?.onCursor(steps)
             }
             // Shift and a slide sideways selects, the way the space bar moves the cursor and with the same distances,
             // with Shift held on every step. A tap is still shift; so is a press that never travels that far.
-            KeyKind.SHIFT -> if (settings.shiftSelect && (press.swiping || abs(dx) > CURSOR_START_DP * dp)) {
+            KeyKind.SHIFT -> if (!paired && settings.shiftSelect && (press.swiping || abs(dx) > CURSOR_START_DP * dp)) {
+                if (!press.swiping) listener?.onGesture(Tip.SHIFT_SELECT)
                 val steps = cursorSteps(press, x, dx)
                 if (steps != 0) listener?.onSelectMove(steps)
             }
-            KeyKind.BACKSPACE -> if (settings.deleteWordSwipe && dx < -DELETE_WORD_DP * dp && !press.swiping) {
+            KeyKind.BACKSPACE -> if (!paired && settings.deleteWordSwipe && dx < -DELETE_WORD_DP * dp && !press.swiping) {
                 cancelHold(press)
                 press.swiping = true
                 if (repeatingFor === press) stopRepeat()
                 listener?.onDeleteWord()
+                listener?.onGesture(Tip.DELETE_WORD)
             }
             // Sliding from one letter to the next is how a fast typist corrects mid-press, and how they leave a key
             // at all. Only letters follow the finger: sliding off shift and letting go is how you take it back.
@@ -1426,10 +1818,79 @@ class KeyboardView(context: Context) : View(context) {
         }
     }
 
+    /**
+     * The other finger, when exactly two are down on the keys and neither has started anything of its own yet: a
+     * swipe, a held row, an edit. Only then can the two of them be a two-finger swipe.
+     */
+    private fun partnerOf(press: Press): Press? {
+        if (!settings.twoFingerUndo || searchKeys || presses.size != 2 || popup != null || languageMenu != null) return null
+        var other: Press? = null
+        for (candidate in presses.values) if (candidate !== press) other = candidate
+        val partner = other ?: return null
+        for (one in arrayOf(press, partner)) {
+            if (one.swiping || one.handled || one.editing || !onKeys(one.origin)) return null
+        }
+        return partner
+    }
+
+    private fun onKeys(placement: Placement): Boolean {
+        for (key in placedKeys) if (key === placement) return true
+        return false
+    }
+
+    /**
+     * Which way two fingers are going together: -1 left, 1 right, 0 when they aren't. Both have to have moved a
+     * little, the same way, and more across than up or down; fingers typing two letters at once do none of that.
+     */
+    private fun pairedDirection(a: Press, b: Press): Int {
+        val ax = a.x - a.downX
+        val bx = b.x - b.downX
+        val start = TWO_FINGER_START_DP * dp
+        if (abs(ax) < start || abs(bx) < start || sign(ax) != sign(bx)) return 0
+        if (abs(ax) < abs(a.y - a.downY) || abs(bx) < abs(b.y - b.downY)) return 0
+        return sign(ax).toInt()
+    }
+
+    /**
+     * Undo or redo, once both fingers are past [TWO_FINGER_DP] and clearly sideways. The presses they began are
+     * spent: nothing they were on is typed, and the gesture is over for them until they lift.
+     */
+    private fun twoFingerSwipe(a: Press, b: Press): Boolean {
+        val direction = pairedDirection(a, b)
+        val far = TWO_FINGER_DP * dp
+        for (one in arrayOf(a, b)) {
+            val across = abs(one.x - one.downX)
+            if (across < far || across < abs(one.y - one.downY) * TWO_FINGER_BIAS) return false
+        }
+        for (one in arrayOf(a, b)) {
+            one.twoFinger = true
+            one.handled = true
+            one.swiping = true
+            cancelHold(one)
+            if (repeatingFor === one) stopRepeat()
+        }
+        Haptics.feel(this, settings.vibration)
+        if (direction < 0) listener?.onUndo() else listener?.onRedo()
+        listener?.onGesture(Tip.TWO_FINGER_UNDO)
+        showPill(context.getString(if (direction < 0) R.string.pill_undo else R.string.pill_redo))
+        return true
+    }
+
     /** True when the lift was a press on a key, which is what [performClick] is for. */
     private fun up(pointer: Int, x: Float, y: Float): Boolean {
         val press = presses.remove(pointer) ?: return false
         cancelHold(press)
+        languageMenu?.let { menu ->
+            if (menu.opener !== press) return@let
+            // Let go on a row, it is taken; anywhere else, the list stays for a tap.
+            menu.opener = null
+            val chosen = menu.items.getOrNull(menu.choice)
+            menu.choice = -1
+            invalidate()
+            if (chosen == null) return false
+            dispatch(chosen.key)
+            return true
+        }
         closePopup()?.let { open ->
             if (repeatingFor === press) stopRepeat()
             type(open.items[open.choice])
@@ -1440,6 +1901,7 @@ class KeyboardView(context: Context) : View(context) {
         invalidate()
         press.edit?.let {
             edit(it)
+            listener?.onGesture(Tip.EDIT_SWIPES)
             return true
         }
         if (press.swiping || press.handled) return false
@@ -1488,6 +1950,7 @@ class KeyboardView(context: Context) : View(context) {
         }
         // Any key closes the Style menu. Only a choice in it, or Style itself, has more to do with it.
         if (key.kind != KeyKind.STYLE && key.kind != KeyKind.STYLE_CHOICE) closeStyleMenu()
+        closeLanguageMenu()
         when (key.kind) {
             KeyKind.CHAR, KeyKind.SPACE -> l.onText(key.output)
             KeyKind.BACKSPACE -> l.onBackspace()
@@ -1502,6 +1965,7 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.PASTE -> l.onPaste()
             KeyKind.EMOJI -> l.onEmojiPanel()
             KeyKind.SUGGESTION -> l.onSuggestion(key.output)
+            KeyKind.SUGGESTED_EMOJI -> l.onSuggestedEmoji(key.output)
             KeyKind.VOICE -> l.onVoice()
             KeyKind.CURSOR_PAD -> l.onCursorPad()
             KeyKind.FULL_WIDTH -> oneHanded(OneHanded.OFF, l)
@@ -1515,11 +1979,18 @@ class KeyboardView(context: Context) : View(context) {
                 closeStyleMenu()
                 l.onStyle(TextStyle.valueOf(key.output))
             }
-            KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE -> Unit
+            KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE, KeyKind.TIP -> Unit
+            KeyKind.TIP_DONE -> tip?.let { shown ->
+                tip = null
+                l.onTipDone(shown)
+            }
             KeyKind.OFFER_YES, KeyKind.OFFER_NO -> offer?.let { asked ->
                 offer = null
                 l.onOffer(asked, accepted = key.kind == KeyKind.OFFER_YES)
             }
+            KeyKind.LANGUAGE -> l.onLanguage(Language.valueOf(key.output))
+            KeyKind.OTHER_KEYBOARDS -> l.onOtherKeyboards()
+            KeyKind.LANGUAGE_SETTINGS -> l.onLanguageSettings()
         }
     }
 
@@ -1538,10 +2009,39 @@ class KeyboardView(context: Context) : View(context) {
     override fun dispatchHoverEvent(event: MotionEvent): Boolean =
         keyNodes.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
 
-    /** Every key a screen reader can find: the keys, the toolbar, the Style menu while it is open, then the rail. */
-    private fun nodes(): List<Placement> = placedKeys + tools + styleMenuItems + rail
+    /**
+     * Every key a screen reader can find: the keys, the toolbar, the Style menu and the globe's list while they are
+     * open, a held key's row, then the rail.
+     */
+    private fun nodes(): List<Placement> =
+        placedKeys + tools + styleMenuItems + languageMenuItems + popup?.placements.orEmpty() + rail
 
     private fun nodeAt(id: Int): Placement? = nodes().getOrNull(id)
+
+    /** What sits over the keys while it is open, and hides the keys under it from a screen reader. */
+    private fun overlays(): List<Box> = listOfNotNull(styleMenu?.panel, languageMenu?.panel)
+
+    /**
+     * Holding a key, for a screen reader: the same row or list a finger gets, left open to be explored and tapped,
+     * or the one thing a key with a single alternate gives. False for a key that holding does nothing on.
+     */
+    private fun holdFor(placement: Placement): Boolean {
+        if (placement.key.kind == KeyKind.GLOBE) {
+            openLanguageMenu(placement, null)
+            return true
+        }
+        val items = holdItems(placement.key)
+        when {
+            items.isEmpty() -> return false
+            items.size == 1 -> type(items.first())
+            else -> popup = openPopup(placement, items)
+        }
+        invalidate()
+        return true
+    }
+
+    private fun holds(placement: Placement): Boolean =
+        placement.key.kind == KeyKind.GLOBE || (onKeys(placement) && holdItems(placement.key).isNotEmpty())
 
     /**
      * The keys are drawn, not laid out, so a screen reader would find one blank rectangle. Each key is published as a
@@ -1549,24 +2049,21 @@ class KeyboardView(context: Context) : View(context) {
      */
     private inner class KeyNodes : ExploreByTouchHelper(this@KeyboardView) {
         override fun getVirtualViewAt(x: Float, y: Float): Int {
-            // The menu sits over the keys, so under it only the menu is there to be found.
-            styleMenu?.let { menu ->
-                if (menu.panel.contains(x, y)) {
-                    val index = menu.items.indexOfFirst { it.box.contains(x, y) }
-                    return if (index < 0) HOST_ID else placedKeys.size + tools.size + index
-                }
-            }
             val all = nodes()
+            // A held key's row and the menus sit over the keys, so under them only they are there to be found.
+            val over = popup?.placements.orEmpty() + languageMenuItems + styleMenuItems
+            over.firstOrNull { it.box.contains(x, y) }?.let { found -> return all.indexOfFirst { it === found } }
+            if (overlays().any { it.contains(x, y) }) return HOST_ID
             val index = all.indexOfFirst { it.box.contains(x, y) }
             return if (index < 0) HOST_ID else index
         }
 
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
-            val panel = styleMenu?.panel
+            val panels = overlays()
             for ((index, placement) in nodes().withIndex()) {
                 val box = placement.box
-                val hidden = panel != null && index < placedKeys.size &&
-                    panel.contains((box.left + box.right) / 2, (box.top + box.bottom) / 2)
+                val hidden = index < placedKeys.size &&
+                    panels.any { it.contains((box.left + box.right) / 2, (box.top + box.bottom) / 2) }
                 if (!hidden) ids.add(index)
             }
         }
@@ -1585,6 +2082,13 @@ class KeyboardView(context: Context) : View(context) {
             } else {
                 node.className = "android.widget.Button"
                 node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+                // Whatever a held finger gets - accents, the period's symbols, the language list - a double tap
+                // and hold gets too.
+                if (holds(placement)) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
+            }
+            if (placement.key.kind == KeyKind.LANGUAGE) {
+                node.isCheckable = true
+                node.isChecked = placement.key.output == language.name
             }
             val box = placement.box
             node.setBoundsInParent(
@@ -1593,8 +2097,17 @@ class KeyboardView(context: Context) : View(context) {
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: Bundle?): Boolean {
-            if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
             val placement = nodeAt(id) ?: return false
+            if (action == AccessibilityNodeInfo.ACTION_LONG_CLICK) {
+                if (!holds(placement) || !holdFor(placement)) return false
+                sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_LONG_CLICKED)
+                return true
+            }
+            if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
+            // A held key's row goes with whatever is pressed next, its own choices included, as it does for a finger.
+            closePopup()
+            // The same start a finger gives it, so shift and backspace deletes forward here too.
+            if (placement.key.kind == KeyKind.BACKSPACE) listener?.onBackspaceStart(shiftHeld = false)
             dispatch(placement.key)
             sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)
             return true
@@ -1603,7 +2116,6 @@ class KeyboardView(context: Context) : View(context) {
 
     private companion object {
         const val FIRST_REPEAT_MS = 400L
-        const val REPEAT_MS = 55L
         const val CURSOR_STEP_DP = 12f    // travel per character the cursor moves
         const val CURSOR_START_DP = 40f   // travel before a drifting thumb counts as a swipe at all
         const val DELETE_WORD_DP = 24f
@@ -1632,15 +2144,30 @@ class KeyboardView(context: Context) : View(context) {
         const val RAIL_BUTTON_DP = 52f    // each rail button's target, taller than a fingertip
         const val RAIL_GAP_DP = 8f
         const val RAIL_KEY_DP = 40f       // and what is drawn of it
-        val OFFER_KINDS = setOf(KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO)
+        /** The strip's question and its answers, and the tip and its Got it, which are drawn the same way. */
+        val OFFER_KINDS = setOf(KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO, KeyKind.TIP, KeyKind.TIP_DONE)
 
         /** Read by a screen reader, not pressed: the strip's question, the count of what is selected, the menu's note. */
-        val READ_ONLY_KINDS = setOf(KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE)
+        val READ_ONLY_KINDS = setOf(KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE, KeyKind.TIP)
         const val EDIT_HINT = "↑"            // the corner of the five keys a swipe up edits with
         const val MIN_TOOL_DP = 44f        // no toolbar button narrower than this; the list is cut from the end first
         const val SELECTION_SLOTS = 7f     // Hide, about two for the count, Style, Cut, Copy and Paste
         const val MIN_COUNT_DP = 11f       // the count shrinks to fit, but no smaller than this
         const val MENU_PAD_DP = 8f
         const val MENU_ROW_DP = 48f        // each style is a full fingertip tall
+        const val MENU_ITEM_DP = 44f       // each row of the globe's list, where there is room for it
+        const val MENU_TEXT_DP = 16f
+        const val MENU_TEXT_PAD_DP = 14f
+        const val MENU_INSET_DP = 4f
+        const val MENU_DIVIDER_DP = 9f
+        const val MENU_CHECK_DP = 32f      // room at the end of a row for the tick
+        const val MENU_MIN_WIDTH_DP = 190f
+        const val MENU_MIN_ITEM_DP = 30f   // the list's rows at their shortest, still taller than the 16 dp text
+        const val TWO_FINGER_START_DP = 10f  // two fingers going the same way this far may be a swipe
+        const val TWO_FINGER_DP = 40f        // and this far, both of them, is one
+        const val TWO_FINGER_BIAS = 1.5f     // clearly more across than up or down
+        const val PILL_MS = 1500L
+        const val PILL_FADE_MS = 250L
+        const val PILL_PAD_DP = 12f
     }
 }
