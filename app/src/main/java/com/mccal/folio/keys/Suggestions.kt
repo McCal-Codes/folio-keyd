@@ -348,6 +348,19 @@ object Suggestions {
     }
 
     /**
+     * The emoji to offer at the end of the strip for [typed], or null.
+     *
+     * An exact match only, from the names Unicode gives emoji in this language: see [EmojiSearch.exact]. Not for the
+     * commonest words, the "the", "with" and "you" that emoji names and keywords are full of; an emoji offered after
+     * every one of those is noise, and nobody reaches for one there.
+     */
+    fun emoji(typed: String, words: Words?, names: EmojiSearch?): String? {
+        if (names == null || typed.length < 2) return null
+        if (words != null && (rankOf(typed.lowercase(), words) ?: Int.MAX_VALUE) <= GRAMMAR) return null
+        return names.exact(typed)
+    }
+
+    /**
      * How much likelier the word before makes [word]: nothing if it is not among what follows [previous], most for
      * the commonest follower. Less than any one mistyped letter is worth - a neighbouring key costs 75 in the strip
      * and 300 when correcting - so it chooses between words about as close to what was typed, and never makes a
@@ -619,6 +632,12 @@ object Suggestions {
      * Set by measuring on sentences the lists were not built from: 16 moved little, and past 40 nothing improved.
      */
     private const val CONTEXT_BONUS = 40
+
+    /**
+     * As common as this and a word is grammar, not a thing: "you", "the", "and", "with", "not", "like". Set by
+     * reading which English words emoji names and keywords share with the top of the word list.
+     */
+    private const val GRAMMAR = 16
 
     /** How much better the best candidate must be than the next one before it is worth acting on alone. */
     private const val MARGIN = 6

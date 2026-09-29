@@ -5,6 +5,9 @@ import java.io.FileNotFoundException
 import java.text.Normalizer
 import java.util.Locale
 
+/** An emoji offered in the strip, and its name in the language being typed, for TalkBack to read. */
+data class SuggestedEmoji(val glyph: String, val name: String)
+
 /**
  * Finds an emoji from a word, in the keyboard's language.
  *
@@ -79,6 +82,39 @@ class EmojiSearch private constructor(private val entries: List<Entry>) {
             .map { it.first.glyph }
     }
 
+    /**
+     * The one emoji that is exactly [word], or null: for the strip, which has room for one and no room for a guess.
+     *
+     * Only whole words count, never the start of one, so "piz" offers nothing and "pizza" offers the pizza. The
+     * order is [search]'s: the whole name, then a word of the name, then a keyword. That is what makes "heart" the red
+     * heart rather than the house that has it as a keyword.
+     *
+     * Among names, the shorter one wins before the grid's order does. The word is more nearly the whole of "corazón
+     * rojo" than of "cara sonriendo con ojos de corazón", and Spanish "corazón" offered the face with heart eyes,
+     * which comes first in the grid, until it did.
+     */
+    fun exact(word: String): String? {
+        val words = words(fold(word))
+        if (words.size != 1) return null
+        val wanted = words[0]
+        var best: Entry? = null
+        var bestTier = Int.MAX_VALUE
+        for (entry in entries) {
+            val tier = when {
+                entry.whole == wanted -> 0
+                wanted in entry.nameWords -> entry.nameWords.size
+                wanted in entry.keywordWords -> KEYWORD
+                else -> continue
+            }
+            // The entries are in the grid's order already, so the first of each tier is the one to keep.
+            if (tier < bestTier) {
+                best = entry
+                bestTier = tier
+            }
+        }
+        return best?.glyph
+    }
+
     /** How well one typed word matches an emoji, lower is better, or -1 for not at all. */
     private fun tier(entry: Entry, word: String): Int = when {
         word in entry.nameWords -> 0
@@ -89,6 +125,9 @@ class EmojiSearch private constructor(private val entries: List<Entry>) {
     }
 
     companion object {
+
+        /** Where a keyword match ranks in [exact]: after a name of any length. */
+        private const val KEYWORD = 1000
 
         /** Where the files are, one per [Language] and named by its tag. */
         fun path(language: Language) = "emoji/${language.tag}.tsv"
