@@ -101,6 +101,8 @@ class ToolbarSettingsTest {
             listOf(ToolKey.EMOJI, ToolKey.UNDO, ToolKey.COPY, ToolKey.CURSOR_PAD, ToolKey.PASTE, ToolKey.CLIPBOARD, ToolKey.VOICE),
             a.stored().toolbar,
         )
+        // Arranged by hand, so no later fix-up may take it for a default.
+        assertTrue(a.getSharedPreferences("keys", Context.MODE_PRIVATE).getBoolean(Settings.TOOLBAR_ARRANGED, false))
         a.named("Move Emoji down").performClick()
         assertEquals(ToolKey.UNDO, a.stored().toolbar.first())
         assertFalse(a.named("Move Undo up").isEnabled)

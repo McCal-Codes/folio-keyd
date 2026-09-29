@@ -105,7 +105,7 @@ class SettingsActivity : Activity() {
         super.onCreate(savedInstanceState)
         DevLog.catchCrashes(this)
         // Settings can open before the keyboard has run since an update, so the toolbar is settled here too.
-        Settings.settleToolbar(prefs, Settings.updated(this))
+        Settings.settleToolbar(prefs, Settings.updated(this), Settings.firstInstalled(this))
         settings = Settings.load(prefs)
         page = savedInstanceState?.getString(PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() }
             // Like Folio: the first time Settings opens after an update, it opens on what's new.
@@ -1036,6 +1036,7 @@ class SettingsActivity : Activity() {
 
     /** Saves a new arrangement and draws the page again, since rows move between the two lists. */
     private fun arrange(toolbar: List<ToolKey>, focus: String? = null) {
+        prefs.edit().putBoolean(Settings.TOOLBAR_ARRANGED, true).apply()
         change(settings.copy(toolbar = toolbar.distinct().take(Settings.MAX_TOOLS)))
         focusAfterRender = focus
         render(keepScroll = true)

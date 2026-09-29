@@ -118,7 +118,7 @@ class KeysService : InputMethodService(), Ime {
     override fun onCreate() {
         super.onCreate()
         DevLog.catchCrashes(this)
-        Settings.settleToolbar(prefs, Settings.updated(this))
+        Settings.settleToolbar(prefs, Settings.updated(this), Settings.firstInstalled(this))
         spanTheCutout()
         // Read once, off the main thread: the keyboard has to be on screen before the dictionary is needed.
         background.post {

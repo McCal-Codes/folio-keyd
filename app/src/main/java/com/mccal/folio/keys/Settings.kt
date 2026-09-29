@@ -199,6 +199,10 @@ data class Settings(
         const val EDIT_SWIPES = "editSwipes"
         const val SHIFT_SELECT = "shiftSelect"
         const val SELECTION_TOOLS = "selectionTools"
+        /** Set once someone arranges the toolbar themselves, so no later fix-up mistakes their list for a default. */
+        const val TOOLBAR_ARRANGED = "toolbarArranged"
+        /** Set once [giveBetasUndo] has looked, so it looks only once. */
+        const val TOOLBAR_BETA_CHECKED = "toolbarBetaChecked"
 
         /** Buttons besides Hide. More than this and a narrow screen can't give each one a big enough target. */
         const val MAX_TOOLS = 7
@@ -214,6 +218,12 @@ data class Settings(
         )
 
         /**
+         * When the arranged toolbar was first built, 28 September 2026 at 15:48 UTC, a little before 0.3.0 beta 1.
+         * Only 0.2 was out before then, so an install first made after it cannot have come from 0.2.
+         */
+        const val TOOLBAR_ARRIVED = 1_790_610_498_000L
+
+        /**
          * Writes down the toolbar of someone who never arranged one, once, the first time Keyd runs without one.
          *
          * A fresh install gets the usual list, Undo and all. Someone coming from 0.2 keeps the six buttons they had:
@@ -222,21 +232,53 @@ data class Settings(
          * by itself; [updated] covers someone who never did. Decided once and kept, so what counts as an update
          * cannot change the toolbar under someone later.
          */
-        fun settleToolbar(prefs: SharedPreferences, updated: Boolean) {
-            if (prefs.contains(TOOLBAR)) return
-            val list = toolbar(prefs, if (updated) TOOLBAR_BEFORE_UNDO else DEFAULT_TOOLBAR)
-            prefs.edit()
-                .putString(TOOLBAR, list.joinToString(",") { it.name })
-                .remove(VOICE_KEY)
-                .remove(CURSOR_PAD_KEY)
-                .apply()
+        fun settleToolbar(prefs: SharedPreferences, updated: Boolean, firstInstalled: Long? = null) {
+            if (!prefs.contains(TOOLBAR)) {
+                // An update over a 0.3 beta is not an update from 0.2: that install never had the six to keep.
+                val from02 = updated && !sinceTheToolbar(firstInstalled)
+                val list = toolbar(prefs, if (from02) TOOLBAR_BEFORE_UNDO else DEFAULT_TOOLBAR)
+                prefs.edit()
+                    .putString(TOOLBAR, list.joinToString(",") { it.name })
+                    .remove(VOICE_KEY)
+                    .remove(CURSOR_PAD_KEY)
+                    .apply()
+            }
+            giveBetasUndo(prefs, firstInstalled)
         }
+
+        /**
+         * Puts Undo back for someone the betas mistook for a 0.2 upgrade, once.
+         *
+         * 0.3.0 beta 1 had no settling step and only wrote the toolbar down when a setting changed, so an install of
+         * it that nobody touched had no list stored. Beta 2 then saw an update with no list and settled it as 0.2's
+         * six, Undo and all left out, and every later version kept that. Such a list is exactly the six, and the
+         * install is younger than the toolbar itself, which no 0.2 install is. Someone who arranged their toolbar is
+         * never touched, and neither is anyone first installed before the toolbar existed, or when Android will not
+         * say when that was: they may really have come from 0.2.
+         */
+        fun giveBetasUndo(prefs: SharedPreferences, firstInstalled: Long?) {
+            if (prefs.getBoolean(TOOLBAR_BETA_CHECKED, false)) return
+            val edit = prefs.edit().putBoolean(TOOLBAR_BETA_CHECKED, true)
+            val stored = prefs.getString(TOOLBAR, null)
+            if (stored == TOOLBAR_BEFORE_UNDO.joinToString(",") { it.name } &&
+                !prefs.getBoolean(TOOLBAR_ARRANGED, false) && sinceTheToolbar(firstInstalled)
+            ) edit.putString(TOOLBAR, DEFAULT_TOOLBAR.joinToString(",") { it.name })
+            edit.apply()
+        }
+
+        /** Whether this install began after the toolbar could be arranged, so it never ran 0.2. */
+        private fun sinceTheToolbar(firstInstalled: Long?) = firstInstalled != null && firstInstalled >= TOOLBAR_ARRIVED
 
         /** Whether this install has been updated since it was first installed. False if Android will not say. */
         fun updated(context: android.content.Context): Boolean = runCatching {
             val info = context.packageManager.getPackageInfo(context.packageName, 0)
             info.lastUpdateTime > info.firstInstallTime
         }.getOrDefault(false)
+
+        /** When this app was first installed, kept by Android through every update. Null if it will not say. */
+        fun firstInstalled(context: android.content.Context): Long? = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+        }.getOrNull()?.takeIf { it > 0 }
 
         /** The stored list: names in order, anything unknown or repeated left out, and no more than [MAX_TOOLS]. */
         fun parseToolbar(stored: String): List<ToolKey> =
