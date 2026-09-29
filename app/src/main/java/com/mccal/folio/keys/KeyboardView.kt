@@ -81,6 +81,15 @@ class KeyboardView(context: Context) : View(context) {
         /** The strip's question, answered: Keep or Always when [accepted], No when not. */
         fun onOffer(offer: Insights.Offer, accepted: Boolean) {}
 
+        /** The strip's tip was answered with Got it. */
+        fun onTipDone(tip: Tip) {}
+
+        /**
+         * A gesture with a tip was used, so there is no need to teach it. Called once per swipe, when it begins,
+         * never per step. Gestures added later call this with their own [Tip].
+         */
+        fun onGesture(tip: Tip) {}
+
         /** The one-handed rail was used: back to the full width, or over to the other edge. Already on screen. */
         fun onOneHanded(side: OneHanded) {}
 
@@ -140,6 +149,19 @@ class KeyboardView(context: Context) : View(context) {
         }
 
     /**
+     * A gesture tip for the strip, handed over by the service at a gap between words. It sits where the question does,
+     * behind the question and behind any words, and goes on the next key typed the same way.
+     */
+    var tip: Tip? = null
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
+    /**
      * How much of the field is selected, when anything is. The toolbar then counts it and offers Style, Cut, Copy and
      * Paste, since those are what a selection is for; it goes back to the usual buttons when the selection does.
      */
@@ -155,6 +177,9 @@ class KeyboardView(context: Context) : View(context) {
 
     /** Whether the question is on screen now, rather than waiting behind the word being typed. */
     internal val offerShowing: Boolean get() = tools.firstOrNull()?.key?.kind == KeyKind.OFFER
+
+    /** Whether the tip is on screen now. */
+    internal val tipShowing: Boolean get() = tools.firstOrNull()?.key?.kind == KeyKind.TIP
 
     /** What the person has chosen: which of the keyboard's habits are switched on. */
     var settings: Settings = Settings()
@@ -568,6 +593,7 @@ class KeyboardView(context: Context) : View(context) {
         if (selected != null && settings.selectionTools && !rules.password) return placeSelection(selected)
         if (suggestions.isNotEmpty() && !rules.password) return placeSuggestions()
         if (offer != null && !rules.password) return placeOffer()
+        if (tip != null && !rules.password) return placeTip()
         val left = keysLeft
         val right = keysRight
         val top = panelPad
@@ -710,9 +736,32 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun offerTextSize() = min(toolbarHeight * 0.38f, 15 * dp)
 
+    /**
+     * The bulb, the tip, and Got it at the end of the row where the question's answers go, with the same reach.
+     *
+     * The tip is one sentence and not cut short if it can help it: on a narrow window it is drawn smaller, down to
+     * [MIN_COUNT_DP], before it is ever ellipsized. A screen reader gets all of it either way.
+     */
+    private fun placeTip(): List<Placement> {
+        val shown = tip ?: return emptyList()
+        val left = keysLeft
+        val right = keysRight
+        val narrow = (boardRight - boardLeft) / dp < NARROW_OFFER_DP
+        val said = context.getString(if (narrow) shown.short else shown.text)
+        val done = context.getString(R.string.tip_got_it)
+        text.textSize = offerTextSize()
+        sizedAt = -1f
+        val doneLeft = right - max(OFFER_BUTTON_DP * dp, text.measureText(done) + 2 * OFFER_BUTTON_PAD_DP * dp)
+        return listOf(
+            Placement(Key(said, KeyKind.TIP), Box(left, panelPad, doneLeft - OFFER_GAP_DP * dp, panelPad + toolbarHeight)),
+            Placement(Key(done, KeyKind.TIP_DONE), Box(doneLeft, 0f, right, panelPad + toolbarHeight)),
+        )
+    }
+
     /** The next key typed answers nothing, and the question goes. Only once it has been seen: one waiting stays. */
     private fun putOfferAway() {
         if (offerShowing) offer = null
+        if (tipShowing) tip = null
     }
 
     /** Text from a key, a flick or a held key's row: the one place it leaves, so the question can go first. */
@@ -742,8 +791,28 @@ class KeyboardView(context: Context) : View(context) {
                 canvas.drawText(label, box.left, baseline, text)
                 text.textAlign = Paint.Align.CENTER
             }
-            KeyKind.OFFER_YES, KeyKind.OFFER_NO -> {
-                val yes = placement.key.kind == KeyKind.OFFER_YES
+            KeyKind.TIP -> {
+                val glyph = min(toolbarHeight * 0.5f, 20 * dp)
+                stroke.color = theme.label
+                stroke.strokeWidth = max(1.5f * dp, glyph * 0.08f)
+                Icons.bulb(canvas, box.left + glyph / 2 + 2 * dp, cy, glyph, stroke)
+                val start = box.left + glyph + 8 * dp
+                val room = box.right - start
+                var label = placement.key.label
+                val wide = text.measureText(label)
+                if (wide > room) text.textSize = max(MIN_COUNT_DP * dp, text.textSize * room / wide)
+                if (text.measureText(label) > room) {
+                    val fits = text.breakText(label, true, room - text.measureText("…"), null)
+                    label = label.take(fits).trimEnd() + "…"
+                }
+                val line = cy - (text.descent() + text.ascent()) / 2
+                text.color = theme.label
+                text.textAlign = Paint.Align.LEFT
+                canvas.drawText(label, start, line, text)
+                text.textAlign = Paint.Align.CENTER
+            }
+            KeyKind.OFFER_YES, KeyKind.OFFER_NO, KeyKind.TIP_DONE -> {
+                val yes = placement.key.kind != KeyKind.OFFER_NO
                 val pill = OFFER_PILL_DP * dp
                 scratch.set(box.left, cy - pill / 2, box.right, cy + pill / 2)
                 fill.color = if (yes) theme.accent else theme.altKey
@@ -1358,12 +1427,14 @@ class KeyboardView(context: Context) : View(context) {
                 press.swiping = true
                 listener?.onHide()
             } else if (settings.cursorSwipe && (press.swiping || abs(dx) > CURSOR_START_DP * dp)) {
+                if (!press.swiping) listener?.onGesture(Tip.CURSOR_SWIPE)
                 val steps = cursorSteps(press, x, dx)
                 if (steps != 0) listener?.onCursor(steps)
             }
             // Shift and a slide sideways selects, the way the space bar moves the cursor and with the same distances,
             // with Shift held on every step. A tap is still shift; so is a press that never travels that far.
             KeyKind.SHIFT -> if (settings.shiftSelect && (press.swiping || abs(dx) > CURSOR_START_DP * dp)) {
+                if (!press.swiping) listener?.onGesture(Tip.SHIFT_SELECT)
                 val steps = cursorSteps(press, x, dx)
                 if (steps != 0) listener?.onSelectMove(steps)
             }
@@ -1372,6 +1443,7 @@ class KeyboardView(context: Context) : View(context) {
                 press.swiping = true
                 if (repeatingFor === press) stopRepeat()
                 listener?.onDeleteWord()
+                listener?.onGesture(Tip.DELETE_WORD)
             }
             // Sliding from one letter to the next is how a fast typist corrects mid-press, and how they leave a key
             // at all. Only letters follow the finger: sliding off shift and letting go is how you take it back.
@@ -1440,6 +1512,7 @@ class KeyboardView(context: Context) : View(context) {
         invalidate()
         press.edit?.let {
             edit(it)
+            listener?.onGesture(Tip.EDIT_SWIPES)
             return true
         }
         if (press.swiping || press.handled) return false
@@ -1515,7 +1588,11 @@ class KeyboardView(context: Context) : View(context) {
                 closeStyleMenu()
                 l.onStyle(TextStyle.valueOf(key.output))
             }
-            KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE -> Unit
+            KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE, KeyKind.TIP -> Unit
+            KeyKind.TIP_DONE -> tip?.let { shown ->
+                tip = null
+                l.onTipDone(shown)
+            }
             KeyKind.OFFER_YES, KeyKind.OFFER_NO -> offer?.let { asked ->
                 offer = null
                 l.onOffer(asked, accepted = key.kind == KeyKind.OFFER_YES)
@@ -1632,10 +1709,11 @@ class KeyboardView(context: Context) : View(context) {
         const val RAIL_BUTTON_DP = 52f    // each rail button's target, taller than a fingertip
         const val RAIL_GAP_DP = 8f
         const val RAIL_KEY_DP = 40f       // and what is drawn of it
-        val OFFER_KINDS = setOf(KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO)
+        /** The strip's question and its answers, and the tip and its Got it, which are drawn the same way. */
+        val OFFER_KINDS = setOf(KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO, KeyKind.TIP, KeyKind.TIP_DONE)
 
         /** Read by a screen reader, not pressed: the strip's question, the count of what is selected, the menu's note. */
-        val READ_ONLY_KINDS = setOf(KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE)
+        val READ_ONLY_KINDS = setOf(KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE, KeyKind.TIP)
         const val EDIT_HINT = "↑"            // the corner of the five keys a swipe up edits with
         const val MIN_TOOL_DP = 44f        // no toolbar button narrower than this; the list is cut from the end first
         const val SELECTION_SLOTS = 7f     // Hide, about two for the count, Style, Cut, Copy and Paste

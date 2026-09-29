@@ -107,6 +107,12 @@ interface Ime {
 
     /** How much is selected now, for the toolbar, or null when nothing is or the toolbar should not say. */
     fun selected(selection: Selected?) {}
+
+    /** The strip's tip was answered with Got it. */
+    fun tipDone(tip: Tip) {}
+
+    /** A gesture with a tip was used: its tip is not needed any more. */
+    fun gestureUsed(tip: Tip) {}
 }
 
 /**
@@ -127,6 +133,13 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     /** Which language the keyboard is in. Android decides, through the subtype the person picked. */
     var language = Language.ENGLISH
+
+    /**
+     * Characters typed from the keys since this field opened: a count, nothing more. A gesture tip waits for some, so
+     * it never greets someone the moment the keyboard appears.
+     */
+    var typedHere = 0
+        private set
 
     /** Whether the last thing typed was the space that ended a word, for the double-space full stop. */
     private var lastWasSpace = false
@@ -298,6 +311,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     /** A new field: read what it asks for, start on the right layer, and capitalise if it wants that. */
     fun startInput(info: EditorInfo?) {
         rules = Layouts.rulesFor(info)
+        typedHere = 0
         layer = if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) Layer.NUMBERS else Layer.LETTERS
         val capitals = autoCaps(info)
         shift = if (settings.autoCapitalise && capitals) Shift.ONCE else Shift.OFF
@@ -359,6 +373,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onText(text: String) {
         undo = null
+        typedHere += text.length
         if (doubleSpace(text)) return
         // The key already carries the right case: the layout builds an upper-case key when shift is on.
         ime.connection?.commitText(text, 1) ?: return
@@ -543,6 +558,10 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onEmojiPanel() = ime.showEmoji(true)
 
     override fun onOffer(offer: Insights.Offer, accepted: Boolean) = ime.answered(offer, accepted)
+
+    override fun onTipDone(tip: Tip) = ime.tipDone(tip)
+
+    override fun onGesture(tip: Tip) = ime.gestureUsed(tip)
 
     /**
      * A suggestion, taken.

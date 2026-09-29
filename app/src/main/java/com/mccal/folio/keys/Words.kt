@@ -51,6 +51,7 @@ object Spoken {
         KeyKind.CURSOR_PAD -> "Cursor pad"
         KeyKind.SUGGESTION -> key.output
         KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO -> key.label
+        KeyKind.TIP, KeyKind.TIP_DONE -> key.label
         KeyKind.FULL_WIDTH, KeyKind.OTHER_SIDE -> key.label
         // The count is drawn with a middle dot between its halves; read aloud, a comma is the pause it stands for.
         KeyKind.SELECTION -> key.label.replace(" · ", ", ")

@@ -121,6 +121,8 @@ data class Settings(
     val shiftSelect: Boolean = true,
     /** With text selected, the toolbar counts it and offers styles. Never in a password field. */
     val selectionTools: Boolean = true,
+    /** A tip in the strip, once each, for a gesture nobody would find by looking. See [Tips]. */
+    val gestureTips: Boolean = true,
 ) {
 
     fun save(prefs: SharedPreferences) {
@@ -160,6 +162,7 @@ data class Settings(
             putBoolean(EDIT_SWIPES, editSwipes)
             putBoolean(SHIFT_SELECT, shiftSelect)
             putBoolean(SELECTION_TOOLS, selectionTools)
+            putBoolean(GESTURE_TIPS, gestureTips)
         }.apply()
     }
 
@@ -199,6 +202,7 @@ data class Settings(
         const val EDIT_SWIPES = "editSwipes"
         const val SHIFT_SELECT = "shiftSelect"
         const val SELECTION_TOOLS = "selectionTools"
+        const val GESTURE_TIPS = "gestureTips"
         /** Set once someone arranges the toolbar themselves, so no later fix-up mistakes their list for a default. */
         const val TOOLBAR_ARRANGED = "toolbarArranged"
         /** Set once [giveBetasUndo] has looked, so it looks only once. */
@@ -334,6 +338,7 @@ data class Settings(
                 editSwipes = read(EDIT_SWIPES, fallback.editSwipes),
                 shiftSelect = read(SHIFT_SELECT, fallback.shiftSelect),
                 selectionTools = read(SELECTION_TOOLS, fallback.selectionTools),
+                gestureTips = read(GESTURE_TIPS, fallback.gestureTips),
             )
         }
 

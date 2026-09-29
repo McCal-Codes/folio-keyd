@@ -242,6 +242,25 @@ object Icons {
         canvas.drawLine(cx, cy + half * 0.2f, cx, cy + half, stroke)
     }
 
+    /**
+     * A light bulb, for a tip: the glass as most of a circle, open at the bottom where it meets the neck, and two
+     * short lines under it for the screw base.
+     */
+    fun bulb(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        val r = half * 0.56f
+        val glassY = cy - half * 0.22f
+        rect.set(cx - r, glassY - r, cx + r, glassY + r)
+        // Open by 70 degrees at the bottom, so the neck comes straight down out of the glass.
+        canvas.drawArc(rect, 125f, 290f, false, stroke)
+        val neck = r * 0.57f
+        val neckTop = glassY + r * 0.82f
+        canvas.drawLine(cx - neck, neckTop, cx - neck, cy + half * 0.55f, stroke)
+        canvas.drawLine(cx + neck, neckTop, cx + neck, cy + half * 0.55f, stroke)
+        canvas.drawLine(cx - neck, cy + half * 0.55f, cx + neck, cy + half * 0.55f, stroke)
+        canvas.drawLine(cx - neck * 0.6f, cy + half * 0.85f, cx + neck * 0.6f, cy + half * 0.85f, stroke)
+    }
+
     /** A magnifying glass: the lens up and to the left, the handle down to the right, the way every search key is. */
     fun magnifier(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
         val half = size / 2

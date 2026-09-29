@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyd 0.3.1: a tip in the strip for each gesture, once, and the switch and reset for them in Keys and gestures. -->
+<resources>
+    <!-- The strip. The short form is for windows under 400dp. -->
+    <string name="tip_cursor_swipe">Tip: swipe the space bar to move the cursor</string>
+    <string name="tip_cursor_swipe_short">Tip: swipe space to move the cursor</string>
+    <string name="tip_delete_word">Tip: swipe left on backspace to delete a word</string>
+    <string name="tip_delete_word_short">Tip: swipe backspace left to erase a word</string>
+    <string name="tip_edit_swipes">Tip: swipe up on C to copy, V to paste</string>
+    <string name="tip_shift_select">Tip: slide from shift to select text</string>
+    <string name="tip_two_finger_undo">Tip: swipe two fingers left to undo</string>
+    <string name="tip_globe_languages">Tip: hold the globe for your languages</string>
+    <string name="tip_period_symbols">Tip: hold the period for more symbols</string>
+    <string name="tip_got_it">Got it</string>
+
+    <!-- Settings, Keys and gestures. -->
+    <string name="header_tips">TIPS</string>
+    <string name="settings_gesture_tips">Show gesture tips</string>
+    <string name="settings_gesture_tips_note">Once each, in the suggestion strip</string>
+    <string name="row_tips_again">Show them all again</string>
+    <string name="toast_tips_again">Tips will show again</string>
+</resources>

@@ -21,6 +21,8 @@ enum class KeyKind {
      * Style opens - one of its choices, and the note under them.
      */
     SELECTION, STYLE, STYLE_CHOICE, STYLE_NOTE,
+    /** A gesture tip in the strip: the tip itself (read, not pressed), and its Got it. */
+    TIP, TIP_DONE,
 }
 
 /**
