@@ -1014,6 +1014,18 @@ class SettingsActivity : Activity() {
             toggle(it, getString(R.string.settings_delete_word), settings.deleteWordSwipe) { on -> settings.copy(deleteWordSwipe = on) }
         }
         footer(column, getString(R.string.settings_gestures_note))
+        header(column, getString(R.string.header_tips))
+        group(column) {
+            switchRow(
+                it, getString(R.string.settings_gesture_tips), settings.gestureTips,
+                subtitle = getString(R.string.settings_gesture_tips_note),
+            ) { on -> change(settings.copy(gestureTips = on)) }
+            // Nothing is lost by it, so it does not ask first; the keyboard reads the tips again when a field opens.
+            link(it, getString(R.string.row_tips_again)) {
+                Tips.reset(prefs)
+                toast(getString(R.string.toast_tips_again))
+            }
+        }
     }
 
     // ---- The toolbar ---------------------------------------------------------------------------------------------
