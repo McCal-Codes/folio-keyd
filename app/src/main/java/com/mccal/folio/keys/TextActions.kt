@@ -551,11 +551,21 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
             connection.commitText("", 1)
             word.setLength(0)
         } else {
-            connection.deleteSurroundingText(1, 0)
-            if (word.isNotEmpty()) word.setLength(word.length - 1)
+            deleteBehind(connection)
         }
         wordChanged()
         recapitalize()
+    }
+
+    /**
+     * The character before the cursor, whole, the way [deleteAhead] takes the one after it. The word being typed only
+     * ever holds single letters, so whatever part of it the delete reached comes off its end.
+     */
+    private fun deleteBehind(connection: InputConnection) {
+        val before = connection.getTextBeforeCursor(BEHIND, 0)
+        val length = if (before.isNullOrEmpty()) 1 else Words.lastCharacterLength(before)
+        connection.deleteSurroundingText(length, 0)
+        if (word.isNotEmpty()) word.setLength(maxOf(0, word.length - length))
     }
 
     /**
@@ -582,8 +592,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onBackspaceRepeat() {
         val connection = ime.connection ?: return
         if (forward) return deleteAhead(connection)
-        connection.deleteSurroundingText(1, 0)
-        if (word.isNotEmpty()) word.setLength(word.length - 1) else previous = ""
+        if (word.isEmpty()) previous = ""
+        deleteBehind(connection)
         underlined = null
         wordStart = false
         wordChanged()
@@ -866,5 +876,8 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
         /** How far past the cursor to read for the next character: longer than any emoji sequence in use. */
         const val AHEAD = 32
+
+        /** The same for the character before it. */
+        const val BEHIND = 32
     }
 }

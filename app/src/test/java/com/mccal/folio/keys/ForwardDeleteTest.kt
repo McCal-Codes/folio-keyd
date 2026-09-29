@@ -30,7 +30,8 @@ class ForwardDeleteTest {
         override fun switchKeyboard() = Unit
         override fun hideKeyboard() = Unit
         override fun show(rows: List<Row>, shift: Shift) { this.shift = shift }
-        override fun suggest(word: String) = Unit
+        var word = ""
+        override fun suggest(word: String) { this.word = word }
         override fun learn(word: String) = Unit
         override fun showEmoji(showing: Boolean) = Unit
         override fun showClipboard(showing: Boolean) = Unit
@@ -106,6 +107,38 @@ class ForwardDeleteTest {
             backspace(shiftHeld = true)
             assertEquals("after $emoji", "ab", text)
         }
+    }
+
+    @Test
+    fun `backspace takes an emoji whole going backwards too`() {
+        for (emoji in listOf("👍🏽", "🇫🇷", "👨‍👩‍👧", "e\u0301", "é", "b")) {
+            text("a$emoji", "c")
+            backspace()
+            assertEquals("before $emoji", "ac", text)
+        }
+    }
+
+    @Test
+    fun `holding backspace takes one whole character each time`() {
+        text("ab👍🏽🇫🇷", "")
+        actions.onBackspaceStart(false)
+        actions.onBackspaceRepeat()
+        assertEquals("ab👍🏽", text)
+        actions.onBackspaceRepeat()
+        assertEquals("ab", text)
+        actions.onBackspaceRepeat()
+        assertEquals("a", text)
+    }
+
+    @Test
+    fun `the word being typed loses one letter, not the length of the last emoji`() {
+        text("👍🏽 ", "")
+        for (letter in "cat") actions.onText(letter.toString())
+        backspace()
+        assertEquals("👍🏽 ca", text)
+        assertEquals("ca", ime.word)
+        actions.onBackspaceRepeat()
+        assertEquals("c", ime.word)
     }
 
     @Test
