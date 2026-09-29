@@ -855,7 +855,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     override fun onCut() = menu(android.R.id.cut)
 
     /**
-     * Undo and redo as Ctrl+Z and Ctrl+Shift+Z, what a hardware keyboard sends. Android's own text fields have
+     * Undo and redo as Ctrl+Z and Ctrl+Shift+Z, what a hardware keyboard sends. Android's own text fields
      * understand them, as do most editors and web pages; an app that ignores them does nothing, and nothing breaks.
      */
     override fun onUndo() {
