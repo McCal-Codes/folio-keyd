@@ -102,6 +102,9 @@ class KeysServiceTest {
         override fun fixStood(typed: String, replacement: String) { stood += typed to replacement }
         override fun putBack(typed: String) { putBack += typed }
         override fun answered(offer: Insights.Offer, accepted: Boolean) { answers += offer to accepted }
+
+        var quietGaps = 0
+        override fun quietGap() { quietGaps++ }
     }
 
     private lateinit var ime: FakeIme
@@ -137,6 +140,33 @@ class KeysServiceTest {
         val editable = field.editable!!
         editable.append(value)
         android.text.Selection.setSelection(editable, editable.length)
+    }
+
+    /** With Suggestions off the strip is told of the gap after a word on its own, so a gesture tip can take it. */
+    @Test
+    fun `with suggestions off the gap after a word is still offered to a tip`() {
+        actions.settings = Settings(suggestions = false)
+        type("hello")
+        assertEquals("not in the middle of a word", 0, ime.quietGaps)
+        type(" ")
+        assertEquals(1, ime.quietGaps)
+    }
+
+    @Test
+    fun `with suggestions on the gap goes to what might come next, as before`() {
+        type("hello ")
+        assertEquals(0, ime.quietGaps)
+        assertEquals("hello", ime.previousFor.last())
+    }
+
+    @Test
+    fun `a password field or an address has no quiet gap`() {
+        actions.settings = Settings(suggestions = false)
+        for (variation in listOf(InputType.TYPE_TEXT_VARIATION_PASSWORD, InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)) {
+            start(InputType.TYPE_CLASS_TEXT or variation, EditorInfo.IME_ACTION_UNSPECIFIED)
+            type("hello ")
+        }
+        assertEquals(0, ime.quietGaps)
     }
 
     @Test

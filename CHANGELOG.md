@@ -9,6 +9,7 @@ under Settings › About › What's New.
 ### Fixed
 - Searching emoji for a word like the Spanish "corazón" puts the red heart first, not a face that has the word.
 - "don" and "won" are no longer offered as you type "do" and "wo". "won" is still a word.
+- Gesture tips show with Suggestions turned off.
 
 ## [0.3.1] - 2026-09-29
 

@@ -116,6 +116,9 @@ interface Ime {
 
     /** A gesture with a tip was used: its tip is not needed any more. */
     fun gestureUsed(tip: Tip) {}
+
+    /** The gap after a word, with Suggestions off: nothing is offered there, but a tip may take it. */
+    fun quietGap() {}
     /** Keyd's languages that are turned on in Android, in Android's order. Empty if Android will not say. */
     fun languages(): List<Language> = emptyList()
 
@@ -233,6 +236,14 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         val quiet = rules.password || rules.noSuggestions || !settings.suggestions
         val context = if (quiet || rules.address || (word.isEmpty() && !wordStart)) "" else previous
         ime.suggest(if (quiet) "" else word.toString(), context)
+        // Suggestions off turns off the guessing, not the strip, and the gap after a word is the only place a tip is
+        // ever shown. Asked for here because the gap above has no word before it when suggestions are off, so a tip
+        // never had its turn. Not where the field itself is quiet: a password, an address, or an app that asked.
+        if (!settings.suggestions && !rules.password && !rules.noSuggestions && !rules.address &&
+            word.isEmpty() && wordStart && previous.isNotEmpty()
+        ) {
+            ime.quietGap()
+        }
     }
 
     /**

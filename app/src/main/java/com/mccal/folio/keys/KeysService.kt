@@ -503,6 +503,11 @@ class KeysService : InputMethodService(), Ime {
 
     override fun tipDone(tip: Tip) = gestureUsed(tip)
 
+    /** With nothing to predict, the gap is the tip's if it is time for one, as it would be with suggestions on. */
+    override fun quietGap() {
+        if (keyboard?.offer == null && keyboard?.tip == null) placeTip()
+    }
+
     override fun gestureUsed(tip: Tip) {
         if (keyboard?.tip == tip) keyboard?.tip = null
         if (!tipsDone.add(tip)) return
