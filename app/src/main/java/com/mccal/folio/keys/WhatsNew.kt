@@ -67,6 +67,18 @@ internal object WhatsNew {
         val t = title.lowercase(java.util.Locale.ROOT)
         return when {
             "dev" in t -> SettingsIcon.Glyph.KEYS to "#B44A0C"
+            // Features that have a picture of their own come first, so no two neighbors share the shift arrow.
+            "search" in t -> SettingsIcon.Glyph.SEARCH to "#0071E3"
+            "undo" in t -> SettingsIcon.Glyph.UNDO to "#C93400"
+            "emoji" in t -> SettingsIcon.Glyph.EMOJI to "#5E5CE6"
+            "tip" in t -> SettingsIcon.Glyph.TIP to "#9A5200"
+            "period" in t || "symbol" in t -> SettingsIcon.Glyph.SYMBOLS to "#8944AB"
+            "delete" in t -> SettingsIcon.Glyph.BACKSPACE to "#D70015"
+            "delay" in t -> SettingsIcon.Glyph.TIMER to "#0A6E75"
+            "select" in t -> SettingsIcon.Glyph.SELECT to "#0071E3"
+            "toolbar" in t || "cursor" in t || "one-handed" in t -> SettingsIcon.Glyph.MOVE to "#636366"
+            "feel" in t -> SettingsIcon.Glyph.SOUND to "#D70015"
+            "fix" in t || "word" in t || "contraction" in t -> SettingsIcon.Glyph.TYPING to "#248A3D"
             "whether" in t || "setting" in t || "status" in t -> SettingsIcon.Glyph.TYPING to "#248A3D"
             "new" in t || "about" in t -> SettingsIcon.Glyph.SHORTCUTS to "#0071E3"
             "language" in t -> SettingsIcon.Glyph.LANGUAGES to "#0071E3"
