@@ -13,6 +13,7 @@ under Settings › About › What's New.
 - Copied text older than an hour is deleted from the phone, not just hidden from the list.
 - Setup says "Forget the word it has learned" when there is one, not "the 1 words".
 - Backspace is quicker in browsers and never splits an emoji.
+- "wont's" is no longer in the English dictionary.
 
 ## [0.3.1] - 2026-09-29
 

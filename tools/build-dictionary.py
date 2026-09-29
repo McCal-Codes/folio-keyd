@@ -273,6 +273,19 @@ def stem_positions(words, counts, found):
     return positions
 
 
+def contraction_possessives(words, found):
+    """
+    The possessives of an "n't" contraction typed without its apostrophe: SCOWL's "wont's".
+
+    SCOWL has it as the possessive of "wont", the old word for a habit, and it is ranked by that stem. But on a phone
+    "wont" is "won't" with the apostrophe left out, and the stem's count is nearly all of that, so "wont's" came out
+    as common as "wont" and was offered to someone typing "won't". Nobody means it. Only "n't" ones: "hell's",
+    "well's" and "shell's" have a contraction's spelling too ("he'll", "we'll", "she'll"), and are real words.
+    """
+    bare = {word.replace("'", "") for word in found if word.endswith("'t")}
+    return {word for word in words if word.lower().endswith("'s") and word.lower()[:-2] in bare}
+
+
 def fold(word):
     """The word with its accents taken off: "acción" is "accion", "für" is "fur"."""
     return "".join(c for c in unicodedata.normalize("NFD", word) if unicodedata.category(c) != "Mn")
@@ -343,7 +356,9 @@ def main(final_dir, frequency_file, destination):
     apostrophes = apostrophe_positions(words, counts, found)
     # The n't stems are ranked by what they were said as on their own, not by the contractions counted under them.
     ranked = {**positions, **stem_positions(words, counts, found)}
-    entries = {word: score(position_of(word.lower(), ranked, apostrophes), band) for word, band in words.items()}
+    dropped = contraction_possessives(words, found)
+    entries = {word: score(position_of(word.lower(), ranked, apostrophes), band) for word, band in words.items()
+               if word not in dropped}
 
     spoken = 0
     have = {word.lower() for word in entries}
