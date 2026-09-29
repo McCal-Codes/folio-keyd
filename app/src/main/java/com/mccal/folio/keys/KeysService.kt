@@ -315,6 +315,7 @@ class KeysService : InputMethodService(), Ime {
                     main.post {
                         if (mine != asked) return@post
                         keyboard?.typedFirst = false
+                        keyboard?.suggestedEmoji = null
                         keyboard?.suggestions = found
                     }
                 },
@@ -325,12 +326,14 @@ class KeysService : InputMethodService(), Ime {
         }
         if (word.length < 2) {
             actions.offered(Verdict(word, null, misspelled = false))
+            keyboard?.suggestedEmoji = null
             keyboard?.suggestions = emptyList()
             return
         }
         val keys = keyboard?.placements
         val language = actions.language
         val contractions = Contractions.of(language)
+        val emojiOn = actions.settings.suggestEmoji
         background.postDelayed(
             {
                 val started = android.os.SystemClock.elapsedRealtime()
@@ -358,9 +361,17 @@ class KeysService : InputMethodService(), Ime {
                         (learned?.count(word.lowercase()) ?: 0) == 0 &&
                         shortcuts?.expand(word) == null
                 }.getOrDefault(false)
+                // The emoji names are read the first time a word could use them, after this word's answer rather than
+                // ahead of it, so the first suggestions never wait on a second file. Until then, no emoji.
+                val names = emojiNames?.takeIf { emojiNamesFor == language }
+                if (emojiOn && names == null) background.post { loadEmojiNames(language) }
+                val emoji = if (!emojiOn) null else runCatching {
+                    Suggestions.emoji(word, words, names)?.let { SuggestedEmoji(it, names?.nameOf(it) ?: it) }
+                }.getOrNull()
                 // Timings and counts only: the word itself never goes in the log.
                 val took = android.os.SystemClock.elapsedRealtime() - started
-                DevLog.event(this, "suggest", "ms" to took, "found" to found.size, "fixed" to if (fix != null) 1 else 0)
+                DevLog.event(this, "suggest", "ms" to took, "found" to found.size, "fixed" to if (fix != null) 1 else 0,
+                    "emoji" to if (emoji != null) 1 else 0)
                 if (took > DevLog.SLOW_MS) DevLog.problem(this, "slow-suggestion", "ms" to took)
                 main.post {
                     // A job already running cannot be cancelled, so it checks on the way out whether the word it
@@ -369,7 +380,8 @@ class KeysService : InputMethodService(), Ime {
                     if (mine != asked) return@post
                     actions.offered(Verdict(word, fix, misspelled = unknown, suggestions = found))
                     keyboard?.typedFirst = true
-                    keyboard?.suggestions = if (found.isEmpty()) emptyList() else listOf(word) + found
+                    keyboard?.suggestedEmoji = emoji
+                    keyboard?.suggestions = if (found.isEmpty() && emoji == null) emptyList() else listOf(word) + found
                 }
             },
             suggesting,
@@ -616,6 +628,8 @@ class KeysService : InputMethodService(), Ime {
             addView(arrows)
         }
     }
+
+    override fun rememberEmoji(emoji: String) = remember(emoji)
 
     private fun remember(value: String) {
         val grid = emoji ?: return

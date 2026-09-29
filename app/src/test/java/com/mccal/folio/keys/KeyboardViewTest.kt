@@ -61,6 +61,7 @@ class KeyboardViewTest {
             override fun onHide() { toolbar += "hide" }
             override fun onEmojiPanel() { toolbar += "emoji" }
             override fun onSuggestion(word: String) { toolbar += "suggestion:$word" }
+            override fun onSuggestedEmoji(emoji: String) { toolbar += "emoji:$emoji" }
             override fun onVoice() { toolbar += "voice" }
             override fun onCursorPad() { toolbar += "cursorPad" }
             override fun onOffer(offer: Insights.Offer, accepted: Boolean) {
@@ -1067,5 +1068,93 @@ class KeyboardViewTest {
         send(MotionEvent.ACTION_UP, box.left, -200 * density)
         assertEquals(0, actions)
     }
-}
 
+    // ---- the emoji at the end of the strip ----------------------------------------------------------------------
+
+    private val pizza = SuggestedEmoji("🍕", "pizza")
+
+    /** A view laid out at [widthDp] wide, with a word's strip and its emoji showing, and a phone with a mic. */
+    private fun stripAt(widthDp: Int, heightDp: Int, chosen: Settings = Settings()): KeyboardView {
+        val side = if (widthDp > heightDp) "-land" else ""
+        org.robolectric.RuntimeEnvironment.setQualifiers("w${widthDp}dp-h${heightDp}dp$side-xhdpi")
+        val fresh = KeyboardView(ApplicationProvider.getApplicationContext<Context>())
+        fresh.settings = chosen
+        fresh.voiceAvailable = true
+        fresh.rules = FieldRules()
+        fresh.rows = Layouts.rows(Layer.LETTERS, false, FieldRules())
+        val width = (widthDp * fresh.resources.displayMetrics.density).toInt()
+        fresh.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        fresh.layout(0, 0, fresh.measuredWidth, fresh.measuredHeight)
+        fresh.suggestedEmoji = pizza
+        fresh.suggestions = listOf("pizza", "pizzas", "pizzeria", "pizzazz")
+        return fresh
+    }
+
+    @Test
+    fun `the word's emoji sits last before the mic`() {
+        view.voiceAvailable = true
+        view.suggestedEmoji = pizza
+        view.suggestions = listOf("pizza", "pizzas", "pizzeria")
+        assertEquals(
+            listOf(KeyKind.SUGGESTION, KeyKind.SUGGESTION, KeyKind.SUGGESTION, KeyKind.SUGGESTED_EMOJI, KeyKind.VOICE),
+            view.toolbarPlacements.map { it.key.kind },
+        )
+        val emoji = view.toolbarPlacements[3]
+        assertEquals("🍕", emoji.key.output)
+        val box = emoji.box
+        send(MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        send(MotionEvent.ACTION_UP, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+        assertEquals(listOf("emoji:🍕"), toolbar)
+    }
+
+    @Test
+    fun `no emoji means no place for one`() {
+        view.voiceAvailable = true
+        view.suggestedEmoji = null
+        view.suggestions = listOf("pizza", "pizzas", "pizzeria")
+        assertEquals(listOf("pizza", "pizzas", "pizzeria", "Voice"), stripLabels())
+    }
+
+    @Test
+    fun `a password field never shows the emoji`() {
+        show(FieldRules(password = true))
+        view.suggestedEmoji = pizza
+        view.suggestions = listOf("pizza")
+        assertTrue(view.toolbarPlacements.none { it.key.kind == KeyKind.SUGGESTED_EMOJI })
+    }
+
+    @Test
+    fun `a screen reader names the emoji rather than reading the glyph`() {
+        view.suggestedEmoji = pizza
+        view.suggestions = listOf("pizza", "pizzas")
+        val provider = view.accessibilityNodeProvider!!
+        val at = view.placements.size + view.toolbarPlacements.indexOfFirst { it.key.kind == KeyKind.SUGGESTED_EMOJI }
+        val node = provider.createAccessibilityNodeInfo(at)!!
+        assertEquals("Emoji pizza", node.contentDescription)
+        provider.performAction(at, AccessibilityNodeInfo.ACTION_CLICK, null)
+        assertEquals(listOf("emoji:🍕"), toolbar)
+    }
+
+    /** The cover screen and half a split keyboard: the words give up room, and the mic and the emoji keep theirs. */
+    @Test
+    fun `on a narrow strip the words shrink and the mic stays`() {
+        for (strip in listOf(stripAt(330, 748), stripAt(932, 701, Settings(split = Split.ALWAYS)))) {
+            val density = strip.resources.displayMetrics.density
+            val placed = strip.toolbarPlacements
+            assertEquals(KeyKind.VOICE, placed.last().key.kind)
+            assertEquals(KeyKind.SUGGESTED_EMOJI, placed[placed.size - 2].key.kind)
+            val right = placed.last().box.right
+            assertTrue("the mic ends at $right of ${strip.width}", right <= strip.width + 0.5f)
+            for ((a, b) in placed.zipWithNext()) assertTrue("${a.key.label} overlaps ${b.key.label}", a.box.right <= b.box.left + 0.5f)
+            for (placement in placed) {
+                assertTrue(
+                    "${placement.key.label} is ${placement.box.width / density} dp",
+                    placement.box.width / density >= 24f,
+                )
+            }
+        }
+    }
+}

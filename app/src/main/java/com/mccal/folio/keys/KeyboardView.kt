@@ -70,6 +70,9 @@ class KeyboardView(context: Context) : View(context) {
 
         /** A word from the strip, tapped. */
         fun onSuggestion(word: String)
+
+        /** The emoji at the end of the strip, tapped: it goes in after the word. */
+        fun onSuggestedEmoji(emoji: String) {}
         fun onHide()
 
         /** Hand over to the phone's voice keyboard. */
@@ -105,6 +108,19 @@ class KeyboardView(context: Context) : View(context) {
      * either way, so nothing on the screen moves as you start and finish a word.
      */
     var suggestions: List<String> = emptyList()
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
+    /**
+     * The emoji the word being typed is the name of, and that name: the strip's last place before the mic. Null when
+     * the word has none, and whenever [suggestions] is empty, since it only ever sits beside them.
+     */
+    var suggestedEmoji: SuggestedEmoji? = null
         set(value) {
             if (field == value) return
             field = value
@@ -659,16 +675,29 @@ class KeyboardView(context: Context) : View(context) {
         val bottom = top + toolbarHeight
         // The mic keeps the last slot while a word is being typed, where Gboard, Samsung and SwiftKey all keep it:
         // voice is most wanted exactly when typing has started to feel slow.
-        val mic = if (showVoice) min((right - left) / (suggestions.size + 1), TOOL_SLOT_DP * dp) else 0f
-        val words = right - mic
+        // The emoji, when there is one, takes a place the size of the mic's just before it. On a cover screen or half
+        // a split keyboard it is the words that give up the room, never the mic or the emoji.
+        val emoji = suggestedEmoji
+        val icons = (if (showVoice) 1 else 0) + (if (emoji != null) 1 else 0)
+        val icon = if (icons > 0) min((right - left) / (suggestions.size + icons), TOOL_SLOT_DP * dp) else 0f
+        val mic = if (showVoice) icon else 0f
+        val emojiWidth = if (emoji != null) icon else 0f
+        val words = right - mic - emojiWidth
         val slot = (words - left) / suggestions.size
-        val placed = suggestions.mapIndexedTo(ArrayList(suggestions.size + 1)) { index, word ->
+        val placed = suggestions.mapIndexedTo(ArrayList(suggestions.size + 2)) { index, word ->
             Placement(
                 Key(word, KeyKind.SUGGESTION, output = word),
                 Box(left + index * slot, top, left + (index + 1) * slot, bottom),
             )
         }
-        if (mic > 0f) placed += Placement(Key("Voice", KeyKind.VOICE), Box(words, top, right, bottom))
+        if (emoji != null) {
+            val label = context.getString(R.string.suggested_emoji, emoji.name)
+            placed += Placement(
+                Key(label, KeyKind.SUGGESTED_EMOJI, output = emoji.glyph),
+                Box(words, top, words + emojiWidth, bottom),
+            )
+        }
+        if (mic > 0f) placed += Placement(Key("Voice", KeyKind.VOICE), Box(right - mic, top, right, bottom))
         return placed
     }
 
@@ -925,6 +954,11 @@ class KeyboardView(context: Context) : View(context) {
                 val literal = typedFirst && placement === tools.first()
                 text.textSize = min(box.height * 0.40f, 17 * dp)
                 sizedAt = -1f
+                // A narrow strip - a cover screen, half a split keyboard, an emoji beside the mic - is where a long
+                // word would run into its neighbour, so it is set smaller to fit its share instead.
+                val room = box.width - 2 * OFFER_GAP_DP * dp
+                val wide = text.measureText(placement.key.label)
+                if (wide > room && room > 0f) text.textSize = max(MIN_COUNT_DP * dp, text.textSize * room / wide)
                 text.color = if (literal) theme.hint else theme.label
                 canvas.drawText(
                     placement.key.label, cx, cy - (text.descent() + text.ascent()) / 2, text,
@@ -933,6 +967,16 @@ class KeyboardView(context: Context) : View(context) {
                     fill.color = theme.hint
                     canvas.drawRect(box.left, cy - size * 0.5f, box.left + max(1f, dp * 0.5f), cy + size * 0.5f, fill)
                 }
+                continue
+            }
+            if (placement.key.kind == KeyKind.SUGGESTED_EMOJI) {
+                // After a line like the ones between the words, and in the emoji's own colors.
+                text.textSize = min(box.height * 0.46f, 20 * dp)
+                sizedAt = -1f
+                text.color = theme.label
+                canvas.drawText(placement.key.output, cx, cy - (text.descent() + text.ascent()) / 2, text)
+                fill.color = theme.hint
+                canvas.drawRect(box.left, cy - size * 0.5f, box.left + max(1f, dp * 0.5f), cy + size * 0.5f, fill)
                 continue
             }
             Icons.tool(canvas, placement.key.kind, cx, cy, size, stroke, fill)
@@ -1502,6 +1546,7 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.PASTE -> l.onPaste()
             KeyKind.EMOJI -> l.onEmojiPanel()
             KeyKind.SUGGESTION -> l.onSuggestion(key.output)
+            KeyKind.SUGGESTED_EMOJI -> l.onSuggestedEmoji(key.output)
             KeyKind.VOICE -> l.onVoice()
             KeyKind.CURSOR_PAD -> l.onCursorPad()
             KeyKind.FULL_WIDTH -> oneHanded(OneHanded.OFF, l)

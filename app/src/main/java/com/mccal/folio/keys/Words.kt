@@ -50,6 +50,8 @@ object Spoken {
         KeyKind.VOICE -> "Voice typing, opens your phone's voice keyboard"
         KeyKind.CURSOR_PAD -> "Cursor pad"
         KeyKind.SUGGESTION -> key.output
+        // "Emoji pizza": what it is, then its Unicode name, since the glyph read on its own says nothing.
+        KeyKind.SUGGESTED_EMOJI -> key.label
         KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO -> key.label
         KeyKind.FULL_WIDTH, KeyKind.OTHER_SIDE -> key.label
         // The count is drawn with a middle dot between its halves; read aloud, a comma is the pause it stands for.

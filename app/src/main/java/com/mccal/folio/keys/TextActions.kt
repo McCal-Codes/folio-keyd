@@ -75,6 +75,9 @@ interface Ime {
     /** Swap the letters for the emoji grid, or back again. */
     fun showEmoji(showing: Boolean)
 
+    /** An emoji typed from outside the grid, put at the front of its recents as a tap there would be. */
+    fun rememberEmoji(emoji: String) {}
+
     /** Swap the letters for what has been copied lately, or back. */
     fun showClipboard(showing: Boolean)
 
@@ -572,6 +575,28 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         connection.commitText("$chosen ", 1)
         connection.endBatchEdit()
         previous = chosen.substringAfterLast(' ').lowercase()
+        lastWasSpace = false
+        wordStart = true
+        word.setLength(0)
+        wordChanged()
+    }
+
+    /**
+     * The emoji at the end of the strip, taken: the word stays exactly as typed, and the emoji goes in after it with a
+     * space either side, "pizza 🍕 ", ready for the next word. The emoji follows the word rather than replacing it,
+     * as Gboard's and iOS's do, because the word was the point and the emoji is a flourish on it.
+     *
+     * Nothing is learned from it and nothing is corrected: the word was not finished by a space, so the pending fix,
+     * if there was one, is simply not made. It goes in the emoji recents, the same as a tap on the grid.
+     */
+    override fun onSuggestedEmoji(emoji: String) {
+        undo = null
+        val connection = ime.connection ?: return
+        if (word.isEmpty()) return
+        connection.commitText(" $emoji ", 1)
+        ime.rememberEmoji(emoji)
+        // The emoji is not a word to predict from, and a space after it is not the second of a double space.
+        previous = ""
         lastWasSpace = false
         wordStart = true
         word.setLength(0)
