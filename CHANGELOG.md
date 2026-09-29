@@ -4,6 +4,11 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.3.2] - Unreleased
+
+### Fixed
+- Searching emoji for a word like the Spanish "corazón" puts the red heart first, not a face that has the word.
+
 ## [0.3.1] - 2026-09-29
 
 ### Added
