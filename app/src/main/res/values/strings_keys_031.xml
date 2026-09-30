@@ -24,7 +24,7 @@
     <string name="hold_follow_phone">Phone</string>
     <string name="hold_shorter">Shorter</string>
     <string name="hold_longer">Longer</string>
-    <string name="footer_hold_delay">How long you hold a key before accents, symbols or the language list open. Follow phone uses Android’s own Touch and hold delay.</string>
+    <string name="footer_hold_delay">How long you hold a key before accents, symbols or the language list open. Phone uses Android’s own Touch and hold delay.</string>
     <string name="header_backspace_speed">BACKSPACE SPEED</string>
     <string name="speed_slower">Slower</string>
     <string name="speed_normal">Normal</string>

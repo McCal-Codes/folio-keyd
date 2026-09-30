@@ -21,6 +21,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -96,6 +98,9 @@ class SettingsActivity : Activity() {
         // A segmented control's track and its raised choice: iOS's grouped fill under a card-colored thumb.
         val track = if (dark) Color.BLACK else Color.parseColor("#E3E3E8")
         val raised = if (dark) Color.parseColor("#3A3A3C") else Color.WHITE
+        // The line around the raised choice. The raised fill is only 1.3:1 on the track in light mode, so this is
+        // what shows which option is chosen, and it clears 3:1 on the track in both (WCAG 1.4.11).
+        val outline = secondary
     }
 
     private lateinit var colors: Palette
@@ -108,7 +113,7 @@ class SettingsActivity : Activity() {
     // Android 16 no longer calls onBackPressed for an app that targets it; the system's back gesture goes through
     // this callback instead, and only while there is a page to step back to.
     private val back: Any? by lazy {
-        if (Build.VERSION.SDK_INT >= 33) OnBackInvokedCallback { page.parent?.let { show(it) } } else null
+        if (Build.VERSION.SDK_INT >= 33) OnBackInvokedCallback { backTo()?.let { show(it) } } else null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -127,6 +132,7 @@ class SettingsActivity : Activity() {
             ?: if (WhatsNew.shouldShow(this, versionName())) Page.WHATS_NEW else Page.MAIN
         app = savedInstanceState?.getString(APP)
         query = savedInstanceState?.getString(QUERY).orEmpty()
+        fromSearch = savedInstanceState?.getBoolean(FROM_SEARCH) == true
         if (page == Page.APP && app == null) page = Page.APPS
         savedInstanceState?.let { state ->
             answers = DevLog.Answers(
@@ -136,25 +142,65 @@ class SettingsActivity : Activity() {
                 include = DevLog.Include(flags[0], flags[1], flags[2], flags[3])
             }
         }
-        colors = Palette(
-            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
-        )
+        val dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        colors = Palette(dark)
         window.decorView.setBackgroundColor(colors.background)
+        barIcons(light = !dark)
         render()
+    }
+
+    /**
+     * With the title bar gone the page runs under the status bar, so its icons have to be drawn for the page's own
+     * background: dark icons on the light grey, light ones on black. Android draws them light unless told.
+     */
+    private fun barIcons(light: Boolean) {
+        // Android 15 and later draw every app edge to edge; below it the page is asked to, so it looks the same on
+        // Keyd's oldest phones, with clear bars over the page's own background.
+        if (Build.VERSION.SDK_INT < 35) {
+            window.setDecorFitsSystemWindows(false)
+            @Suppress("DEPRECATION")
+            window.statusBarColor = Color.TRANSPARENT
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = Color.TRANSPARENT
+        }
+        val bars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        window.insetsController?.setSystemBarsAppearance(if (light) bars else 0, bars)
+    }
+
+    /**
+     * Keeps the page clear of the status and navigation bars, a camera cutout on its side (the Fold's cover screen
+     * turned over), and the keyboard while search has it up. The page still scrolls under the bars.
+     */
+    private fun pad(view: View, insets: WindowInsets): WindowInsets {
+        val clear = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+        val keyboard = insets.getInsets(WindowInsets.Type.ime())
+        view.setPadding(clear.left, clear.top, clear.right, maxOf(clear.bottom, keyboard.bottom))
+        return WindowInsets.CONSUMED
     }
 
     override fun onResume() {
         super.onResume()
         // Languages and shortcuts are changed on other screens; coming back should show what they are now.
         settings = Settings.load(prefs)
+        if (stopped) searchCache = null
+        stopped = false
         render(keepScroll = true)
     }
+
+    override fun onStop() {
+        super.onStop()
+        // Something else was on screen and may have changed what the pages hold, like the languages turned on.
+        stopped = true
+    }
+
+    private var stopped = false
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(PAGE, page.name)
         outState.putString(APP, app)
         outState.putString(QUERY, query)
+        outState.putBoolean(FROM_SEARCH, fromSearch)
         outState.putString(ANSWER_APP, answers.app)
         outState.putString(ANSWER_DID, answers.did)
         outState.putString(ANSWER_SAW, answers.saw)
@@ -166,11 +212,18 @@ class SettingsActivity : Activity() {
     @android.annotation.SuppressLint("GestureBackNavigation")
     @Deprecated("Only reached below Android 13; above it the back callback does this.")
     override fun onBackPressed() {
-        val parent = page.parent
+        val parent = backTo()
         if (parent != null) show(parent) else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
-    private fun show(next: Page) {
+    /** Set while the page on screen was opened from a search result, so Back returns to the results. */
+    private var fromSearch = false
+
+    /** Where Back goes: the search results, for a page one opened, and otherwise the page this one is under. */
+    private fun backTo(): Page? = if (fromSearch && page != Page.SEARCH) Page.SEARCH else page.parent
+
+    private fun show(next: Page, fromSearch: Boolean = false) {
+        this.fromSearch = fromSearch
         page = next
         render()
     }
@@ -181,6 +234,8 @@ class SettingsActivity : Activity() {
      * back to the top of the page after every switch.
      */
     private fun change(update: Settings) {
+        // A row's title can depend on a setting (the toolbar's buttons), so search reads the pages again next time.
+        searchCache = null
         settings = update
         settings.save(prefs)
         // Read back rather than trusting the copy: saving can change more than the one switch.
@@ -229,7 +284,7 @@ class SettingsActivity : Activity() {
             setPadding(dp(16f), dp(8f), dp(16f), dp(32f))
         }
         // What's New is a sheet, not a settings page: no back link, and Continue is how it is left.
-        page.parent?.takeIf { page != Page.WHATS_NEW }?.let { parent ->
+        backTo()?.takeIf { page != Page.WHATS_NEW }?.let { parent ->
             column.addView(TextView(this).apply {
                 text = getString(R.string.back_to, getString(parent.title))
                 setTextColor(colors.link)
@@ -258,7 +313,8 @@ class SettingsActivity : Activity() {
         scroll = ScrollView(this).apply {
             isFillViewport = true
             addView(column)
-            fitsSystemWindows = true
+            clipToPadding = false
+            setOnApplyWindowInsetsListener { view, insets -> pad(view, insets) }
         }
         setContentView(scroll)
         val found = highlight?.let { column.findViewWithTag<View>(rowTag(it)) }
@@ -274,7 +330,7 @@ class SettingsActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 33) {
             val callback = back as OnBackInvokedCallback
             onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback)
-            if (page.parent != null) {
+            if (backTo() != null) {
                 onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
             }
         }
@@ -394,15 +450,39 @@ class SettingsActivity : Activity() {
     /** Notes a row for search while [index] is set, and says so, so the helper builds nothing. */
     private fun indexed(title: String, subtitle: String? = null): Boolean {
         val list = index ?: return false
-        list += SearchEntry(title, subtitle, null, indexHeader, indexPage.name, getString(indexPage.title))
+        list += SearchEntry(title, subtitle, null, indexHeader, indexPage.name, getString(indexPage.title), keywords(title))
         return true
     }
+
+    /** The explanation a row had before the redesign, by its title, for search to match but the page not to show. */
+    private fun keywords(title: String): String? {
+        val words = keywordsByTitle ?: KEYWORDS.entries.associate { (row, notes) ->
+            getString(row) to notes.joinToString(" ") { getString(it) }
+        }.also { keywordsByTitle = it }
+        return words[title]
+    }
+
+    private var keywordsByTitle: Map<String, String>? = null
 
     /**
      * Every row on every page someone can search, read from the pages themselves. The pages are drawn into nothing
      * with [index] set, so this can never fall out of step with what the pages show.
      */
-    internal fun searchIndex(): List<SearchEntry> {
+    internal fun searchIndex(): List<SearchEntry> = searchCache ?: buildIndex().also { searchCache = it }
+
+    /**
+     * The index, once read. Drawing every page into nothing is not free, so it is read the first time something is
+     * searched for and kept until a setting changes or Settings comes back from another screen; not on every page
+     * drawn, every letter typed, or every turn of the phone before anything is typed.
+     */
+    private var searchCache: List<SearchEntry>? = null
+
+    /** How many times the index has been read, for the test that it is not read again for nothing. */
+    internal var indexBuilds = 0
+        private set
+
+    private fun buildIndex(): List<SearchEntry> {
+        indexBuilds++
         val out = mutableListOf<SearchEntry>()
         index = out
         try {
@@ -460,30 +540,41 @@ class SettingsActivity : Activity() {
      */
     private fun search(column: LinearLayout) {
         if (index != null) return
-        val entries = searchIndex()
         val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // One live region each for the count and for "no match", made once and only changed when what they say
+        // changes, so TalkBack says "3 results" once rather than at every letter that leaves it at 3.
+        header(results, "")
+        val count = (results.getChildAt(results.childCount - 1) as TextView).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            visibility = View.GONE
+        }
+        val none = TextView(this).apply {
+            setTextColor(colors.secondary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            gravity = Gravity.CENTER
+            setPadding(dp(16f), dp(32f), dp(16f), dp(16f))
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            visibility = View.GONE
+        }
+        results.addView(none)
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        results.addView(list)
+        fun say(view: TextView, text: String?) {
+            if (text == null) { view.visibility = View.GONE; return }
+            if (view.text.toString() != text) view.text = text
+            view.visibility = View.VISIBLE
+        }
         fun showResults() {
-            results.removeAllViews()
-            if (query.isBlank()) return
-            val hits = SettingsSearch.find(entries, query)
-            if (hits.isEmpty()) {
-                results.addView(TextView(this).apply {
-                    text = getString(R.string.search_none, query.trim())
-                    setTextColor(colors.secondary)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
-                    gravity = Gravity.CENTER
-                    setPadding(dp(16f), dp(32f), dp(16f), dp(16f))
-                    accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-                })
-                return
-            }
-            header(results, resources.getQuantityString(R.plurals.search_results, hits.size, hits.size))
-            (results.getChildAt(results.childCount - 1) as? TextView)?.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-            group(results) { card ->
+            list.removeAllViews()
+            val hits = if (query.isBlank()) emptyList() else SettingsSearch.find(searchIndex(), query)
+            say(none, getString(R.string.search_none, query.trim()).takeIf { query.isNotBlank() && hits.isEmpty() })
+            say(count, resources.getQuantityString(R.plurals.search_results, hits.size, hits.size).takeIf { hits.isNotEmpty() })
+            if (hits.isEmpty()) return
+            group(list) { card ->
                 hits.forEach { hit ->
                     nav(card, null, null, hit.title, null, subtitle = hit.where) {
                         highlight = hit.title
-                        show(Page.valueOf(hit.page))
+                        show(Page.valueOf(hit.page), fromSearch = true)
                     }
                 }
             }
@@ -499,7 +590,7 @@ class SettingsActivity : Activity() {
             isSingleLine = true
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_FILTER
-            contentDescription = getString(R.string.search_hint)
+            // No content description: it would be read instead of what is typed. The hint names the field.
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
@@ -625,7 +716,9 @@ class SettingsActivity : Activity() {
 
     /** One question on the report form: its label above, a field the label names for TalkBack, 48dp at least. */
     private fun question(card: LinearLayout, title: String, current: String, multiLine: Boolean, changed: (String) -> Unit) {
+        if (indexed(title)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(title)
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.NO_GRAVITY
             val field = EditText(context).apply {
@@ -820,10 +913,8 @@ class SettingsActivity : Activity() {
         if (more.isNotEmpty() || fixes > 0) group(column) { card ->
             if (more.isNotEmpty()) nav(
                 card, null, null, resources.getQuantityString(R.plurals.more_features, more.size, more.size), null,
-                subtitle = more.mapIndexed { i, note ->
-                    val name = note.title ?: note.detail
-                    if (i == 0) name else name.replaceFirstChar { it.lowercase() }
-                }.joinToString(", "),
+                // Titles as the changelog writes them: lowercasing "Keyd Dev" or "TalkBack" would misspell them.
+                subtitle = more.joinToString(", ") { note -> note.title ?: note.detail },
             ) { show(Page.CHANGES) }
             if (fixes > 0) nav(card, null, null, getString(R.string.fixes_and_improvements), fixes.toString()) { show(Page.CHANGES) }
         }
@@ -1085,7 +1176,11 @@ class SettingsActivity : Activity() {
             toggle(
                 it, getString(R.string.settings_autocorrect), Settings.correcting(settings), enabled = settings.suggestions,
             ) { on -> settings.copy(autocorrect = on) }
-            toggle(it, getString(R.string.settings_spell_check), settings.spellCheck) { on -> settings.copy(spellCheck = on) }
+            // Where it never runs is a privacy answer, so it stays on screen when the rest of the old note went.
+            switchRow(
+                it, getString(R.string.settings_spell_check), settings.spellCheck,
+                subtitle = getString(R.string.settings_spell_check_sub),
+            ) { on -> change(settings.copy(spellCheck = on)) }
             toggle(it, getString(R.string.settings_learn), settings.learn) { on -> settings.copy(learn = on) }
             val fixes = Insights.decode(prefs.getString(INSIGHTS, null)).fixed().sumOf { entry -> entry.count }
             nav(it, null, null, getString(R.string.page_what_it_fixes),
@@ -1560,7 +1655,10 @@ class SettingsActivity : Activity() {
     /** One button on the toolbar: its name, a move up and a move down, and the switch that takes it off. */
     private fun chosenRow(card: LinearLayout, tool: ToolKey, index: Int, chosen: List<ToolKey>) {
         val name = toolName(tool)
+        // A button already on the toolbar is found by search too, not only the ones that could be added.
+        if (indexed(name)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(name)
             addView(label(name))
             fun moved(by: Int) = chosen.toMutableList().apply { add(index + by, removeAt(index)) }
             val up = getString(R.string.toolbar_move_up, name)
@@ -1984,8 +2082,9 @@ class SettingsActivity : Activity() {
     private fun footer(column: LinearLayout, text: String) {
         // For search, a note belongs to the rows of the group it sits under.
         index?.let { list ->
+            // A group can have more than one note under it (Corrections has two); each row keeps all of them.
             for (i in indexGroupStart until list.size) {
-                if (list[i].footer == null) list[i] = list[i].copy(footer = text)
+                list[i] = list[i].copy(footer = list[i].footer?.let { "$it\n$text" } ?: text)
             }
         }
         footerView(column, text)
@@ -2272,7 +2371,7 @@ class SettingsActivity : Activity() {
             })
             addView(Segmented(
                 context, title, options.map { it.first }, options.indexOfFirst { it.second == current }.coerceAtLeast(0),
-                Segmented.Colors(colors.track, colors.raised, colors.text),
+                Segmented.Colors(colors.track, colors.raised, colors.text, colors.outline),
             ) { chosen -> change(update(options[chosen].second)) })
         })
     }
@@ -2318,12 +2417,39 @@ class SettingsActivity : Activity() {
     }
 
     private companion object {
+        /**
+         * Rows whose old explanation is no longer on screen, and that explanation. Kept for search, so a setting can
+         * still be found by what it does as well as by its name.
+         */
+        val KEYWORDS: Map<Int, List<Int>> = mapOf(
+            R.string.settings_spell_check to listOf(R.string.settings_spell_check_note),
+            R.string.settings_learn to listOf(R.string.settings_learn_note),
+            R.string.settings_capitals to listOf(R.string.settings_capitals_note),
+            R.string.settings_double_space to listOf(R.string.settings_double_space_note),
+            R.string.settings_number_row to listOf(R.string.settings_number_row_note),
+            R.string.settings_accents to listOf(R.string.settings_accents_note),
+            R.string.settings_edit_swipes to listOf(R.string.footer_editing),
+            R.string.settings_flick_down to listOf(R.string.settings_flick_down_note),
+            R.string.settings_flick_up to listOf(R.string.settings_flick_up_note),
+            R.string.segment_hold_delay to listOf(R.string.footer_hold_delay),
+            R.string.settings_key_style_folio to listOf(R.string.footer_key_style),
+            R.string.settings_key_style_material to listOf(R.string.footer_key_style),
+            R.string.settings_key_style_samsung to listOf(R.string.footer_key_style),
+            R.string.settings_appearance to listOf(R.string.settings_appearance_note),
+            R.string.settings_pure_black to listOf(R.string.settings_pure_black_note),
+            R.string.settings_high_contrast to listOf(R.string.settings_high_contrast_note),
+            R.string.settings_size to listOf(R.string.settings_size_note),
+            R.string.settings_split to listOf(R.string.settings_split_note),
+            R.string.settings_one_handed to listOf(R.string.settings_one_handed_note),
+        )
+
         const val LEARNED = "learnedWords"
         const val SEEN = "seenWords"
         const val SHORTCUTS = "shortcuts"
         const val INSIGHTS = "typingInsights"
         const val PAGE = "page"
         const val QUERY = "query"
+        const val FROM_SEARCH = "fromSearch"
 
         /** The pages search reads. Not the ones that are about one app, one release or one report. */
         val SEARCHED = listOf(

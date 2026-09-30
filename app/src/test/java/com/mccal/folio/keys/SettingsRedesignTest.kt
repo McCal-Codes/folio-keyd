@@ -139,7 +139,120 @@ class SettingsRedesignTest {
         assertTrue(a.texts().contains("Sound and vibration"))
         a.tap("Strength")
         assertNotNull(a.text("VIBRATION"))
+        // Back from a result is back to the results, with what was typed still there.
+        assertNotNull(a.text("‹ Search"))
+        a.tap("‹ Search")
+        assertEquals("VIB", a.all().filterIsInstance<EditText>().single().text.toString())
+        assertNotNull(a.text("Strength"))
         assertNotNull(a.text("‹ Keyd"))
+    }
+
+    @Test
+    fun `back from a result, by the system's back, is back to the results`() {
+        val a = open()
+        a.tap("Search settings")
+        a.all().filterIsInstance<EditText>().single().setText("split")
+        a.tap("Split keyboard")
+        assertNotNull(a.text("SIZE AND LAYOUT"))
+        @Suppress("DEPRECATION") a.onBackPressed()
+        assertEquals("split", a.all().filterIsInstance<EditText>().single().text.toString())
+        @Suppress("DEPRECATION") a.onBackPressed()
+        assertNotNull(a.text("Search settings"))
+        // Opened the ordinary way, the same page goes back to the page it is under.
+        a.tap("Style and layout")
+        assertNotNull(a.text("‹ Keyd"))
+    }
+
+    @Test
+    fun `search finds a setting by what it does, not only by its name`() {
+        val a = open()
+        val index = a.searchIndex()
+        fun finds(query: String, title: String) =
+            assertTrue("\"$query\" should find $title", SettingsSearch.find(index, query).any { it.title == title })
+        finds("password", a.getString(R.string.settings_spell_check))
+        finds("password", a.getString(R.string.settings_learn))
+        finds("squiggle", a.getString(R.string.settings_spell_check))
+        finds("fold", a.getString(R.string.settings_split))
+        finds("unfolded", a.getString(R.string.settings_split))
+        finds("saves power", a.getString(R.string.settings_pure_black))
+        finds("costs a row", a.getString(R.string.settings_number_row))
+        finds("Gboard", a.getString(R.string.settings_key_style_material))
+        finds("instead of typing a capital", a.getString(R.string.settings_edit_swipes))
+        // Both notes under Corrections belong to its rows, not only the first.
+        val learn = index.single { it.title == a.getString(R.string.settings_learn) }
+        assertTrue(learn.footer!!.contains(a.getString(R.string.footer_corrections)))
+        assertTrue(learn.footer!!.contains(a.getString(R.string.settings_learn_note)))
+        // The words are for search only: the old notes stay off the page.
+        a.tap("Style and layout")
+        assertNull(a.text(a.getString(R.string.settings_split_note)))
+    }
+
+    @Test
+    fun `spell check says on screen that it never runs in a password field`() {
+        val a = open()
+        a.tap("Smart typing")
+        assertNotNull(a.text("Never in a password field."))
+        a.tap(a.getString(R.string.settings_spell_check))
+        assertFalse(a.stored().spellCheck)
+    }
+
+    @Test
+    fun `buttons on the toolbar and the period's field are found by search`() {
+        val a = open()
+        val index = a.searchIndex()
+        assertEquals("Toolbar", index.single { it.title == "Copy" }.where)
+        assertTrue(index.any { it.title == a.getString(R.string.period_field) })
+    }
+
+    @Test
+    fun `the search field reads what is typed, not its own name`() {
+        val a = open()
+        a.tap("Search settings")
+        val field = a.all().filterIsInstance<EditText>().single()
+        assertNull(field.contentDescription)
+        assertEquals("Search settings", field.hint.toString())
+    }
+
+    @Test
+    fun `the index is read once, when something is searched, and again only after a change`() {
+        val a = open()
+        assertEquals(0, a.indexBuilds)
+        a.tap("Search settings")
+        assertEquals("nothing typed, nothing read", 0, a.indexBuilds)
+        val field = a.all().filterIsInstance<EditText>().single()
+        field.setText("v")
+        field.setText("vi")
+        field.setText("vib")
+        assertEquals(1, a.indexBuilds)
+        a.tap("‹ Keyd")
+        a.tap("Search settings")
+        a.all().filterIsInstance<EditText>().single().setText("vib")
+        assertEquals("drawing a page again reads nothing new", 1, a.indexBuilds)
+        a.tap("‹ Keyd")
+        a.tap("Keys and gestures")
+        a.tap(a.getString(R.string.settings_number_row))
+        a.tap("‹ Keyd")
+        a.tap("Search settings")
+        a.all().filterIsInstance<EditText>().single().setText("vib")
+        assertEquals("a change is read again", 2, a.indexBuilds)
+    }
+
+    @Test
+    fun `the result count is one view, changed only when the count changes`() {
+        val a = open()
+        a.tap("Search settings")
+        val field = a.all().filterIsInstance<EditText>().single()
+        field.setText("vibr")
+        val count = a.all().filterIsInstance<TextView>().single { it.text.endsWith("RESULT") || it.text.endsWith("RESULTS") }
+        assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, count.accessibilityLiveRegion)
+        val said = count.text
+        field.setText("vibra")
+        val again = a.all().filterIsInstance<TextView>().single { it.text.endsWith("RESULT") || it.text.endsWith("RESULTS") }
+        assertTrue("the same view", count === again)
+        assertTrue("the same text, not set again", said === again.text)
+        field.setText("zzqx")
+        assertEquals(View.GONE, count.visibility)
+        assertNotNull(a.text("No settings match “zzqx”"))
     }
 
     @Test
@@ -167,8 +280,34 @@ class SettingsRedesignTest {
         assertEquals("Strength", group.contentDescription)
         val medium = AccessibilityNodeInfo.obtain().also { a.text("Medium")!!.onInitializeAccessibilityNodeInfo(it) }
         assertFalse(medium.isChecked)
-        assertTrue(a.text("Medium")!!.minHeight >= (40 * a.resources.displayMetrics.density).toInt())
+        assertTrue(a.text("Medium")!!.minHeight >= (48 * a.resources.displayMetrics.density).toInt())
     }
+
+    /** WCAG's contrast ratio between two colors. */
+    private fun contrast(a: Int, b: Int): Double {
+        fun lum(c: Int): Double {
+            fun ch(v: Int) = (v / 255.0).let { if (it <= 0.03928) it / 12.92 else Math.pow((it + 0.055) / 1.055, 2.4) }
+            return 0.2126 * ch(android.graphics.Color.red(c)) + 0.7152 * ch(android.graphics.Color.green(c)) +
+                0.0722 * ch(android.graphics.Color.blue(c))
+        }
+        val (hi, lo) = listOf(lum(a), lum(b)).sortedDescending()
+        return (hi + 0.05) / (lo + 0.05)
+    }
+
+    private fun chosenOutlineClears3to1() {
+        val a = open()
+        a.tap("Sound and vibration")
+        val group = a.text("Light")!!.parent as Segmented
+        val colors = group.palette
+        assertTrue("outline ${contrast(colors.outline, colors.track)}:1", contrast(colors.outline, colors.track) >= 3.0)
+    }
+
+    @Test
+    fun `the chosen option is outlined clearly enough to see, in light mode`() = chosenOutlineClears3to1()
+
+    @Test
+    @Config(qualifiers = "night")
+    fun `the chosen option is outlined clearly enough to see, in dark mode`() = chosenOutlineClears3to1()
 
     @Test
     fun `the style page has a picture of the keyboard and the theme choices`() {
@@ -190,7 +329,7 @@ class SettingsRedesignTest {
         org.robolectric.RuntimeEnvironment.setFontScale(2f)
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<Context>()
         val control = Segmented(context, "Touch and hold delay", listOf("Shorter", "Phone", "Longer"), 1,
-            Segmented.Colors(0, 0, 0)) {}
+            Segmented.Colors(0, 0, 0, 0)) {}
         val width = ((330 - 64) * context.resources.displayMetrics.density).toInt()
         control.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
         control.layout(0, 0, control.measuredWidth, control.measuredHeight)
@@ -231,6 +370,8 @@ class SettingsRedesignTest {
             assertNotNull("missing $label", a.text(label))
         }
         assertNull(a.text("Delete forward"))
+        // The rest are named as the changelog writes them, not lowercased after the first.
+        assertNotNull(a.text("Hold delay and backspace speed, Delete forward"))
         // Continue is at the end of the page, not floating over it.
         val page = a.all().filterIsInstance<ScrollView>().first()
         val texts = mutableListOf<String>()
@@ -254,6 +395,39 @@ class SettingsRedesignTest {
         assertNotNull(a.text("What's New in Keyd"))
         a.tap("Continue")
         assertNotNull(a.text("Search settings"))
+    }
+
+    @Test
+    fun `in light mode the bar icons are dark, drawn for the light page`() {
+        val a = open()
+        val light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+            android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        assertEquals(light, a.window.insetsController!!.systemBarsAppearance and light)
+    }
+
+    @Test
+    @Config(qualifiers = "night")
+    fun `in dark mode the bar icons stay light`() {
+        val a = open()
+        val light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+            android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        assertEquals(0, a.window.insetsController!!.systemBarsAppearance and light)
+    }
+
+    @Test
+    fun `the page keeps clear of the bars and a camera cutout`() {
+        val a = open()
+        val page = a.all().filterIsInstance<ScrollView>().first()
+        val insets = android.view.WindowInsets.Builder()
+            .setInsets(android.view.WindowInsets.Type.systemBars(), android.graphics.Insets.of(0, 60, 0, 40))
+            .setInsets(android.view.WindowInsets.Type.displayCutout(), android.graphics.Insets.of(90, 60, 0, 0))
+            .build()
+        page.dispatchApplyWindowInsets(insets)
+        assertEquals(90, page.paddingLeft)
+        assertEquals(60, page.paddingTop)
+        assertEquals(0, page.paddingRight)
+        assertEquals(40, page.paddingBottom)
+        assertFalse(page.fitsSystemWindows)
     }
 
     // ---- Pictures ------------------------------------------------------------------------------------------------

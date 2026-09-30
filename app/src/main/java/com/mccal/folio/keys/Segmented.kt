@@ -7,7 +7,6 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.TextView
 
@@ -31,8 +30,12 @@ internal class Segmented(
     private val picked: (Int) -> Unit,
 ) : ViewGroup(context) {
 
-    /** The track, the raised chosen option, and the text on both. */
-    data class Colors(val track: Int, val raised: Int, val text: Int)
+    /**
+     * The track, the raised chosen option, the text on both, and the line around the chosen option. The raised fill
+     * alone is too close to the track to see (white on light grey is about 1.3:1), so the chosen option is also
+     * outlined in [outline], which has to clear 3:1 against [track] (WCAG 1.4.11).
+     */
+    data class Colors(val track: Int, val raised: Int, val text: Int, val outline: Int)
 
     private val density = context.resources.displayMetrics.density
     private fun dp(value: Float) = (value * density).toInt()
@@ -41,6 +44,9 @@ internal class Segmented(
 
     var selected: Int = selected
         private set
+
+    /** The colors it was built with, for the test that the chosen option can be told apart. */
+    internal val palette: Colors get() = colors
 
     private val buttons: List<TextView> = options.mapIndexed { index, text -> button(index, text, options.size) }
 
@@ -61,8 +67,9 @@ internal class Segmented(
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         setTextColor(colors.text)
         gravity = Gravity.CENTER
-        minHeight = dp(40f)
-        minimumHeight = dp(40f)
+        // 48dp, the touch target Android asks for, since each option is its own button.
+        minHeight = dp(48f)
+        minimumHeight = dp(48f)
         setPadding(dp(10f), dp(6f), dp(10f), dp(6f))
         isClickable = true
         isFocusable = true
@@ -70,9 +77,9 @@ internal class Segmented(
             if (index == selected) return@setOnClickListener
             selected = index
             show()
+            // The click itself is announced by the button, with its new "selected" state; sending another event
+            // here made TalkBack say it twice.
             picked(index)
-            // Nothing is rebuilt, so the raised option moving is announced here, as a tapped radio button's is.
-            sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED)
         }
         accessibilityDelegate = object : AccessibilityDelegate() {
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
@@ -103,8 +110,11 @@ internal class Segmented(
         button.typeface = if (on) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         button.isSelected = on
         val raised = colors.raised
+        val outline = colors.outline
+        val stroke = dp(1.5f).coerceAtLeast(2)
         button.background = if (on) GradientDrawable().apply {
             setColor(raised)
+            setStroke(stroke, outline)
             cornerRadius = dp(8f).toFloat()
         } else null
         button.elevation = if (on) dp(1f).toFloat() else 0f
