@@ -24,7 +24,6 @@
     <string name="emoji_search_clear">Clear search</string>
     <string name="emoji_search_hint">Type a word, like heart or cat</string>
     <string name="emoji_search_none">Nothing for “%1$s”</string>
-    <string name="emoji_tones">Skin tones</string>
     <string name="emoji_tone_named">%1$s, %2$s</string>
     <string name="emoji_tone_default">Default skin tone</string>
     <string name="emoji_tone_light">Light skin tone</string>

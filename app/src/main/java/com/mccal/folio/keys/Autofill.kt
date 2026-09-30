@@ -1,5 +1,6 @@
 package com.mccal.folio.keys
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.Icon
 import android.os.Bundle
@@ -58,6 +59,8 @@ internal object Autofill {
      * How the chips should look, in the androidx format every password manager reads. A manager that does not
      * understand it draws its own default, which is why it is only a style and never the content.
      */
+    // The ViewStyle.Builder setters are public API; lint flags them from a stale library annotation.
+    @SuppressLint("RestrictedApi")
     private fun style(context: Context, theme: Theme): Bundle {
         val dp = context.resources.displayMetrics.density
         val pad = (12 * dp).roundToInt()
