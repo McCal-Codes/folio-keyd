@@ -63,6 +63,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.3.2",
+          "notes": {
+            "en": "Keyd 0.3.2 fixes the little things: punctuation after a suggestion, Search in every search box, a period key for web addresses, and backspace on emoji."
+          }
+        },
+        {
           "version": "0.3.1",
           "notes": {
             "en": "Hold the globe for your languages and the period for symbols, swipe two fingers to undo, and an emoji at the end of the strip. Gesture tips, hold delay and backspace speed, and shift with backspace deletes forward. Contractions are ranked by how often each is typed, and Undo comes back for installs that had a 0.3.0 beta."
