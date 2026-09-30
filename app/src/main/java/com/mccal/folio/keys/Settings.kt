@@ -80,6 +80,12 @@ data class Settings(
     val learn: Boolean = true,
     /** The emoji a word is the name of, at the end of the strip: "pizza" offers 🍕. Only ever offered. */
     val suggestEmoji: Boolean = true,
+    /**
+     * Logins and codes from the password manager, in the strip. The manager draws them; Keyd only says where they
+     * go, and is never told what they say. Separate from [suggestions]: turning off Keyd's own words is no reason
+     * to lose the password manager's.
+     */
+    val passwordManagerSuggestions: Boolean = true,
     /** A capital at the start of a sentence. */
     val autoCapitalise: Boolean = true,
     /** Two spaces in a row become a full stop and a space, the way every phone keyboard has since the first one. */
@@ -162,6 +168,7 @@ data class Settings(
             putBoolean(SPELL_CHECK, spellCheck)
             putBoolean(LEARN, learn)
             putBoolean(SUGGEST_EMOJI, suggestEmoji)
+            putBoolean(PASSWORD_MANAGER, passwordManagerSuggestions)
             putBoolean(AUTO_CAPITALISE, autoCapitalise)
             putBoolean(DOUBLE_SPACE, doubleSpaceFullStop)
             putBoolean(NUMBER_ROW, numberRow)
@@ -208,6 +215,7 @@ data class Settings(
         const val SPELL_CHECK = "spellCheck"
         const val LEARN = "learn"
         const val SUGGEST_EMOJI = "suggestEmoji"
+        const val PASSWORD_MANAGER = "passwordManagerSuggestions"
         const val AUTO_CAPITALISE = "autoCapitalise"
         const val DOUBLE_SPACE = "doubleSpace"
         const val NUMBER_ROW = "numberRow"
@@ -391,6 +399,7 @@ data class Settings(
                 spellCheck = read(SPELL_CHECK, fallback.spellCheck),
                 learn = read(LEARN, fallback.learn),
                 suggestEmoji = read(SUGGEST_EMOJI, fallback.suggestEmoji),
+                passwordManagerSuggestions = read(PASSWORD_MANAGER, fallback.passwordManagerSuggestions),
                 autoCapitalise = read(AUTO_CAPITALISE, fallback.autoCapitalise),
                 doubleSpaceFullStop = read(DOUBLE_SPACE, fallback.doubleSpaceFullStop),
                 numberRow = read(NUMBER_ROW, fallback.numberRow),

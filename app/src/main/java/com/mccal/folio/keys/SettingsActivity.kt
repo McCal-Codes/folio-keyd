@@ -1166,9 +1166,16 @@ class SettingsActivity : Activity() {
                 it, getString(R.string.settings_suggest_emoji), settings.suggestEmoji,
                 subtitle = getString(R.string.settings_suggest_emoji_sub), enabled = settings.suggestions,
             ) { on -> change(settings.copy(suggestEmoji = on)) }
+            // Not tied to the strip's switch: the chips are the password manager's, not Keyd's words.
+            switchRow(
+                it, getString(R.string.settings_password_manager), settings.passwordManagerSuggestions,
+                subtitle = getString(R.string.settings_password_manager_sub),
+            ) { on -> change(settings.copy(passwordManagerSuggestions = on)) }
         }
         // Kept from the old page: where the emoji come from is a privacy answer, not decoration.
         footer(column, getString(R.string.settings_suggest_emoji_note))
+        // And so is what Keyd sees of the chips, which is nothing.
+        footer(column, getString(R.string.settings_password_manager_note))
         header(column, getString(R.string.header_corrections))
         group(column) {
             // Autocorrect is the strip's top answer applied for you, so with the strip off it is off too, whatever it
