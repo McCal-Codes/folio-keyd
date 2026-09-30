@@ -18,7 +18,6 @@
     <string name="setup_try_hint">Type something</string>
     <string name="emoji_letters">ABC</string>
     <string name="emoji_no_recents">Emoji you use will show up here</string>
-    <string name="emoji_open">Emoji</string>
     <string name="emoji_search">Search emoji</string>
     <string name="emoji_search_field">Search emoji, %1$s</string>
     <string name="emoji_search_back">Back to emoji</string>
