@@ -167,7 +167,7 @@ def english_contractions():
     return set(sure), {value.lower() for value in list(sure.values()) + list(maybe.values()) if "'" in value}
 
 
-def apostrophe_positions(words, counts):
+def apostrophe_positions(words, counts, found):
     """
     Where each English contraction belongs in the frequency list, from what the list does say about it.
 
@@ -193,7 +193,23 @@ def apostrophe_positions(words, counts):
     count is mostly the contractions ("don" was said four million times, nearly all of them in "don't"), so ranking
     it by its stem put "Don's" level with "don't" and "you's" ahead of "you're". So is a letter's plural - "I's",
     "A's" - as the list's "i" and "a" are the pronoun and the article.
+
+    [found] is what [contraction_counts] worked out.
     """
+    contracted = {word.partition("'")[0] for word in found}
+    positions = {word: rank_of(count, counts) for word, count in found.items()}
+    for word in words:
+        lower = word.lower()
+        stem, _, ending = lower.partition("'")
+        if ending != "s" or lower in found:
+            continue
+        if len(stem) == 1 or stem in contracted:
+            positions[lower] = None
+    return positions
+
+
+def contraction_counts(words, counts):
+    """How many times each English contraction was said, worked out as [apostrophe_positions] describes."""
     bare_only, known = english_contractions()
     floor = min(counts.values())
     ratio = statistics.median(counts[stem] / counts[stem + "t"] for stem in NOT_WORDS
@@ -224,23 +240,50 @@ def apostrophe_positions(words, counts):
             share = left * counts[word.partition("'")[0]] / said if left > 0 else math.inf
             found[word] = min(most(word), share)
 
-    contracted = {word.partition("'")[0] for word in found}
-    ranked = sorted(counts.values(), reverse=True)
-    negated = [-count for count in ranked]
-
-    def position(count):
-        return bisect.bisect_left(negated, -count) + 1
-
-    positions = {word: position(count) for word, count in found.items()}
-    for word in words:
-        lower = word.lower()
-        stem, _, ending = lower.partition("'")
-        if ending != "s" or lower in found:
-            continue
-        if len(stem) == 1 or stem in contracted:
-            positions[lower] = None
     print(f"contractions ranked by their own counts: {len(found)} (bare spelling said {ratio:.0f} times less)")
+    return found
+
+
+def rank_of(count, counts):
+    """Where a word said [count] times would sit in the frequency list."""
+    negated = sorted(-said for said in counts.values())
+    return bisect.bisect_left(negated, -count) + 1
+
+
+def stem_positions(words, counts, found):
+    """
+    Where the stem of an "n't" contraction sits as a word of its own, when it is one: "don", "won", "can", "haven".
+
+    The list counted every "don't" as a "don", so "don" came out the thirty-first word in English and the strip
+    offered it for "do", and "won" did the same for "wo". The stems that are never words are left out altogether
+    (NOT_WORDS), but these are real words and have to stay known.
+
+    Where the contraction accounts for the stem's whole count, as it does for "don", "won" and "haven", the list has
+    nothing to say about the word on its own, so it ranks as a word the list never saw: known, so never corrected
+    away, but not offered ahead of the words people do type. Where some of the count is left over, as for "can", the
+    stem keeps its rank. The contraction's count is an estimate, and "can" said on its own is common enough that
+    taking the estimate away would say more about the estimate than about the word.
+    """
+    have = {word.lower() for word in words}
+    positions = {}
+    for word, count in found.items():
+        stem, _, ending = word.partition("'")
+        if ending == "t" and stem in have and stem in counts and count >= counts[stem]:
+            positions[stem] = None
     return positions
+
+
+def contraction_possessives(words, found):
+    """
+    The possessives of an "n't" contraction typed without its apostrophe: SCOWL's "wont's".
+
+    SCOWL has it as the possessive of "wont", the old word for a habit, and it is ranked by that stem. But on a phone
+    "wont" is "won't" with the apostrophe left out, and the stem's count is nearly all of that, so "wont's" came out
+    as common as "wont" and was offered to someone typing "won't". Nobody means it. Only "n't" ones: "hell's",
+    "well's" and "shell's" have a contraction's spelling too ("he'll", "we'll", "she'll"), and are real words.
+    """
+    bare = {word.replace("'", "") for word in found if word.endswith("'t")}
+    return {word for word in words if word.lower().endswith("'s") and word.lower()[:-2] in bare}
 
 
 def fold(word):
@@ -308,8 +351,14 @@ def spoken_only(frequency_file, destination):
 def main(final_dir, frequency_file, destination):
     words = scowl_words(final_dir)
     positions = frequencies(frequency_file)
-    apostrophes = apostrophe_positions(words, counts_of(frequency_file))
-    entries = {word: score(position_of(word.lower(), positions, apostrophes), band) for word, band in words.items()}
+    counts = counts_of(frequency_file)
+    found = contraction_counts(words, counts)
+    apostrophes = apostrophe_positions(words, counts, found)
+    # The n't stems are ranked by what they were said as on their own, not by the contractions counted under them.
+    ranked = {**positions, **stem_positions(words, counts, found)}
+    dropped = contraction_possessives(words, found)
+    entries = {word: score(position_of(word.lower(), ranked, apostrophes), band) for word, band in words.items()
+               if word not in dropped}
 
     spoken = 0
     have = {word.lower() for word in entries}

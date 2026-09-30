@@ -49,7 +49,10 @@ class EmojiSearch private constructor(private val entries: List<Entry>) {
      * whole keyword, then the start of a name word, then the start of a keyword. That is what puts the red heart
      * above a house for "heart": both have the keyword, but only one is called a heart.
      *
-     * Among equal matches, the ones in [recents] come first, and then the order the grid uses.
+     * Among equal matches, the ones in [recents] come first. Then, when every word typed is a whole word of the name,
+     * the shorter name wins, as it does in [exact]: Spanish "corazón" is more nearly the whole of "corazón rojo" than
+     * of "cara sonriendo con ojos de corazón", which comes first in the grid and used to top the list. The grid's
+     * order settles the rest.
      */
     fun search(query: String, limit: Int, recents: List<String> = emptyList()): List<String> {
         val words = words(fold(query))
@@ -76,6 +79,7 @@ class EmojiSearch private constructor(private val entries: List<Entry>) {
             .sortedWith(
                 compareBy<Pair<Entry, Int>> { it.second }
                     .thenBy { recent[it.first.glyph] ?: Int.MAX_VALUE }
+                    .thenBy { if (it.second == 0) it.first.nameWords.size else 0 }
                     .thenBy { it.first.order },
             )
             .take(limit)

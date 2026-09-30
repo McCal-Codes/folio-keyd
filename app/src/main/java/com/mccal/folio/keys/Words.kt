@@ -31,6 +31,22 @@ object Words {
         return if (end == android.icu.text.BreakIterator.DONE || end <= 0) Character.charCount(Character.codePointAt(after, 0))
             else end
     }
+
+    /**
+     * How many chars the last character of [before] takes, counted the same way: what one backspace should delete.
+     * One char at a time split 👍🏽 into a thumb and a loose skin tone, and half an emoji into a box.
+     */
+    fun lastCharacterLength(before: CharSequence): Int {
+        if (before.isEmpty()) return 0
+        val breaks = android.icu.text.BreakIterator.getCharacterInstance()
+        breaks.setText(before.toString())
+        val start = breaks.preceding(before.length)
+        return if (start == android.icu.text.BreakIterator.DONE || start >= before.length) {
+            Character.charCount(Character.codePointBefore(before, before.length))
+        } else {
+            before.length - start
+        }
+    }
 }
 
 /** What a key is read as by a screen reader. Two keys must never read the same, or they can't be told apart. */

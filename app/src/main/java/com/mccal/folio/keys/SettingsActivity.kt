@@ -21,6 +21,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -637,7 +638,113 @@ class SettingsActivity : Activity() {
     }
 
     /** Keyd Dev only: switch detailed logging on, see recent errors, and share or clear them. */
+    /**
+     * The kinds of field the test box can be, each the way another app would ask for it, so the keys, the return key
+     * and the address rules can be tried here instead of in someone's messages or browser.
+     */
+    internal enum class TestKind(val label: Int, val inputType: Int, val action: Int) {
+        TEXT(R.string.test_kind_text, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_NONE),
+        SEARCH(R.string.test_kind_search, InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH),
+        // The Google app's search box and some browsers' are built this way: more than one line, and still Search.
+        SEARCH_LINES(R.string.test_kind_search_lines, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_SEARCH),
+        URL(R.string.test_kind_url, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, EditorInfo.IME_ACTION_GO),
+        EMAIL(R.string.test_kind_email, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, EditorInfo.IME_ACTION_DONE),
+    }
+
+    /** Which kind the test box is, kept across the page redrawing, not across launches. */
+    private var testKind = TestKind.TEXT
+
+    /** Keyd Dev's own place to type: a field, and the kinds of field it can pretend to be. */
+    private fun testBox(column: LinearLayout) {
+        header(column, getString(R.string.header_test_box))
+        lateinit var field: EditText
+        fun apply(kind: TestKind) {
+            field.inputType = kind.inputType
+            // Never personal learning: testing a fix would otherwise teach Keyd the typo it was testing.
+            field.imeOptions = kind.action or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).restartInput(field)
+        }
+        group(column) { card ->
+            row(card, iconSpace = false).apply {
+                field = object : EditText(context) {
+                    // Android adds "plain Enter" to every field of several lines on its own; the search boxes this
+                    // kind stands in for take it off again, so this one does too.
+                    override fun onCreateInputConnection(info: EditorInfo): android.view.inputmethod.InputConnection? =
+                        super.onCreateInputConnection(info).also {
+                            if (testKind == TestKind.SEARCH_LINES) {
+                                info.imeOptions = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION.inv()
+                            }
+                        }
+                }.apply {
+                    hint = getString(R.string.test_box_hint)
+                    setTextColor(colors.text)
+                    setHintTextColor(colors.secondary)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+                    minHeight = dp(48f)
+                    background = null
+                    setPadding(0, dp(4f), 0, dp(4f))
+                    // Says what the return key sent, so Search, Go and Done can be checked here, not in a browser.
+                    setOnEditorActionListener { _, action, _ ->
+                        val name = when (action) {
+                            EditorInfo.IME_ACTION_SEARCH -> "Search"
+                            EditorInfo.IME_ACTION_GO -> "Go"
+                            EditorInfo.IME_ACTION_DONE -> "Done"
+                            EditorInfo.IME_ACTION_SEND -> "Send"
+                            EditorInfo.IME_ACTION_NEXT -> "Next"
+                            else -> "Enter"
+                        }
+                        android.widget.Toast.makeText(context, getString(R.string.test_box_sent, name), android.widget.Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                }
+                addView(field)
+            }
+            val ticks = TestKind.entries.map { kind ->
+                val tick = TextView(this).apply {
+                    text = "✓"
+                    setTextColor(colors.link)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }
+                val line = row(card, iconSpace = false).apply {
+                    addView(label(getString(kind.label)))
+                    addView(tick)
+                    isClickable = true
+                    background = selectable()
+                    accessibilityDelegate = object : View.AccessibilityDelegate() {
+                        override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                            super.onInitializeAccessibilityNodeInfo(host, info)
+                            info.isCheckable = true
+                            info.isChecked = kind == testKind
+                        }
+                    }
+                }
+                Triple(kind, line, tick)
+            }
+            fun show() = ticks.forEach { (kind, line, tick) ->
+                tick.visibility = if (kind == testKind) View.VISIBLE else View.INVISIBLE
+                line.isSelected = kind == testKind
+            }
+            ticks.forEach { (kind, line, _) ->
+                line.setOnClickListener {
+                    testKind = kind
+                    apply(kind)
+                    show()
+                    // Focus alone doesn't bring the keyboard up; ask for it, so the new kind of field is on screen.
+                    field.requestFocus()
+                    (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(field, 0)
+                }
+            }
+            show()
+        }
+        field.inputType = testKind.inputType
+        field.imeOptions = testKind.action or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        footer(column, getString(R.string.footer_test_box))
+    }
+
     private fun developer(column: LinearLayout) {
+        testBox(column)
         group(column) {
             switchRow(it, getString(R.string.settings_dev_logging), DevLog.loggingOn(this)) { on -> DevLog.setLogging(this, on) }
         }

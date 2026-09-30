@@ -156,6 +156,20 @@ class ClipboardTest {
         assertEquals(emptyList<Clipboard.Clip>(), Clipboard.load(prefs, now))
     }
 
+    @Test fun `an expired clip is gone from what is stored, not just from the list`() {
+        var history = Clipboard.remembering(emptyList(), "old secret", now)
+        history = Clipboard.remembering(history, "pinned", now)
+        history = Clipboard.pinning(history, "pinned", true)
+        Clipboard.save(prefs, history)
+        Clipboard.letGo(prefs, "something else")
+
+        Clipboard.load(prefs, now + Clipboard.KEEP_MILLIS + 1)
+        val stored = prefs.getString("clipboard", null)!!
+        assertFalse("the expired clip is still on disk", stored.contains("old secret"))
+        assertTrue("a pinned clip stays", stored.contains("pinned"))
+        assertTrue("what was let go of is still known", Clipboard.wasLetGo(prefs, "something else"))
+    }
+
     @Test fun `nonsense on disk is no history rather than a crash`() {
         prefs.edit().putString("clipboard", "not json at all").apply()
         assertEquals(emptyList<Clipboard.Clip>(), Clipboard.load(prefs, now))

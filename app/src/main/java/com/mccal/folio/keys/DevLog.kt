@@ -98,7 +98,18 @@ internal object DevLog {
     /** Something the keyboard did. [name] must be a literal; the values are numbers, so text can't get in. */
     fun event(context: Context, name: String, vararg numbers: Pair<String, Number>) {
         if (!loggingOn(context)) return
-        add(context, LOG_FILE, line(LocalDateTime.now(), name, numbers.toList()), MAX_LINES)
+        val entry = line(LocalDateTime.now(), name, numbers.toList())
+        // Held in memory and written in batches: an event per keystroke used to read and rewrite the whole file each
+        // time. The batch goes to disk when the keyboard hides, when Android asks for memory, before anything reads
+        // the log, and whenever it reaches [BATCH].
+        val full = synchronized(this) { pending += entry; pending.size >= BATCH }
+        if (full) flush(context)
+    }
+
+    /** Writes the events held in memory to the log file. Cheap when there are none. */
+    fun flush(context: Context) {
+        val batch = synchronized(this) { pending.toList().also { pending.clear() } }
+        if (batch.isNotEmpty()) addAll(context, LOG_FILE, batch, MAX_LINES)
     }
 
     /** A problem that isn't an exception, like a slow suggestion. Kept with the errors, whether or not logging is on. */
@@ -108,6 +119,15 @@ internal object DevLog {
 
     fun error(context: Context, where: String, error: Throwable) {
         add(context, ERROR_FILE, describe(LocalDateTime.now(), where, error), MAX_ERRORS)
+    }
+
+    /**
+     * An error in code that runs on every keystroke, written down the first time it happens at [where] in this
+     * process. The strip carries on without an answer, as it always did; this is so a report says why it was empty,
+     * without one broken word list filling the error file with the same line.
+     */
+    fun errorOnce(context: Context, where: String, error: Throwable) {
+        if (synchronized(this) { reported.add(where) }) error(context, where, error)
     }
 
     /**
@@ -131,13 +151,17 @@ internal object DevLog {
      */
     @SuppressLint("ApplySharedPref") // on purpose, as above
     internal fun crashed(context: Context, thread: String, error: Throwable) {
+        runCatching { flush(context) }
         error(context, "crash on $thread", error)
         prefs(context).edit().putBoolean(CRASHED_KEY, true).commit()
     }
 
     fun errors(context: Context): List<String> = entries(read(context, ERROR_FILE)).reversed()
 
-    fun lines(context: Context): List<String> = entries(read(context, LOG_FILE))
+    fun lines(context: Context): List<String> {
+        flush(context)
+        return entries(read(context, LOG_FILE))
+    }
 
     /** The three questions the report form asks. Typed by the person reporting, about the problem, not by the keyboard. */
     data class Answers(val app: String = "", val did: String = "", val saw: String = "") {
@@ -241,6 +265,7 @@ internal object DevLog {
 
     @Synchronized
     fun clear(context: Context) {
+        pending.clear()
         File(context.filesDir, LOG_FILE).delete()
         File(context.filesDir, ERROR_FILE).delete()
     }
@@ -255,12 +280,25 @@ internal object DevLog {
     }
 
     @Synchronized
+    private fun addAll(context: Context, name: String, entries: List<String>, limit: Int) {
+        runCatching {
+            val file = File(context.filesDir, name)
+            var text = if (file.isFile) file.readText() else ""
+            for (entry in entries) text = appendKeeping(text, entry, limit)
+            file.writeText(text)
+        }
+    }
+
+    @Synchronized
     private fun read(context: Context, name: String): String =
         runCatching { File(context.filesDir, name).takeIf { it.isFile }?.readText() }.getOrNull().orEmpty()
 
     private fun prefs(context: Context) = context.getSharedPreferences("keys", Context.MODE_PRIVATE)
 
     @Volatile private var installed = false
+    private val pending = ArrayList<String>()
+    private val reported = HashSet<String>()
+    private const val BATCH = 50
     private val SWITCH = Regex("true|false|[A-Z][A-Z0-9_]*(\\+[A-Z][A-Z0-9_]*)*")
     private val LIST = Regex("\\[([^\\]]*)]")
     private const val LOG_FILE = "dev-log.txt"

@@ -42,6 +42,15 @@ class EmojiSearchTest {
         assertEquals("❤️", found.first())
     }
 
+    /** "corazón" is in the name of the face with heart eyes too, which comes first in the grid. */
+    @Test
+    fun `Spanish corazon puts the red heart at the top, not the face with heart eyes`() {
+        val spanish = load(Language.SPANISH)
+        assertEquals("❤️", spanish.search("corazón", 8).first())
+        assertEquals("❤️", spanish.search("corazon", 8).first())
+        assertTrue(spanish.search("corazón", 20).contains("😍"))
+    }
+
     @Test
     fun `cat finds the cat face`() {
         assertTrue(load().search("cat", 8).contains("🐱"))

@@ -7,6 +7,7 @@ import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -101,6 +102,22 @@ class KeyboardViewTest {
         val (x, y) = centre(label)
         send(MotionEvent.ACTION_DOWN, x, y)
         send(MotionEvent.ACTION_UP, x, y)
+    }
+
+    // ---- relayout -----------------------------------------------------------------------------------------------
+
+    @Test
+    fun `a shift change places the capitals without asking for a layout`() {
+        view.shift = Shift.ONCE
+        view.rows = Layouts.rows(Layer.LETTERS, true, FieldRules())
+        assertFalse(view.isLayoutRequested)
+        assertNotNull(view.placements.firstOrNull { it.key.label == "Q" })
+    }
+
+    @Test
+    fun `a board with a different number of rows still asks for a layout`() {
+        view.rows = Layouts.rows(Layer.LETTERS, false, FieldRules()).dropLast(1)
+        assertTrue(view.isLayoutRequested)
     }
 
     // ---- typing -------------------------------------------------------------------------------------------------

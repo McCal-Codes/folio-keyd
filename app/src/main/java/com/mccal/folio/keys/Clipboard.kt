@@ -97,7 +97,9 @@ internal object Clipboard {
             val text = item.optString("text").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             Clip(text.take(MAX_LENGTH), item.optLong("at"), item.optBoolean("pinned"))
         }
-        current(clips, now)
+        // Expired clips are written out, not just hidden. Filtering them here alone left them in the preferences
+        // file for as long as nothing new was copied, which is not what "forgotten after an hour" means.
+        current(clips, now).also { if (it.size < array.length()) save(prefs, it) }
     }.getOrDefault(emptyList())
 
     /** Something new was copied, so what was let go of is no longer on the clipboard to come back. */
@@ -113,7 +115,6 @@ internal object Clipboard {
         prefs.edit().putString(PREFS_KEY, array.toString()).apply()
     }
 
-    /** Forgets the lot, including what is on disk: Settings' own button, and what a reset has to reach. */
     /**
      * Marks what is on the clipboard as let go of: forgotten, or cleared from the list while Android still holds it.
      *
@@ -134,6 +135,7 @@ internal object Clipboard {
     private fun fingerprint(text: String): String =
         java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
+    /** Forgets the lot, including what is on disk: Settings' own button, and what a reset has to reach. */
     fun clear(prefs: SharedPreferences) {
         prefs.edit().remove(PREFS_KEY).remove(LET_GO_KEY).apply()
     }

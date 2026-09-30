@@ -2,6 +2,7 @@
 
 | Script | What it does |
 |---|---|
+| `release.sh` | `prepare "summary"`: final version, dated notes, tests, signing, the release PR. `publish`: merge, GitHub release (Keyd only), the Folio source, and a check of the live index. |
 | `beta.sh` | The next beta: bump, test, sign, commit, tag, install on the phone. Nothing is pushed. |
 | `release-signed.sh` | Signs Keyd and Keyd Dev into `dist/Keyd-<version>/`. A release also points `source/` at it. |
 | `phone.sh` | Finds the Fold (USB, then wireless debugging), installs on it, screenshots it, taps it. |

@@ -191,6 +191,19 @@ class SuggestionsTest {
     }
 
     @Test
+    fun `learned words rank by use, whatever order they were learned in`() {
+        // The strip reads learned words unsorted; the ranking has to come from the scores alone.
+        fun learnedInOrder(vararg words: Pair<String, Int>) = Learned().also { learned ->
+            words.forEach { (word, times) -> repeat(times) { learned.learn(word) } }
+        }
+        val oneWay = learnedInOrder("zorblax" to 1, "zorbly" to 9)
+        val otherWay = learnedInOrder("zorbly" to 9, "zorblax" to 1)
+        val first = Suggestions.forWord("zorb", words, proximity, oneWay)
+        assertEquals(first, Suggestions.forWord("zorb", words, proximity, otherWay))
+        assertTrue(first.indexOf("zorbly") in 0 until first.indexOf("zorblax"))
+    }
+
+    @Test
     fun `a keyboard with no keys on it does not break proximity`() {
         val empty = Suggestions.Proximity(emptyList())
         assertTrue(empty.isEmpty())

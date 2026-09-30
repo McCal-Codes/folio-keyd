@@ -315,6 +315,25 @@ class TipsTest {
         assertEquals(Tip.CURSOR_SWIPE, keys.tip)
     }
 
+    /** Suggestions off sent no word before the gap, so the one place a tip goes never came. */
+    @Test
+    fun `with suggestions off a tip still takes the gap after a word`() {
+        Settings(suggestions = false).save(prefs)
+        val service = service()
+        val keys = (service.onCreateInputView() as ViewGroup).child<KeyboardView>()
+        service.onStartInputView(field(), false)
+        repeat(Tips.AFTER_CHARS - 1) { keys.listener!!.onText("a") }
+        service.quietGap()
+        service.settle()
+        assertNull("not straight away", keys.tip)
+        keys.listener!!.onText("a")
+        service.quietGap()
+        service.settle()
+        assertEquals(Tip.CURSOR_SWIPE, keys.tip)
+        assertTrue(keys.suggestions.isEmpty())
+        assertEquals(1, Tips.load(prefs).times(Tip.CURSOR_SWIPE))
+    }
+
     @Test
     fun `no tip in a password field, a number field, or with tips off`() {
         val service = service()

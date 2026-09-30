@@ -122,7 +122,7 @@ class SetupActivity : Activity() {
         val words = Learned.decode(prefs.getString(LEARNED, null)).size
         val counted = !Insights.decode(prefs.getString(INSIGHTS, null)).isEmpty()
         forget.text = when {
-            words > 0 -> getString(R.string.setup_forget, words)
+            words > 0 -> resources.getQuantityString(R.plurals.setup_forget, words, words)
             counted -> getString(R.string.setup_forget_counts)
             else -> getString(R.string.setup_forget_none)
         }

@@ -4,6 +4,23 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.3.2] - 2026-09-30
+
+### Fixed
+- Searching emoji for a word like the Spanish "corazón" puts the red heart first, not a face that has the word.
+- "don" and "won" are no longer offered as you type "do" and "wo". "won" is still a word.
+- Gesture tips show with Suggestions turned off.
+- Copied text older than an hour is deleted from the phone, not just hidden from the list.
+- Setup says "Forget the word it has learned" when there is one, not "the 1 words".
+- Backspace is quicker in browsers and never splits an emoji.
+- "wont's" is no longer in the English dictionary.
+- Punctuation typed right after a suggestion goes before its space: "hello. ", not "hello .".
+- Keyd lets go of memory it can load again while it is out of sight.
+- Report a problem says why the strip came up empty, if an error was the reason.
+- The keyboard does less work when shift changes, when you scroll long clips, and on every suggestion.
+- Return searches in search boxes that take more than one line, like the Google app's, instead of starting a new line.
+- Web address and email keyboards have a period key beside .com.
+
 ## [0.3.1] - 2026-09-29
 
 ### Added

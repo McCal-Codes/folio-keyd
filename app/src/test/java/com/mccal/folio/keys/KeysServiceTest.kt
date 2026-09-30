@@ -33,6 +33,13 @@ class KeysServiceTest {
         val keys = mutableListOf<Int>()
         /** An app that doesn't handle its own action answers false. */
         var handles = true
+
+        /** How often the app was asked what is selected: a blocking call, slow in a browser. */
+        var selectedAsks = 0
+        override fun getSelectedText(flags: Int): CharSequence? {
+            selectedAsks++
+            return super.getSelectedText(flags)
+        }
         override fun performEditorAction(actionCode: Int): Boolean {
             performed += actionCode
             return handles
@@ -102,6 +109,9 @@ class KeysServiceTest {
         override fun fixStood(typed: String, replacement: String) { stood += typed to replacement }
         override fun putBack(typed: String) { putBack += typed }
         override fun answered(offer: Insights.Offer, accepted: Boolean) { answers += offer to accepted }
+
+        var quietGaps = 0
+        override fun quietGap() { quietGaps++ }
     }
 
     private lateinit var ime: FakeIme
@@ -137,6 +147,33 @@ class KeysServiceTest {
         val editable = field.editable!!
         editable.append(value)
         android.text.Selection.setSelection(editable, editable.length)
+    }
+
+    /** With Suggestions off the strip is told of the gap after a word on its own, so a gesture tip can take it. */
+    @Test
+    fun `with suggestions off the gap after a word is still offered to a tip`() {
+        actions.settings = Settings(suggestions = false)
+        type("hello")
+        assertEquals("not in the middle of a word", 0, ime.quietGaps)
+        type(" ")
+        assertEquals(1, ime.quietGaps)
+    }
+
+    @Test
+    fun `with suggestions on the gap goes to what might come next, as before`() {
+        type("hello ")
+        assertEquals(0, ime.quietGaps)
+        assertEquals("hello", ime.previousFor.last())
+    }
+
+    @Test
+    fun `a password field or an address has no quiet gap`() {
+        actions.settings = Settings(suggestions = false)
+        for (variation in listOf(InputType.TYPE_TEXT_VARIATION_PASSWORD, InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)) {
+            start(InputType.TYPE_CLASS_TEXT or variation, EditorInfo.IME_ACTION_UNSPECIFIED)
+            type("hello ")
+        }
+        assertEquals(0, ime.quietGaps)
     }
 
     @Test
@@ -820,15 +857,35 @@ class KeysServiceTest {
 
     @Test
     fun `a field that takes several lines gets a new line instead`() {
+        // What Android's text fields send for a message box: several lines, an action, and "plain Enter" on top.
         start(
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
-            EditorInfo.IME_ACTION_SEND,
+            EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_ENTER_ACTION,
         )
         type("one")
         actions.onAction()
         type("two")
         assertEquals("one\ntwo", text)
         assertTrue("a multiline field should not be sent", field.performed.isEmpty())
+    }
+
+    @Test
+    fun `a search box of several lines that asks for Search gets Search`() {
+        // The Google app's search box: more than one line, Search, and no "plain Enter".
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_SEARCH)
+        type("fold")
+        actions.onAction()
+        assertEquals(listOf(EditorInfo.IME_ACTION_SEARCH), field.performed)
+        assertEquals("no new line typed into the search", "fold", text)
+    }
+
+    @Test
+    fun `several lines and no action is a new line`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("one")
+        actions.onAction()
+        assertEquals("one\n", text)
+        assertTrue(field.performed.isEmpty())
     }
 
     @Test
@@ -1027,5 +1084,173 @@ class KeysServiceTest {
         actions.onSuggestedEmoji("🍕")
         assertEquals("", text)
         assertTrue(ime.remembered.isEmpty())
+    }
+
+    // ---- what backspace asks the app ----------------------------------------------------------------------------
+
+    /** Selects [start] to [end] in the field and tells the keyboard, as the editor's selection report would. */
+    private fun select(start: Int, end: Int) {
+        android.text.Selection.setSelection(field.editable, start, end)
+        actions.selectionChanged(start, end)
+        field.selectedAsks = 0
+    }
+
+    @Test
+    fun `backspace does not ask the app for a selection it already knows is not there`() {
+        type("hello")
+        select(5, 5)
+        actions.onBackspace()
+        assertEquals("hell", text)
+        assertEquals(0, field.selectedAsks)
+    }
+
+    @Test
+    fun `a selection it knows about goes whole, without asking`() {
+        type("hello world")
+        select(0, 6)
+        actions.onBackspace()
+        assertEquals("world", text)
+        assertEquals(0, field.selectedAsks)
+        // Until the editor says where the cursor went, the next press asks rather than trusting the old selection.
+        actions.onBackspace()
+        assertEquals(1, field.selectedAsks)
+    }
+
+    @Test
+    fun `shift and backspace ask at most once`() {
+        type("hello")
+        android.text.Selection.setSelection(field.editable, 1, 3)
+        field.selectedAsks = 0
+        actions.onBackspaceStart(true)
+        actions.onBackspace()
+        assertEquals("hlo", text)
+        assertEquals("not known, so asked, but only once", 1, field.selectedAsks)
+    }
+
+    @Test
+    fun `when the editor has not said where the selection is, backspace asks`() {
+        type("hello")
+        android.text.Selection.setSelection(field.editable, 0, 2)
+        field.selectedAsks = 0
+        actions.onBackspace()
+        assertEquals("llo", text)
+        assertEquals(1, field.selectedAsks)
+    }
+
+    // ---- punctuation after a taken suggestion -------------------------------------------------------------------
+
+    @Test
+    fun `a full stop after a taken suggestion goes before its space`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("hel")
+        actions.onSuggestion("hello")
+        type(".")
+        assertEquals("hello. ", text)
+        assertEquals("the next sentence starts with a capital", Shift.ONCE, actions.shift)
+        type("Hi")
+        assertEquals("hello. Hi", text)
+    }
+
+    @Test
+    fun `every mark that sits against its word gives the space way`() {
+        for (mark in listOf(",", "?", "!", ":", ";", ")")) {
+            start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+            field.editable!!.clear()
+            type("hel")
+            actions.onSuggestion("hello")
+            type(mark)
+            assertEquals("hello$mark ", text)
+        }
+    }
+
+    @Test
+    fun `only the first key after the suggestion moves the space`() {
+        type("hel")
+        actions.onSuggestion("hello")
+        type("a.")
+        assertEquals("hello a.", text)
+    }
+
+    @Test
+    fun `a letter after a taken suggestion leaves its space alone`() {
+        type("hel")
+        actions.onSuggestion("hello")
+        type("w")
+        assertEquals("hello w", text)
+    }
+
+    @Test
+    fun `a predicted word takes punctuation the same way`() {
+        type("see ")
+        actions.onSuggestion("you")
+        type("!")
+        assertEquals("see you! ", text)
+    }
+
+    @Test
+    fun `an autocorrect's space gives way too`() {
+        actions.offered(Verdict("teh", "the", misspelled = false))
+        type("teh ")
+        type(",")
+        assertEquals("the, ", text)
+    }
+
+    @Test
+    fun `a space typed by hand is kept`() {
+        type("hello ")
+        type(".")
+        assertEquals("hello .", text)
+    }
+
+    @Test
+    fun `not once the cursor has moved away and back`() {
+        type("hel")
+        actions.selectionChanged(3, 3)
+        actions.onSuggestion("hello")
+        actions.selectionChanged(6, 6)
+        android.text.Selection.setSelection(field.editable, 2)
+        actions.selectionChanged(2, 2)
+        android.text.Selection.setSelection(field.editable, 6)
+        actions.selectionChanged(6, 6)
+        type(".")
+        assertEquals("hello .", text)
+    }
+
+    @Test
+    fun `not when the cursor has moved somewhere else`() {
+        fromOutside("one ")
+        start(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("hel")
+        actions.onSuggestion("hello")
+        android.text.Selection.setSelection(field.editable, 4)
+        type(".")
+        assertEquals("one .hello ", text)
+    }
+
+    @Test
+    fun `reports from before the suggestion was taken do not count as a move`() {
+        type("hel")
+        actions.selectionChanged(3, 3)
+        actions.onSuggestion("hello")
+        actions.selectionChanged(2, 2)
+        type(".")
+        assertEquals("hello. ", text)
+    }
+
+    @Test
+    fun `never in an address`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("exa")
+        actions.onSuggestion("example")
+        type(".")
+        assertEquals("example .", text)
+    }
+
+    @Test
+    fun `two spaces still make a full stop after the word that follows`() {
+        type("hel")
+        actions.onSuggestion("hello")
+        type("there  ")
+        assertEquals("hello there. ", text)
     }
 }
