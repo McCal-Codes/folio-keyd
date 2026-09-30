@@ -741,8 +741,11 @@ class KeysService : InputMethodService(), Ime {
             addView(finder)
             addView(clips)
             addView(arrows)
-            // Last, so it is on top of the strip and a chip gets its tap before the keyboard does.
-            addView(chipRow)
+            // Last, so it is on top of the strip and a chip gets its tap before the keyboard does. Zero high as far as the
+            // frame's own measuring goes: with the default of filling the parent, it took the whole window's height
+            // when the IME window measured the frame, and the keys stretched to match. KeyboardFrame sizes it to the
+            // strip itself.
+            addView(chipRow, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0))
         }
     }
 

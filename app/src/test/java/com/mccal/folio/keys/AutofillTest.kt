@@ -279,4 +279,16 @@ class AutofillTest {
         }
         assertEquals("true", found)
     }
+
+    @Test
+    fun `the chip row never makes the keyboard taller than its keys`() {
+        // How the IME window measures the input view: at most the whole screen, not exactly. With the chip row laid
+        // out to fill its parent, the frame took the whole height and the keys stretched to fill it (0.4.1 beta 2).
+        val root = service().onCreateInputView() as ViewGroup
+        val keys = (0 until root.childCount).map(root::getChildAt).filterIsInstance<KeyboardView>().single()
+        val width = View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY)
+        root.measure(width, View.MeasureSpec.makeMeasureSpec(2400, View.MeasureSpec.AT_MOST))
+        assertTrue("frame ${root.measuredHeight}px of 2400", root.measuredHeight < 1200)
+        assertEquals(keys.measuredHeight, root.measuredHeight - root.paddingTop - root.paddingBottom)
+    }
 }
