@@ -188,8 +188,10 @@
     <!-- Keyd Dev › Developer: a field to type in without leaving Keyd -->
     <string name="header_test_box">TRY IT HERE</string>
     <string name="test_box_hint">Type to test Keyd</string>
+    <string name="test_box_sent">The app got %1$s</string>
     <string name="test_kind_text">Text</string>
     <string name="test_kind_search">Search</string>
+    <string name="test_kind_search_lines">Search, several lines</string>
     <string name="test_kind_url">Web address</string>
     <string name="test_kind_email">Email</string>
     <string name="footer_test_box">Nothing typed here teaches Keyd a word. Pick a kind of field to get its keys and its return key, as the same kind of field in another app would.</string>

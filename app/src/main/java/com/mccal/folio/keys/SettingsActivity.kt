@@ -645,6 +645,8 @@ class SettingsActivity : Activity() {
     internal enum class TestKind(val label: Int, val inputType: Int, val action: Int) {
         TEXT(R.string.test_kind_text, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_NONE),
         SEARCH(R.string.test_kind_search, InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH),
+        // The Google app's search box and some browsers' are built this way: more than one line, and still Search.
+        SEARCH_LINES(R.string.test_kind_search_lines, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_SEARCH),
         URL(R.string.test_kind_url, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, EditorInfo.IME_ACTION_GO),
         EMAIL(R.string.test_kind_email, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, EditorInfo.IME_ACTION_DONE),
     }
@@ -664,7 +666,16 @@ class SettingsActivity : Activity() {
         }
         group(column) { card ->
             row(card, iconSpace = false).apply {
-                field = EditText(context).apply {
+                field = object : EditText(context) {
+                    // Android adds "plain Enter" to every field of several lines on its own; the search boxes this
+                    // kind stands in for take it off again, so this one does too.
+                    override fun onCreateInputConnection(info: EditorInfo): android.view.inputmethod.InputConnection? =
+                        super.onCreateInputConnection(info).also {
+                            if (testKind == TestKind.SEARCH_LINES) {
+                                info.imeOptions = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION.inv()
+                            }
+                        }
+                }.apply {
                     hint = getString(R.string.test_box_hint)
                     setTextColor(colors.text)
                     setHintTextColor(colors.secondary)
@@ -672,6 +683,19 @@ class SettingsActivity : Activity() {
                     minHeight = dp(48f)
                     background = null
                     setPadding(0, dp(4f), 0, dp(4f))
+                    // Says what the return key sent, so Search, Go and Done can be checked here, not in a browser.
+                    setOnEditorActionListener { _, action, _ ->
+                        val name = when (action) {
+                            EditorInfo.IME_ACTION_SEARCH -> "Search"
+                            EditorInfo.IME_ACTION_GO -> "Go"
+                            EditorInfo.IME_ACTION_DONE -> "Done"
+                            EditorInfo.IME_ACTION_SEND -> "Send"
+                            EditorInfo.IME_ACTION_NEXT -> "Next"
+                            else -> "Enter"
+                        }
+                        android.widget.Toast.makeText(context, getString(R.string.test_box_sent, name), android.widget.Toast.LENGTH_SHORT).show()
+                        true
+                    }
                     layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 }
                 addView(field)
@@ -707,7 +731,9 @@ class SettingsActivity : Activity() {
                     testKind = kind
                     apply(kind)
                     show()
+                    // Focus alone doesn't bring the keyboard up; ask for it, so the new kind of field is on screen.
                     field.requestFocus()
+                    (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(field, 0)
                 }
             }
             show()
