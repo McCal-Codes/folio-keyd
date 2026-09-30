@@ -160,7 +160,21 @@ class EmojiPanel(context: Context) : View(context) {
         if (category == 0) recents else Emoji.CATEGORIES[category - 1].items
 
     /** Emoji [index] as it is drawn and typed: in its tone, if it has them. */
-    private fun shown(list: List<String>, index: Int): String = tones.apply(list[index])
+    private fun shown(list: List<String>, index: Int): String = toned(list)[index]
+
+    // The grid in its tones, worked out once per list and choice of tones rather than for every cell every frame.
+    private var tonedFrom: List<String>? = null
+    private var tonedWith: SkinTones.Choices? = null
+    private var tonedList: List<String> = emptyList()
+
+    private fun toned(list: List<String>): List<String> {
+        if (list !== tonedFrom || tones !== tonedWith) {
+            tonedList = list.map(tones::apply)
+            tonedFrom = list
+            tonedWith = tones
+        }
+        return tonedList
+    }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         val navigation = insets.getInsets(WindowInsets.Type.navigationBars()).bottom.toFloat()
@@ -261,6 +275,7 @@ class EmojiPanel(context: Context) : View(context) {
         // Only the rows on screen are drawn: a category is a few hundred emoji and the rest are somewhere above.
         val first = max(0, (scroll / cell).toInt() * columns)
         val last = min(list.size, first + (visibleHeight() / cell).toInt() * columns + columns * 2)
+        val drawn = toned(list)
         for (index in first until last) {
             val row = index / columns
             val column = index % columns
@@ -271,7 +286,7 @@ class EmojiPanel(context: Context) : View(context) {
                 fill.color = theme.pressTint
                 canvas.drawRoundRect(rect, 10 * dp, 10 * dp, fill)
             }
-            canvas.drawText(shown(list, index), cx, cy + baseline, glyph)
+            canvas.drawText(drawn[index], cx, cy + baseline, glyph)
         }
         canvas.restore()
     }
