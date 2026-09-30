@@ -573,10 +573,6 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     /**
-     * The part of a window [across] pixels wide that the letters' board takes, so a panel opened in its place can
-     * take the same part. The whole width unless the keyboard is one-handed.
-     */
-    /**
      * The parts of the strip something can be placed in, left and right in this view's pixels: across the keys, or
      * one per half when the keyboard is split, so nothing to press sits on the gap between them.
      */
@@ -590,6 +586,10 @@ class KeyboardView(context: Context) : View(context) {
 
     private var lanes: List<Pair<Int, Int>> = emptyList()
 
+    /**
+     * The part of a window [across] pixels wide that the letters' board takes, so a panel opened in its place can
+     * take the same part. The whole width unless the keyboard is one-handed.
+     */
     fun boardSpan(across: Int): Pair<Int, Int> =
         oneHandedSpan(across.toFloat())?.let { (left, right) -> left.roundToInt() to right.roundToInt() } ?: (0 to across)
 

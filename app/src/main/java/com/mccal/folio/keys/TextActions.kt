@@ -776,12 +776,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
 
     override fun onGesture(tip: Tip) = ime.gestureUsed(tip)
 
-    /**
-     * A suggestion, taken.
-     *
-     * Only ever from a tap: nothing here runs on its own. What was typed is removed and the chosen word put in its
-     * place, with the space that was going to follow it anyway.
-     */
+    /** A word held in the strip and turned down: never suggested again. */
     override fun onForgetSuggestion(word: String) {
         ime.forget(word)
         // The correction waiting for the space was worked out before this, and may be the very word just turned
@@ -791,6 +786,12 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         wordChanged()
     }
 
+    /**
+     * A suggestion, taken.
+     *
+     * Only ever from a tap: nothing here runs on its own. What was typed is removed and the chosen word put in its
+     * place, with the space that was going to follow it anyway.
+     */
     override fun onSuggestion(chosen: String) {
         undo = null
         weakSpace = null

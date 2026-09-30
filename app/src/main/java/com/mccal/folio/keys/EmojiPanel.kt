@@ -702,10 +702,10 @@ class EmojiPanel(context: Context) : View(context) {
         const val MIN_FLING_DP = 50f
         const val HANDLE_W_DP = 38f
         const val HANDLE_H_DP = 4f
-        const val RECENT_TAB = "🕒"
+        const val RECENT_TAB = "🕒"   // a clock face, which reads as color beside the other tabs
 
         /** The tones' virtual view ids, well clear of the grid's and the tabs'. */
-        const val TONE_ID = 1_000_000   // a clock face, which reads as colour beside the other tabs
+        const val TONE_ID = 1_000_000
 
         /** The letters keyboard is four rows; matching it keeps the app above from jumping when you switch. */
         const val ROWS_LIKE_LETTERS = 4
