@@ -1073,6 +1073,8 @@ class SettingsActivity : Activity() {
                 subtitle = getString(R.string.settings_suggest_emoji_sub), enabled = settings.suggestions,
             ) { on -> change(settings.copy(suggestEmoji = on)) }
         }
+        // Kept from the old page: where the emoji come from is a privacy answer, not decoration.
+        footer(column, getString(R.string.settings_suggest_emoji_note))
         header(column, getString(R.string.header_corrections))
         group(column) {
             // Autocorrect is the strip's top answer applied for you, so with the strip off it is off too, whatever it
@@ -1087,6 +1089,8 @@ class SettingsActivity : Activity() {
                 resources.getQuantityString(R.plurals.value_fixes, fixes, fixes)) { show(Page.WHAT_IT_FIXES) }
         }
         footer(column, getString(R.string.footer_corrections))
+        // And what learning never touches.
+        footer(column, getString(R.string.settings_learn_note))
         header(column, getString(R.string.header_capitals))
         group(column) {
             toggle(it, getString(R.string.settings_capitals), settings.autoCapitalise) { on -> settings.copy(autoCapitalise = on) }
