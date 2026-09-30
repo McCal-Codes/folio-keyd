@@ -6,10 +6,14 @@
   Only English is marked ASCII-capable, because only English is. The flag tells the system a subtype can type the
   characters a password or a URL field may need, and claiming it for a layout with an "ñ" key where an "l" should
   be would be a lie the system acts on.
+
+  supportsInlineSuggestions lets a password manager put its logins and codes in the strip. The manager draws them;
+  Keyd only places them, and needs no permission to.
 -->
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
     android:settingsActivity="com.mccal.folio.keys.SettingsActivity"
-    android:supportsSwitchingToNextInputMethod="true">
+    android:supportsSwitchingToNextInputMethod="true"
+    android:supportsInlineSuggestions="true">
     <subtype
         android:label="@string/subtype_en_us"
         android:imeSubtypeLocale="en_US"

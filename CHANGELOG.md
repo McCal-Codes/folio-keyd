@@ -9,6 +9,7 @@ under Settings › About › What's New.
 ### Added
 - **Emoji skin tones:** hold an emoji to pick its skin tone, and it keeps that tone. Settings sets the one they start with.
 - **Suggestions fill the width:** the strip offers as many words as fit, three on a cover screen and five unfolded.
+- **Password manager in the strip:** logins and codes from your password manager show above the keys, drawn by the manager itself. Keyd places them and never sees what they say. It can be turned off in Smart typing.
 
 ## [0.4.0] - 2026-09-30
 

@@ -230,6 +230,23 @@ class KeyboardView(context: Context) : View(context) {
             invalidate()
         }
 
+    /**
+     * Whether the password manager's chips are over the strip. Its own buttons and words step aside while they are,
+     * so the space between two chips is not a Hide or a word waiting under a finger. What is typed still goes on
+     * being suggested underneath, and comes back the moment the chips go.
+     */
+    var autofilling: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
+    /** The colors the keys are drawn in now, for the password manager to draw its chips to match. */
+    internal val currentTheme: Theme get() = theme
+
     /** Which language's accents sit behind the keys. */
     var language: Language = Language.ENGLISH
         set(value) {
@@ -532,6 +549,17 @@ class KeyboardView(context: Context) : View(context) {
      * The part of a window [across] pixels wide that the letters' board takes, so a panel opened in its place can
      * take the same part. The whole width unless the keyboard is one-handed.
      */
+    /**
+     * The parts of the strip something can be placed in, left and right in this view's pixels: across the keys, or
+     * one per half when the keyboard is split, so nothing to press sits on the gap between them.
+     */
+    internal val stripLanes: List<Pair<Int, Int>> get() = lanes
+
+    /** The bottom of the strip, in this view's pixels. Its top is the board's. */
+    internal val stripBottom: Int get() = (panelPad + toolbarHeight).roundToInt()
+
+    private var lanes: List<Pair<Int, Int>> = emptyList()
+
     fun boardSpan(across: Int): Pair<Int, Int> =
         oneHandedSpan(across.toFloat())?.let { (left, right) -> left.roundToInt() to right.roundToInt() } ?: (0 to across)
 
@@ -554,6 +582,7 @@ class KeyboardView(context: Context) : View(context) {
         val bottom = bottomInset + panelPad
         gapLeft = 0f
         gapRight = 0f
+        lanes = listOf(keysLeft.roundToInt() to keysRight.roundToInt())
 
         placedKeys = when (shape) {
             Shape.FULL -> Geometry.place(
@@ -575,6 +604,10 @@ class KeyboardView(context: Context) : View(context) {
                 val half = (usable - gutter) / 2
                 gapLeft = edge + half
                 gapRight = edge + half + gutter
+                lanes = listOf(
+                    edge.roundToInt() to (edge + half).roundToInt(),
+                    (edge + half + gutter).roundToInt() to (edge + 2 * half + gutter).roundToInt(),
+                )
                 val (leftRows, rightRows) = Layouts.split(rows)
                 Geometry.place(
                     leftRows, width, height, dp, bottomInset = bottom, top = top,
@@ -659,7 +692,7 @@ class KeyboardView(context: Context) : View(context) {
      * out. Nothing is squeezed below a size a thumb can hit.
      */
     private fun placeToolbar(): List<Placement> {
-        if (width == 0 || searchKeys) return emptyList()
+        if (width == 0 || searchKeys || autofilling) return emptyList()
         val selected = selection
         if (selected != null && settings.selectionTools && !rules.password) return placeSelection(selected)
         if (suggestions.isNotEmpty() && !rules.password) return placeSuggestions()

@@ -47,6 +47,9 @@
     <string name="settings_learn">Learn new words</string>
     <string name="settings_suggest_emoji">Suggest an emoji</string>
     <string name="settings_suggest_emoji_sub">When a word has one</string>
+    <string name="settings_password_manager">Password manager suggestions</string>
+    <string name="settings_password_manager_sub">Logins and codes in the strip</string>
+    <string name="settings_password_manager_note">Your password manager draws those itself; Keyd places them and never sees what they say.</string>
     <string name="settings_suggest_emoji_note">Emoji come from Unicode\'s own emoji names, in the language you are typing, so pizza offers 🍕. Nothing is looked up online.</string>
     <string name="header_emoji">EMOJI</string>
     <string name="settings_skin_tone">Skin tone</string>

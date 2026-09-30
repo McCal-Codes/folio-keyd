@@ -1166,9 +1166,16 @@ class SettingsActivity : Activity() {
                 it, getString(R.string.settings_suggest_emoji), settings.suggestEmoji,
                 subtitle = getString(R.string.settings_suggest_emoji_sub), enabled = settings.suggestions,
             ) { on -> change(settings.copy(suggestEmoji = on)) }
+            // Not tied to the strip's switch: the chips are the password manager's, not Keyd's words.
+            switchRow(
+                it, getString(R.string.settings_password_manager), settings.passwordManagerSuggestions,
+                subtitle = getString(R.string.settings_password_manager_sub),
+            ) { on -> change(settings.copy(passwordManagerSuggestions = on)) }
         }
         // Kept from the old page: where the emoji come from is a privacy answer, not decoration.
         footer(column, getString(R.string.settings_suggest_emoji_note))
+        // And so is what Keyd sees of the chips, which is nothing.
+        footer(column, getString(R.string.settings_password_manager_note))
         header(column, getString(R.string.header_emoji))
         group(column) {
             // The raised hand in each tone, the way iOS shows the choice; each is read out by name.

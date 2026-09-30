@@ -1,6 +1,7 @@
 package com.mccal.folio.keys
 
 import android.content.Context
+import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -8,7 +9,10 @@ import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.util.Size
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InlineSuggestionsRequest
+import android.view.inputmethod.InlineSuggestionsResponse
 import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -32,6 +36,13 @@ class KeysService : InputMethodService(), Ime {
     private var clipboard: ClipboardPanel? = null
     private var pad: CursorPad? = null
     private var root: View? = null
+    private var chips: AutofillStrip? = null
+
+    /**
+     * Counts the password manager's answers, so views still being drawn for an older one, or for a field already
+     * left, are dropped when they arrive instead of showing over the wrong field.
+     */
+    private var autofillAnswer = 0
 
     /**
      * Whether the editor has told us the cursor is behind the keys, confirmed over [CursorWatch.SETTLE_MS].
@@ -693,7 +704,8 @@ class KeysService : InputMethodService(), Ime {
         clipboard = clips
         pad = arrows
         actions.refresh()
-        return KeyboardFrame(this, keys).also { root = it }.apply {
+        val chipRow = AutofillStrip(this).also { chips = it }
+        return KeyboardFrame(this, keys, chipRow).also { root = it }.apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             )
@@ -702,8 +714,77 @@ class KeysService : InputMethodService(), Ime {
             addView(finder)
             addView(clips)
             addView(arrows)
+            // Last, so it is on top of the strip and a chip gets its tap before the keyboard does.
+            addView(chipRow)
         }
     }
+
+    // ---- Password manager suggestions -----------------------------------------------------------------------------
+
+    /**
+     * Asked by Android when a field that a password manager can fill is focused. Null, with the setting off, means
+     * no chips. Read straight from the saved settings, because this can come before the field's own settings are.
+     */
+    override fun onCreateInlineSuggestionsRequest(uiExtras: Bundle): InlineSuggestionsRequest? {
+        val on = Settings.load(prefs).passwordManagerSuggestions
+        DevLog.event(this, "autofill-asked", "on" to if (on) 1 else 0)
+        val keys = keyboard
+        val widest = keys?.stripLanes?.maxOfOrNull { it.second - it.first }
+            ?: resources.displayMetrics.widthPixels
+        return Autofill.request(this, on, widest, keys?.currentTheme ?: Theme.of(this, Appearance.SYSTEM, false))
+    }
+
+    /**
+     * The password manager's answer: chips to show, or none, which is also how it takes them back when what is
+     * typed stops matching. Each chip is drawn by the manager into a view that is only placed here; Keyd is never
+     * told what a chip says, and nothing here tries to find out.
+     *
+     * Platform glue: Robolectric cannot make a real suggestion, so this part is tried on a phone. What it hands on,
+     * [showChips], is tested.
+     */
+    override fun onInlineSuggestionsResponse(response: InlineSuggestionsResponse): Boolean {
+        val given = response.inlineSuggestions
+        val answer = ++autofillAnswer
+        DevLog.event(this, "autofill-chips", "count" to given.size)
+        if (given.isEmpty() || !Settings.load(prefs).passwordManagerSuggestions) {
+            clearChips()
+            return false
+        }
+        val height = Autofill.chipHeight(resources.displayMetrics.density)
+        // As wide as the chip needs, within what the request allowed; as tall as every chip is.
+        val size = Size(ViewGroup.LayoutParams.WRAP_CONTENT, height)
+        val drawn = arrayOfNulls<View>(given.size)
+        var waiting = given.size
+        for ((index, suggestion) in given.withIndex()) {
+            suggestion.inflate(this, size, mainExecutor) { view ->
+                drawn[index] = view
+                waiting--
+                // Shown together, once all are drawn, so the row does not rearrange itself chip by chip.
+                if (waiting == 0 && answer == autofillAnswer) {
+                    showChips(given.indices.mapNotNull { i ->
+                        drawn[i]?.let { AutofillStrip.Chip(it, given[i].info.isPinned) }
+                    })
+                }
+            }
+        }
+        return true
+    }
+
+    /** Puts [given] over the strip in place of its words and buttons, or takes them away when there are none. */
+    internal fun showChips(given: List<AutofillStrip.Chip>) {
+        if (given.isEmpty()) return clearChips()
+        chips?.show(given)
+        keyboard?.autofilling = chips?.showing == true
+    }
+
+    /** The chips go, and anything still being drawn for them is dropped when it arrives. */
+    internal fun clearChips() {
+        autofillAnswer++
+        chips?.clear()
+        keyboard?.autofilling = false
+    }
+
+    internal val chipsShowing: Boolean get() = chips?.showing == true
 
     override fun rememberEmoji(emoji: String) = remember(emoji)
 
@@ -999,6 +1080,8 @@ class KeysService : InputMethodService(), Ime {
     /** A new field is a fresh question: whatever was true of the last one says nothing about this one. */
     override fun onFinishInput() {
         super.onFinishInput()
+        // Chips belong to the field they were offered for. Android offers them again when one is focused.
+        clearChips()
         forgetCursor()
         main.removeCallbacks(countSelection)
         saveCountsNow()
@@ -1014,6 +1097,7 @@ class KeysService : InputMethodService(), Ime {
     override fun onWindowHidden() {
         super.onWindowHidden()
         windowShown = false
+        clearChips()
         forgetCursor()
         main.removeCallbacks(countSelection)
         saveCountsNow()
