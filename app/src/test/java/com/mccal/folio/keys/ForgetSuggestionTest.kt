@@ -87,6 +87,15 @@ class ForgetSuggestionTest {
     }
 
     @Test
+    fun `password manager chips arriving close an open menu`() {
+        val (x, y) = t.hold(word("Foloo").box)
+        t.send(MotionEvent.ACTION_UP, x, y)
+        assertEquals(1, view.forgetMenuItems.size)
+        view.autofilling = true
+        assertTrue(view.forgetMenuItems.isEmpty())
+    }
+
+    @Test
     fun `turning down the last word leaves the toolbar`() {
         view.suggestions = listOf("Folo", "Foloo")
         val (x, y) = t.hold(word("Foloo").box)

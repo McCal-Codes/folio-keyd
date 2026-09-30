@@ -244,6 +244,8 @@ class KeyboardView(context: Context) : View(context) {
         set(value) {
             if (field == value) return
             field = value
+            // A word's forget menu belongs to the word, which is stepping aside for the chips.
+            closeForgetMenu()
             tools = placeToolbar()
             keyNodes.invalidateRoot()
             invalidate()
@@ -580,7 +582,10 @@ class KeyboardView(context: Context) : View(context) {
      */
     internal val stripLanes: List<Pair<Int, Int>> get() = lanes
 
-    /** The bottom of the strip, in this view's pixels. Its top is the board's. */
+    /** The top of the strip, in this view's pixels: below the board's padding. */
+    internal val stripTop: Int get() = panelPad.roundToInt()
+
+    /** The bottom of the strip, in this view's pixels. */
     internal val stripBottom: Int get() = (panelPad + toolbarHeight).roundToInt()
 
     private var lanes: List<Pair<Int, Int>> = emptyList()

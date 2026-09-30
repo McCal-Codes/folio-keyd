@@ -106,6 +106,14 @@ internal class AutofillStrip(context: Context) : ViewGroup(context) {
             place()
         }
 
+    /** Where the strip starts, in this view's pixels: the board's padding sits above it, and the chips do not. */
+    var stripTop: Int = 0
+        set(value) {
+            if (field == value) return
+            field = value
+            place()
+        }
+
     var chips: List<Chip> = emptyList()
         private set
 
@@ -152,7 +160,7 @@ internal class AutofillStrip(context: Context) : ViewGroup(context) {
      * view's own layout has already been and gone.
      */
     private fun place() {
-        val top = (height - chipHeight) / 2
+        val top = stripTop + (height - stripTop - chipHeight) / 2
         val placed = arrange(chips.map { it.view.measuredWidth }, chips.map { it.pinned }, lanes, gap)
         for ((index, chip) in chips.withIndex()) {
             val left = placed[index]

@@ -122,6 +122,9 @@ class AutofillTest {
         val first = strip.getChildAt(0)
         assertEquals(keys.stripLanes.single().first, first.left)
         assertTrue(first.bottom <= keys.stripBottom)
+        assertTrue("below the board's padding", first.top >= keys.stripTop)
+        val middle = (keys.stripTop + keys.stripBottom) / 2f
+        assertEquals("centered on the strip", middle, (first.top + first.bottom) / 2f, 1f)
         assertEquals(200, first.width)
     }
 

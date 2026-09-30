@@ -48,6 +48,7 @@ internal class KeyboardFrame(
         chips?.let {
             // Laid out at nothing while a panel is in the letters' place, so the chips go with the strip they are on.
             if (keys.visibility == View.VISIBLE) {
+                it.stripTop = keys.stripTop
                 it.lanes = keys.stripLanes
                 it.layout(0, 0, it.measuredWidth, it.measuredHeight)
             } else {
