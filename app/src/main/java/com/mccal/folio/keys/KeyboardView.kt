@@ -281,11 +281,16 @@ class KeyboardView(context: Context) : View(context) {
 
     var rows: List<Row> = emptyList()
         set(value) {
+            val sameHeight = value.size == field.size
             field = value
             // Fingers already down keep the key they pressed. The board is rebuilt constantly while typing - one
             // capital letter turns shift off again and replaces every key - and a thumb halfway through the next
             // letter when that happens must still get the letter it pressed.
-            requestLayout()
+            //
+            // The height depends only on how many rows there are, so a board with the same number (a shift change,
+            // most of the time) is placed again where it already is. Asking for a layout there would have the whole
+            // input window measured and laid out again after nearly every capital letter, for nothing.
+            if (sameHeight && isLaidOut && !isLayoutRequested) arrange() else requestLayout()
             invalidate()
         }
 
