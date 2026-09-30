@@ -86,6 +86,11 @@ data class Settings(
     val doubleSpaceFullStop: Boolean = true,
     /** A row of digits above the letters, instead of reaching them through the 123 key. */
     val numberRow: Boolean = false,
+    /**
+     * After the numbers or symbols, a space goes back to the letters, as it does on an iPhone and on Gboard: "at 3 pm"
+     * without a trip to ABC. Never in a number or phone field, where the digits are the keyboard, or an address.
+     */
+    val backToLetters: Boolean = true,
     /** Holding a key offers its accents. Off means holding a top-row key still gives its digit. */
     val accents: Boolean = true,
     /** The bubble that shows the letter above your finger. Never shown in a password field whatever this says. */
@@ -160,6 +165,7 @@ data class Settings(
             putBoolean(AUTO_CAPITALISE, autoCapitalise)
             putBoolean(DOUBLE_SPACE, doubleSpaceFullStop)
             putBoolean(NUMBER_ROW, numberRow)
+            putBoolean(BACK_TO_LETTERS, backToLetters)
             putBoolean(ACCENTS, accents)
             putBoolean(KEY_PREVIEW, keyPreview)
             putBoolean(FLICK_ALTERNATE, flickForAlternate)
@@ -205,6 +211,7 @@ data class Settings(
         const val AUTO_CAPITALISE = "autoCapitalise"
         const val DOUBLE_SPACE = "doubleSpace"
         const val NUMBER_ROW = "numberRow"
+        const val BACK_TO_LETTERS = "backToLetters"
         const val ACCENTS = "accents"
         const val KEY_PREVIEW = "keyPreview"
         const val FLICK_ALTERNATE = "flickAlternate"
@@ -387,6 +394,7 @@ data class Settings(
                 autoCapitalise = read(AUTO_CAPITALISE, fallback.autoCapitalise),
                 doubleSpaceFullStop = read(DOUBLE_SPACE, fallback.doubleSpaceFullStop),
                 numberRow = read(NUMBER_ROW, fallback.numberRow),
+                backToLetters = read(BACK_TO_LETTERS, fallback.backToLetters),
                 accents = read(ACCENTS, fallback.accents),
                 keyPreview = read(KEY_PREVIEW, fallback.keyPreview),
                 flickForAlternate = read(FLICK_ALTERNATE, fallback.flickForAlternate),

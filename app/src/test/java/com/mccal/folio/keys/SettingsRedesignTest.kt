@@ -70,7 +70,8 @@ class SettingsRedesignTest {
         R.string.settings_spell_check, R.string.settings_learn, R.string.page_what_it_fixes,
         R.string.settings_capitals, R.string.settings_double_space, R.string.row_per_app,
         // Keys and gestures
-        R.string.settings_number_row, R.string.settings_accents, R.string.row_period, R.string.row_toolbar,
+        R.string.settings_number_row, R.string.settings_accents, R.string.settings_back_to_letters,
+        R.string.row_period, R.string.row_toolbar,
         R.string.settings_cursor_swipe, R.string.settings_delete_word, R.string.settings_edit_swipes,
         R.string.settings_shift_select, R.string.settings_selection_tools, R.string.settings_two_finger,
         R.string.settings_swipe_hide, R.string.settings_flick_down, R.string.settings_flick_up,

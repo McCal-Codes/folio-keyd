@@ -473,15 +473,35 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         wordStart = swapped || text.lastOrNull()?.isWhitespace() == true
         lastWasSpace = text == " "
         wordChanged()
+        val lettersAgain = backToLetters(text)
+        if (lettersAgain) layer = Layer.LETTERS
         if (shift == Shift.ONCE) {
             shift = Shift.OFF
             shiftByHand = false
+            refresh()
+        } else if (lettersAgain) {
             refresh()
         }
         // A space or a period may have started a sentence: ask the app again, the way it was asked when the field
         // opened. Letters never can, so they skip the round trip.
         if (!text[0].isLetter()) recapitalize()
     }
+
+    /**
+     * Whether this [text] takes the keyboard from the numbers or symbols back to the letters: a space, as on an
+     * iPhone and on Gboard. "at 3 pm" and "(yes) and" are typed without a trip to ABC, because what follows a space
+     * is almost always a word.
+     *
+     * Any space does it, including one straight after the 123 key with nothing typed on the layer, which is what an
+     * iPhone does too: one rule is easier to learn than a rule with an exception. Only a space, not an apostrophe,
+     * since "'90s" and "5'10" carry on with digits after it.
+     *
+     * Never in a number or phone field, where the digits are the whole keyboard, or in a web or email address,
+     * which is mostly symbols and digits between the letters: someone who went to the symbols there meant to stay.
+     */
+    private fun backToLetters(text: String): Boolean =
+        settings.backToLetters && text == " " && layer != Layer.LETTERS && !rules.address &&
+            rules.kind != FieldKind.NUMBER && rules.kind != FieldKind.PHONE
 
     /** Notes the space after [word] as one punctuation may take the place of. [at] is where the cursor lands. */
     private fun spaceAfter(word: String, at: Int) {
