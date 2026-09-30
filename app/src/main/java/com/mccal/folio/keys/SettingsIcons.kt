@@ -23,7 +23,7 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
     enum class Glyph {
         LANGUAGES, SHORTCUTS, TYPING, KEYS, LOOK, SOUND, CLIPBOARD, PRIVACY, WARNING,
         UNDO, EMOJI, TIP, SEARCH, BACKSPACE, SELECT, MOVE, SYMBOLS, TIMER,
-        WAND, HAND, PALETTE, SPARKLES, REPORT, APPS, CHOICES,
+        WAND, HAND, PALETTE, SPARKLES, REPORT, APPS, CHOICES, LETTERS,
     }
 
     private val density = context.resources.displayMetrics.density
@@ -99,6 +99,13 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
                 canvas.drawPath(path, stroke)
                 canvas.drawLine(cx, cy - g * .12f, cx, cy + g * .1f, stroke)
                 canvas.drawCircle(cx, cy + g * .24f, stroke.strokeWidth * .7f, fill)
+            }
+            Glyph.LETTERS -> {
+                // "Aa": the letters, as a keyboard's own layer key would say it.
+                fill.textSize = g * .78f
+                fill.textAlign = Paint.Align.CENTER
+                fill.isFakeBoldText = true
+                canvas.drawText("Aa", cx, cy - (fill.descent() + fill.ascent()) / 2, fill)
             }
             Glyph.CHOICES -> {
                 // A segmented control: one rounded bar in three parts, the middle one chosen.

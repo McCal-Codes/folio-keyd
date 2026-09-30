@@ -120,7 +120,8 @@ internal object WhatsNew {
         listOf("language") to (SettingsIcon.Glyph.LANGUAGES to "#0071E3"),
         listOf("shortcut") to (SettingsIcon.Glyph.SHORTCUTS to "#5E5CE6"),
         listOf("clipboard") to (SettingsIcon.Glyph.CLIPBOARD to "#636366"),
-        listOf("permission", "privacy") to (SettingsIcon.Glyph.PRIVACY to "#1B7A33"),
+        listOf("permission", "privacy", "password") to (SettingsIcon.Glyph.PRIVACY to "#1B7A33"),
+        listOf("letters") to (SettingsIcon.Glyph.LETTERS to "#6E5DC6"),
         listOf("split", "fold", "look") to (SettingsIcon.Glyph.LOOK to "#8944AB"),
         listOf("correct", "corrected", "correction", "typing") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
     )
