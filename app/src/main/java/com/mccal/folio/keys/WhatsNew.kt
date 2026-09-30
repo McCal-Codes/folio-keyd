@@ -82,8 +82,17 @@ internal object WhatsNew {
     /** Every glyph whose words are in [title], best first, ending with the shift arrow everything falls back on. */
     private fun candidates(title: String): List<Pair<SettingsIcon.Glyph, String>> {
         val t = title.lowercase(java.util.Locale.ROOT)
-        return RULES.filter { (words, _) -> words.any { it in t } }.map { it.second } + (SettingsIcon.Glyph.KEYS to "#C93400")
+        return MATCHERS.filter { (words, _) -> words.any { it.containsMatchIn(t) } }.map { it.second } +
+            (SettingsIcon.Glyph.KEYS to "#C93400")
     }
+
+    /**
+     * True when [word] is in [title] as a word of its own, or with a plural "s" or "es": "tip" is in "Gesture tips"
+     * but not in "multiple", and "dev" is not in "device" or "word" in "password".
+     */
+    internal fun mentions(title: String, word: String): Boolean = matcher(word).containsMatchIn(title.lowercase(java.util.Locale.ROOT))
+
+    private fun matcher(word: String) = Regex("""(?<![\p{L}\p{N}])""" + Regex.escape(word) + """(?:e?s)?(?![\p{L}\p{N}])""")
 
     private val RULES: List<Pair<List<String>, Pair<SettingsIcon.Glyph, String>>> = listOf(
         listOf("dev") to (SettingsIcon.Glyph.KEYS to "#B44A0C"),
@@ -91,13 +100,13 @@ internal object WhatsNew {
         // Features that have a picture of their own come first, so no two neighbors share the shift arrow.
         listOf("search") to (SettingsIcon.Glyph.SEARCH to "#0071E3"),
         listOf("choice", "one row", "one tap") to (SettingsIcon.Glyph.CHOICES to "#248A3D"),
-        listOf("undo") to (SettingsIcon.Glyph.UNDO to "#C93400"),
+        listOf("undo", "undone") to (SettingsIcon.Glyph.UNDO to "#C93400"),
         listOf("emoji") to (SettingsIcon.Glyph.EMOJI to "#5E5CE6"),
         listOf("tip") to (SettingsIcon.Glyph.TIP to "#9A5200"),
         listOf("period", "symbol") to (SettingsIcon.Glyph.SYMBOLS to "#8944AB"),
-        listOf("delete") to (SettingsIcon.Glyph.BACKSPACE to "#D70015"),
+        listOf("delete", "deleted", "deleting") to (SettingsIcon.Glyph.BACKSPACE to "#D70015"),
         listOf("delay") to (SettingsIcon.Glyph.TIMER to "#0A6E75"),
-        listOf("select") to (SettingsIcon.Glyph.SELECT to "#0071E3"),
+        listOf("select", "selected", "selecting", "selection") to (SettingsIcon.Glyph.SELECT to "#0071E3"),
         listOf("toolbar", "cursor", "one-handed") to (SettingsIcon.Glyph.MOVE to "#636366"),
         listOf("gesture", "swipe", "flick") to (SettingsIcon.Glyph.HAND to "#C93400"),
         listOf("style", "theme", "color") to (SettingsIcon.Glyph.PALETTE to "#8944AB"),
@@ -105,7 +114,7 @@ internal object WhatsNew {
         listOf("per-app", "apps") to (SettingsIcon.Glyph.APPS to "#C75C00"),
         listOf("feel", "sound", "vibration") to (SettingsIcon.Glyph.SOUND to "#D70015"),
         listOf("smart", "autocorrect") to (SettingsIcon.Glyph.WAND to "#248A3D"),
-        listOf("fix", "word", "contraction") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
+        listOf("fix", "fixed", "word", "contraction") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
         listOf("whether", "setting", "status") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
         listOf("new", "about") to (SettingsIcon.Glyph.SHORTCUTS to "#0071E3"),
         listOf("language") to (SettingsIcon.Glyph.LANGUAGES to "#0071E3"),
@@ -113,8 +122,11 @@ internal object WhatsNew {
         listOf("clipboard") to (SettingsIcon.Glyph.CLIPBOARD to "#636366"),
         listOf("permission", "privacy") to (SettingsIcon.Glyph.PRIVACY to "#1B7A33"),
         listOf("split", "fold", "look") to (SettingsIcon.Glyph.LOOK to "#8944AB"),
-        listOf("correct", "typing") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
+        listOf("correct", "corrected", "correction", "typing") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
     )
+
+    /** [RULES] with each word made a whole-word pattern, once. */
+    private val MATCHERS = RULES.map { (words, glyph) -> words.map(::matcher) to glyph }
 
     /** What a feature gets once its own matches are taken: pictures that stand for nothing in particular first. */
     private val SPARE: List<Pair<SettingsIcon.Glyph, String>> = listOf(

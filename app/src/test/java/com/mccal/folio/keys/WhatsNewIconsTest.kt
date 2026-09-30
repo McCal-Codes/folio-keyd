@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,6 +22,21 @@ import java.io.File
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "xhdpi")
 class WhatsNewIconsTest {
+
+    @Test
+    fun `a word is matched whole, not inside a longer word`() {
+        assertTrue(WhatsNew.mentions("Keyd Dev reports", "dev"))
+        assertFalse(WhatsNew.mentions("Device details in reports", "dev"))
+        assertFalse(WhatsNew.mentions("No suggestions in a password field", "word"))
+        assertTrue(WhatsNew.mentions("Learn a new word", "word"))
+        assertFalse(WhatsNew.mentions("Multiple clipboards", "tip"))
+        assertTrue(WhatsNew.mentions("Gesture tips", "tip"))
+        assertTrue(WhatsNew.mentions("Per-app settings", "per-app"))
+        // The glyphs follow: a password feature is not a word feature, and a device one is not the dev build's.
+        assertNotEquals(SettingsIcon.Glyph.TYPING, WhatsNew.glyph("Password fields stay private").first)
+        assertNotEquals("#B44A0C", WhatsNew.glyph("Device check").second)
+        assertEquals(SettingsIcon.Glyph.TIP, WhatsNew.glyph("Gesture tips").first)
+    }
 
     @Test
     fun `no two of this release's features share a picture`() {
