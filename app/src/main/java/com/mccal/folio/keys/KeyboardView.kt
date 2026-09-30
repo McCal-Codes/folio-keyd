@@ -847,9 +847,9 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     /**
-     * How many words the strip has room for: one per [WORD_SLOT_DP] of its width, so three on a narrow phone, four
-     * on a Fold's cover screen, as 0.4.0 already offered there, and five unfolded. Never fewer than three, the most a phone keyboard has ever offered, and never more
-     * than five, past which a strip is a list to read rather than something to glance at.
+     * How many words the strip has room for: one per [WORD_SLOT_DP] of its width, so five unfolded or on a wide
+     * screen. Never fewer than four, what was typed and three alternatives, which 0.4.0 offered at every width, and
+     * never more than five, past which a strip is a list to read rather than something to glance at.
      *
      * Counted across the whole strip, a split keyboard's gap included: the words go either side of it.
      */
@@ -2493,7 +2493,7 @@ class KeyboardView(context: Context) : View(context) {
         const val TOOLBAR_DP = 42f
         const val TOOL_SLOT_DP = 56f
         const val WORD_SLOT_DP = 100f     // the strip width each word it offers wants
-        const val MIN_WORDS = 3
+        const val MIN_WORDS = 4
         const val MAX_WORDS = 5
         const val CAP_AT_DP = 480f      // wider than a large phone: stop stretching, start centring
         const val CAP_WIDTH_DP = 460f

@@ -351,9 +351,9 @@ class KeyboardViewTest {
 
     @Test
     fun `suggestions take the toolbar's place, with the literal first`() {
-        view.suggestions = listOf("teh", "the", "ten", "tea")
-        // A phone's strip has room for three; the rest wait for a wider one (SuggestionWidthTest).
-        assertEquals(listOf("teh", "the", "ten"), stripLabels())
+        view.suggestions = listOf("teh", "the", "ten", "tea", "tee")
+        // A phone's strip has room for four; the rest wait for a wider one (SuggestionWidthTest).
+        assertEquals(listOf("teh", "the", "ten", "tea"), stripLabels())
     }
 
     @Test

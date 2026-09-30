@@ -10,7 +10,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * The strip offers as many words as its width has room for: three on a cover screen, five unfolded.
+ * The strip offers as many words as its width has room for: four on a phone or a cover screen, five unfolded.
  *
  * What goes wrong is a count picked per device instead of by width, words squeezed below a fingertip, or on a split
  * keyboard a word lying across the gap between the halves where no thumb reaches.
@@ -32,10 +32,10 @@ class SuggestionWidthTest {
     private fun Touches.words() = view.toolbarPlacements.filter { it.key.kind == KeyKind.SUGGESTION }
 
     @Test
-    fun `a narrow phone's strip offers three words`() {
+    fun `a narrow phone's strip offers four words, as it always has`() {
         for (widthDp in listOf(330, 360)) {
             val touches = strip(widthDp)
-            assertEquals("at $widthDp dp", listOf("Hel", "Hello", "Help"), touches.words().map { it.key.label })
+            assertEquals("at $widthDp dp", listOf("Hel", "Hello", "Help", "Held"), touches.words().map { it.key.label })
             assertEquals(KeyKind.VOICE, touches.view.toolbarPlacements.last().key.kind)
         }
     }
@@ -53,6 +53,7 @@ class SuggestionWidthTest {
 
     @Test
     fun `in between it grows one word at a time`() {
+        assertEquals(4, strip(360).view.wordSlots())
         assertEquals("a Fold8 cover screen keeps the four it had", 4, strip(475).view.wordSlots())
         assertEquals(5, strip(560).view.wordSlots())
     }
