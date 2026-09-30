@@ -86,6 +86,26 @@ class PrivateBadgeTest {
     }
 
     @Test
+    fun `a screen reader reads the strip left to right, the eye first`() {
+        val t = Touches()
+        t.view.suggestions = listOf("Folo", "Folio")
+        t.view.notLearning = true
+        val ids = mutableListOf<Int>()
+        val helper = org.robolectric.util.ReflectionHelpers.getField<androidx.customview.widget.ExploreByTouchHelper>(t.view, "keyNodes")
+        org.robolectric.util.ReflectionHelpers.callInstanceMethod<Unit>(
+            helper, "getVisibleVirtualViews",
+            org.robolectric.util.ReflectionHelpers.ClassParameter.from(MutableList::class.java, ids),
+        )
+        val keys = t.view.placements.size
+        val tools = t.view.toolbarPlacements
+        val read = ids.filter { it in keys until keys + tools.size }.map { tools[it - keys] }
+        assertEquals(KeyKind.PRIVATE, read.first().key.kind)
+        assertEquals("Folo", read[1].key.label)
+        assertEquals(read.sortedBy { it.box.left }, read)
+        assertEquals("the typed word keeps its place in the list", "Folo", tools.first().key.label)
+    }
+
+    @Test
     fun `an ordinary keyboard has none`() {
         val t = Touches()
         assertEquals(null, badge(t.view))

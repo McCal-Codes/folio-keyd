@@ -2407,8 +2407,14 @@ class KeyboardView(context: Context) : View(context) {
 
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
             val panels = overlays()
-            for ((index, placement) in nodes().withIndex()) {
-                val box = placement.box
+            val all = nodes()
+            // The strip is read left to right, the way it looks. Its list keeps the typed word first and adds the
+            // "Not learning here" eye last, so only the order read out changes, never an id.
+            val strip = placedKeys.size until placedKeys.size + tools.size
+            val order = all.indices.filter { it !in strip }.toMutableList()
+            order.addAll(placedKeys.size, strip.sortedBy { all[it].box.left })
+            for (index in order) {
+                val box = all[index].box
                 val hidden = index < placedKeys.size &&
                     panels.any { it.contains((box.left + box.right) / 2, (box.top + box.bottom) / 2) }
                 if (!hidden) ids.add(index)
