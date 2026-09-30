@@ -163,4 +163,27 @@ class DevLogTest {
         assertTrue("toolbar=EMOJI+UNDO+CURSOR_PAD+COPY+PASTE+CLIPBOARD+VOICE" in lines)
         assertTrue("toolbar=NONE" in DevLog.switches(Settings(toolbar = emptyList())))
     }
+
+    @Test fun eventsWaitInMemoryAndReachTheFileInBatches() {
+        DevLog.setLogging(release, true)
+        val file = java.io.File(release.filesDir, "dev-log.txt")
+        repeat(3) { DevLog.event(release, "suggest", "ms" to it) }
+        assertFalse("not written on every keystroke", file.isFile && file.readText().contains("suggest"))
+        DevLog.flush(release)
+        assertEquals(3, file.readText().split("\n\n").count { it.contains("suggest") })
+        repeat(50) { DevLog.event(release, "suggest", "ms" to it) }
+        assertEquals("a full batch goes without being asked", 53, file.readText().split("\n\n").count { it.contains("suggest") })
+    }
+
+    @Test fun whatIsHeldInMemoryIsInTheLogWhenItIsRead() {
+        DevLog.setLogging(release, true)
+        DevLog.event(release, "field", "class" to 1)
+        assertEquals(1, DevLog.lines(release).size)
+    }
+
+    @Test fun aSuggestionErrorIsWrittenDownOncePerPlace() {
+        repeat(5) { DevLog.errorOnce(release, "Suggestions.test-once", IllegalStateException()) }
+        DevLog.errorOnce(release, "Suggestions.test-other", IllegalStateException())
+        assertEquals(2, DevLog.errors(release).size)
+    }
 }

@@ -15,6 +15,8 @@ under Settings › About › What's New.
 - Backspace is quicker in browsers and never splits an emoji.
 - "wont's" is no longer in the English dictionary.
 - Punctuation typed right after a suggestion goes before its space: "hello. ", not "hello .".
+- Keyd lets go of memory it can load again while it is out of sight.
+- Report a problem says why the strip came up empty, if an error was the reason.
 
 ## [0.3.1] - 2026-09-29
 

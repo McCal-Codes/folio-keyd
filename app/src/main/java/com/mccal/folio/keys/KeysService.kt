@@ -20,8 +20,8 @@ import android.view.inputmethod.InputMethodSubtype
  * This is wiring: it owns the view, hands it to [TextActions], and passes along what Android tells it. The behaviour -
  * what each key does, which layer is showing, how shift behaves - lives in [TextActions], where it can be tested.
  *
- * Nothing is stored and nothing is sent. The app holds no permissions at all, so what the keyboard sees while you type
- * cannot leave the phone even if a later version wanted it to.
+ * What it learns is stored on this phone and nothing is ever sent. The app holds no permissions at all, so what the
+ * keyboard sees while you type cannot leave the phone even if a later version wanted it to.
  */
 class KeysService : InputMethodService(), Ime {
 
@@ -297,7 +297,25 @@ class KeysService : InputMethodService(), Ime {
         background.post { loadDictionary(language) }
     }
 
+    /**
+     * Android asking for memory back, most often because the keyboard went out of sight. What can be read again from
+     * the APK goes: the emoji names and the dictionary's per-letter cache. The dictionary itself stays, because the
+     * first letter of the next field should not wait on it. Both go on the suggestion thread, the only one that
+     * touches them.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        DevLog.flush(this)
+        if (level < android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) return
+        background.post {
+            emojiNames = null
+            emojiNamesFor = null
+            dictionary?.forgetShapes()
+        }
+    }
+
     override fun onDestroy() {
+        DevLog.flush(this)
         main.removeCallbacks(settle)
         main.removeCallbacks(countSelection)
         saveCountsNow()
@@ -322,7 +340,8 @@ class KeysService : InputMethodService(), Ime {
             val shift = actions.shift
             background.postDelayed(
                 {
-                    val found = runCatching { Suggestions.predict(previous, nextWords, shift) }.getOrDefault(emptyList())
+                    val found = runCatching { Suggestions.predict(previous, nextWords, shift) }
+                        .onFailure { DevLog.errorOnce(this, "Suggestions.predict", it) }.getOrDefault(emptyList())
                     main.post {
                         if (mine != asked) return@post
                         keyboard?.typedFirst = false
@@ -357,13 +376,13 @@ class KeysService : InputMethodService(), Ime {
                 }
                 val found = runCatching {
                     Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions, previous, nextWords)
-                }.getOrDefault(emptyList())
+                }.onFailure { DevLog.errorOnce(this, "Suggestions.forWord", it) }.getOrDefault(emptyList())
                 val fix = runCatching {
                     Suggestions.correction(
                         word, words, proximity, learned, contractions, previous,
                         compounds = language == Language.GERMAN, next = nextWords,
                     )
-                }.getOrNull()
+                }.onFailure { DevLog.errorOnce(this, "Suggestions.correction", it) }.getOrNull()
                 // "Never heard of it" is a different question from "here is what you probably meant", and a word
                 // can be the first without the second - a name, a word in another language, something made up.
                 val unknown = runCatching {
@@ -371,14 +390,14 @@ class KeysService : InputMethodService(), Ime {
                         !Suggestions.known(word.lowercase(), words) &&
                         (learned?.count(word.lowercase()) ?: 0) == 0 &&
                         shortcuts?.expand(word) == null
-                }.getOrDefault(false)
+                }.onFailure { DevLog.errorOnce(this, "Suggestions.known", it) }.getOrDefault(false)
                 // The emoji names are read the first time a word could use them, after this word's answer rather than
                 // ahead of it, so the first suggestions never wait on a second file. Until then, no emoji.
                 val names = emojiNames?.takeIf { emojiNamesFor == language }
                 if (emojiOn && names == null) background.post { loadEmojiNames(language) }
                 val emoji = if (!emojiOn) null else runCatching {
                     Suggestions.emoji(word, words, names)?.let { SuggestedEmoji(it, names?.nameOf(it) ?: it) }
-                }.getOrNull()
+                }.onFailure { DevLog.errorOnce(this, "Suggestions.emoji", it) }.getOrNull()
                 // Timings and counts only: the word itself never goes in the log.
                 val took = android.os.SystemClock.elapsedRealtime() - started
                 DevLog.event(this, "suggest", "ms" to took, "found" to found.size, "fixed" to if (fix != null) 1 else 0,
@@ -977,6 +996,7 @@ class KeysService : InputMethodService(), Ime {
         // another hides the keyboard would otherwise keep deleting out of sight, and a long-press popup would wait.
         keyboard?.forgetTouches()
         emojiSearch?.forgetTouches()
+        DevLog.flush(this)
     }
 
     /** Every time the keyboard comes or goes, whether the screen should be taken is asked again from nothing. */

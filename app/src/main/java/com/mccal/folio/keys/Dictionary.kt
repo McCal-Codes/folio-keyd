@@ -86,6 +86,9 @@ class Dictionary private constructor(
 
     private val shapes = HashMap<Char, Map<Int, IntArray>>()
 
+    /** Lets go of the per-letter cache; it is built again, a letter at a time, the next time someone types. */
+    fun forgetShapes() = shapes.clear()
+
     /** The first index where [test] is true, or [size] when it never is. */
     private inline fun lowerBound(test: (Int) -> Boolean): Int {
         var low = 0
