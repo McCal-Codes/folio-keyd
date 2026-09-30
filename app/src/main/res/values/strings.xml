@@ -52,7 +52,6 @@
     <string name="settings_accents_note">é, ñ, ü and the rest. The digits in the corners of the top row still work either way.</string>
     <string name="settings_preview">Show the letter above your finger</string>
     <string name="settings_sound">Sound</string>
-    <string name="settings_vibrate">Vibration</string>
     <string name="settings_system_note">Sound and vibration also follow the phone’s own settings.</string>
     <string name="settings_flick_down">Flick down for the corner character</string>
     <string name="settings_flick_down_note">The digit printed on the top row, without waiting for a long press. It is already on the keycap, so nothing is hidden.</string>
@@ -122,15 +121,10 @@
     <string name="value_off">Off</string>
     <string name="value_none">None</string>
     <string name="value_no_internet">No Internet access</string>
-    <plurals name="value_shortcuts">
-        <item quantity="one">%1$d shortcut</item>
-        <item quantity="other">%1$d shortcuts</item>
-    </plurals>
     <string name="footer_corrections">Only a word that is not a word is fixed, and backspace puts back exactly what you typed. Neither works in a password field.</string>
     <string name="footer_main">Keyd asks for no permissions at all, including no Internet permission, so what it sees cannot leave this phone.</string>
     <string name="header_keys">KEYS</string>
     <string name="header_flicks">FLICKS</string>
-    <string name="header_space">SPACE BAR AND BACKSPACE</string>
     <string name="header_what_it_knows">WHAT IT KNOWS</string>
     <string name="row_internet">Internet access</string>
     <string name="row_permissions">Permissions</string>
@@ -150,7 +144,6 @@
     <string name="action_reset">Reset</string>
     <!-- The card at the top of Settings, and About -->
     <string name="status_version">Version %1$s</string>
-    <string name="status_in_use">On, and your keyboard</string>
     <string name="status_added">On, but another keyboard is chosen</string>
     <string name="status_not_added">Not turned on yet</string>
     <string name="status_turn_on">Turn on Keyd</string>
@@ -159,7 +152,6 @@
     <string name="row_version">Version</string>
     <string name="row_whats_new">What\'s new</string>
     <string name="row_report">Report a problem</string>
-    <string name="footer_about">A report shows you every line before anything is sent, and only you can send it.</string>
 
     <!-- Keyd Dev only -->
     <string name="page_developer">Developer</string>
@@ -182,7 +174,6 @@
     <string name="row_commit">Commit</string>
     <string name="whats_new_heading">What\'s New in Keyd</string>
     <string name="fixes_and_improvements">Fixes and improvements</string>
-    <string name="header_version_history">VERSION HISTORY</string>
     <string name="action_continue">Continue</string>
     <string name="state_expanded">Expanded</string>
     <string name="state_collapsed">Collapsed</string>

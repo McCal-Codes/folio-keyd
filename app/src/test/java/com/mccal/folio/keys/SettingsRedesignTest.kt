@@ -178,6 +178,9 @@ class SettingsRedesignTest {
         finds("costs a row", a.getString(R.string.settings_number_row))
         finds("Gboard", a.getString(R.string.settings_key_style_material))
         finds("instead of typing a capital", a.getString(R.string.settings_edit_swipes))
+        finds("keeps deleting", a.getString(R.string.segment_backspace_speed))
+        finds("you put back", a.getString(R.string.page_what_it_fixes))
+        finds("drift", a.getString(R.string.settings_cursor_swipe))
         // Both notes under Corrections belong to its rows, not only the first.
         val learn = index.single { it.title == a.getString(R.string.settings_learn) }
         assertTrue(learn.footer!!.contains(a.getString(R.string.footer_corrections)))
