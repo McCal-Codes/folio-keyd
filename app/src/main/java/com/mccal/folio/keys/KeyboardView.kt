@@ -486,6 +486,10 @@ class KeyboardView(context: Context) : View(context) {
     private var keysLeft = 0f
     private var keysRight = 0f
 
+    /** The gap between a split keyboard's halves, which the strip's words stay out of. Both 0 when not split. */
+    private var gapLeft = 0f
+    private var gapRight = 0f
+
     /** The one-handed rail's two buttons. Empty whenever the keyboard fills its window. */
     private var rail: List<Placement> = emptyList()
 
@@ -548,6 +552,8 @@ class KeyboardView(context: Context) : View(context) {
         val usable = width - 2 * edge
         val top = toolbarHeight + panelPad
         val bottom = bottomInset + panelPad
+        gapLeft = 0f
+        gapRight = 0f
 
         placedKeys = when (shape) {
             Shape.FULL -> Geometry.place(
@@ -567,6 +573,8 @@ class KeyboardView(context: Context) : View(context) {
             Shape.SPLIT -> {
                 val gutter = min(max(usable * 0.16f, 80 * dp), 220 * dp)
                 val half = (usable - gutter) / 2
+                gapLeft = edge + half
+                gapRight = edge + half + gutter
                 val (leftRows, rightRows) = Layouts.split(rows)
                 Geometry.place(
                     leftRows, width, height, dp, bottomInset = bottom, top = top,
@@ -736,6 +744,16 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     /**
+     * How many words the strip has room for: one per [WORD_SLOT_DP] of its width, so three on a cover screen and
+     * five on an unfolded one. Never fewer than three, the most a phone keyboard has ever offered, and never more
+     * than five, past which a strip is a list to read rather than something to glance at.
+     *
+     * Counted across the whole strip, a split keyboard's gap included: the words go either side of it.
+     */
+    internal fun wordSlots(): Int =
+        ((keysRight - keysLeft) / dp / WORD_SLOT_DP).toInt().coerceIn(MIN_WORDS, MAX_WORDS)
+
+    /**
      * The strip: what was typed, then the alternatives, in equal shares of the row.
      *
      * Equal shares rather than shares by word length, because a strip whose buttons move as you type is a strip
@@ -746,6 +764,7 @@ class KeyboardView(context: Context) : View(context) {
         val right = keysRight
         val top = panelPad
         val bottom = top + toolbarHeight
+        val suggestions = suggestions.take(wordSlots())
         // The mic keeps the last slot while a word is being typed, where Gboard, Samsung and SwiftKey all keep it:
         // voice is most wanted exactly when typing has started to feel slow.
         // The emoji, when there is one, takes a place the size of the mic's just before it. On a cover screen or half
@@ -756,12 +775,23 @@ class KeyboardView(context: Context) : View(context) {
         val mic = if (showVoice) icon else 0f
         val emojiWidth = if (emoji != null) icon else 0f
         val words = right - mic - emojiWidth
-        val slot = (words - left) / suggestions.size
-        val placed = suggestions.mapIndexedTo(ArrayList(suggestions.size + 2)) { index, word ->
-            Placement(
-                Key(word, KeyKind.SUGGESTION, output = word),
-                Box(left + index * slot, top, left + (index + 1) * slot, bottom),
-            )
+        val placed = ArrayList<Placement>(suggestions.size + 2)
+        fun share(from: Int, until: Int, start: Float, end: Float) {
+            val slot = (end - start) / (until - from)
+            for (index in from until until) {
+                val word = suggestions[index]
+                val at = start + (index - from) * slot
+                placed += Placement(Key(word, KeyKind.SUGGESTION, output = word), Box(at, top, at + slot, bottom))
+            }
+        }
+        if (gapRight > gapLeft && words > gapRight) {
+            // Split: the first half of the words over the left keys and the rest over the right, with the emoji and
+            // the mic, so the gap between the halves never runs through a word.
+            val leftCount = (suggestions.size + 1) / 2
+            share(0, leftCount, left, gapLeft)
+            if (leftCount < suggestions.size) share(leftCount, suggestions.size, gapRight, words)
+        } else {
+            share(0, suggestions.size, left, words)
         }
         if (emoji != null) {
             val label = context.getString(R.string.suggested_emoji, emoji.name)
@@ -1081,7 +1111,8 @@ class KeyboardView(context: Context) : View(context) {
                 canvas.drawText(
                     placement.key.label, cx, cy - (text.descent() + text.ascent()) / 2, text,
                 )
-                if (!literal) {
+                // No line where a word starts a split keyboard's right half: the gap already divides them.
+                if (!literal && abs(box.left - gapRight) > 0.5f) {
                     fill.color = theme.hint
                     canvas.drawRect(box.left, cy - size * 0.5f, box.left + max(1f, dp * 0.5f), cy + size * 0.5f, fill)
                 }
@@ -2137,6 +2168,9 @@ class KeyboardView(context: Context) : View(context) {
         const val PANEL_RADIUS_DP = 22f
         const val TOOLBAR_DP = 42f
         const val TOOL_SLOT_DP = 56f
+        const val WORD_SLOT_DP = 120f     // the strip width each word it offers wants
+        const val MIN_WORDS = 3
+        const val MAX_WORDS = 5
         const val CAP_AT_DP = 480f      // wider than a large phone: stop stretching, start centring
         const val CAP_WIDTH_DP = 460f
         const val SPLIT_AT_DP = 600f    // an unfolded Fold or a tablet: split, the way Samsung does

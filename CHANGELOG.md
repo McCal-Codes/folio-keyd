@@ -8,6 +8,7 @@ under Settings › About › What's New.
 
 ### Added
 - **Emoji skin tones:** hold an emoji to pick its skin tone, and it keeps that tone. Settings sets the one they start with.
+- **Suggestions fill the width:** the strip offers as many words as fit, three on a cover screen and five unfolded.
 
 ## [0.4.0] - 2026-09-30
 

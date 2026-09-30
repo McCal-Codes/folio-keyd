@@ -21,8 +21,11 @@ import kotlin.math.min
  */
 object Suggestions {
 
-    /** How many go in the strip beside the literal. */
-    const val LIMIT = 3
+    /**
+     * How many go in the strip beside the literal, at most: enough for the widest strip, which has room for five
+     * words. A narrower one shows the first of them ([KeyboardView.wordSlots]).
+     */
+    const val LIMIT = 4
 
     /**
      * A word the dictionary knows, and how common it is: 0 is the most common band, 3 the least.
