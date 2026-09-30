@@ -48,6 +48,8 @@
     <string name="settings_double_space_note">Two spaces after a word become a period and a space.</string>
     <string name="settings_number_row">Number row</string>
     <string name="settings_number_row_note">Digits on their own row instead of behind the 123 key. Costs a row of height.</string>
+    <string name="settings_back_to_letters">Back to letters after a space</string>
+    <string name="settings_back_to_letters_note">After numbers or symbols</string>
     <string name="settings_accents">Hold a key for accents</string>
     <string name="settings_accents_note">é, ñ, ü and the rest. The digits in the corners of the top row still work either way.</string>
     <string name="settings_preview">Show the letter above your finger</string>

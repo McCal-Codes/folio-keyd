@@ -82,6 +82,15 @@ class KeysSettingsTest {
     }
 
     @Test
+    fun `back to letters is in the keys group and can be turned off`() {
+        val a = keys()
+        assertNotNull(a.text("After numbers or symbols"))
+        assertTrue(a.stored().backToLetters)
+        a.tap("Back to letters after a space")
+        assertFalse(a.stored().backToLetters)
+    }
+
+    @Test
     fun `the period's symbols are typed, tidied and saved, and can go back`() {
         val a = keys()
         a.tap("Hold the period for")

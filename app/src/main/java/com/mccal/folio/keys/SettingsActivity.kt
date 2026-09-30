@@ -1482,6 +1482,10 @@ class SettingsActivity : Activity() {
         group(column) {
             toggle(it, getString(R.string.settings_number_row), settings.numberRow) { on -> settings.copy(numberRow = on) }
             toggle(it, getString(R.string.settings_accents), settings.accents) { on -> settings.copy(accents = on) }
+            switchRow(
+                it, getString(R.string.settings_back_to_letters), settings.backToLetters,
+                subtitle = getString(R.string.settings_back_to_letters_note),
+            ) { on -> change(settings.copy(backToLetters = on)) }
             nav(it, null, null, getString(R.string.row_period), spacedSymbols(settings.periodSymbols)) { show(Page.PERIOD) }
             val buttons = settings.toolbar.size
             nav(it, null, null, getString(R.string.row_toolbar),

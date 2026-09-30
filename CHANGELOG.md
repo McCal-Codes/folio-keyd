@@ -9,6 +9,8 @@ under Settings › About › What's New.
 ### Added
 - **Search settings:** type part of a setting's name or what it does, and go straight to the page it is on.
 - **Choices in one row:** hold delay, backspace speed, theme, height, split, one-handed and vibration are one tap each.
+- **Digits in password fields:** a password field shows the number row even with the setting off, as Gboard and Samsung do.
+- **Back to letters after a space:** a space after numbers or symbols returns to the letters, as on an iPhone. It can be turned off.
 
 ### Changed
 - **Settings, regrouped:** Smart typing, Keys and gestures, Style and layout, and Sound and vibration, each with a line saying what is in it.
