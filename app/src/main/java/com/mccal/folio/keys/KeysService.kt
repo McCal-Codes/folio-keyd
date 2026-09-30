@@ -904,6 +904,9 @@ class KeysService : InputMethodService(), Ime {
         main.removeCallbacks(countSelection)
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
+        // Said on the keyboard only where it is about this field or this app: the field asked, or this app's own
+        // settings turned learning off. With learning off everywhere it is not news in any one of them.
+        keyboard?.notLearning = actions.rules.ephemeral || (!chosen.learn && Settings.load(prefs).learn)
         // A keyboard may read the clipboard while it is the one on screen, so this is the moment to look. The field
         // has just been read, which is what decides whether anything may be kept from it at all.
         rememberClip(chosen)

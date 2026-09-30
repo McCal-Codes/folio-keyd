@@ -29,6 +29,8 @@ enum class KeyKind {
     LANGUAGE, OTHER_KEYBOARDS, LANGUAGE_SETTINGS,
     /** The menu holding a word in the strip opens: Don't suggest it. Its output is the word. */
     FORGET,
+    /** "Not learning here", at the left of the toolbar or the strip in a field Keyd keeps nothing from. Read, not pressed. */
+    PRIVATE,
 }
 
 /**

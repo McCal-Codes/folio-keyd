@@ -264,6 +264,24 @@ class KeyboardView(context: Context) : View(context) {
             invalidate()
         }
 
+    /**
+     * Whether nothing typed here is kept: a password field, a field whose app asked for no personalized learning
+     * (a private tab, most often), or an app someone turned learning off for. The service decides, since it is the one
+     * that knows the per-app settings; the view only says so, at the left of the toolbar, or as just the icon at the
+     * left of the strip while there are words in it, so the badge never costs a suggestion its room.
+     *
+     * A password field gets it too. Nothing else there said what was off, and the same words for every field Keyd
+     * keeps nothing from is easier to learn than one sign for passwords and another for the rest.
+     */
+    var notLearning: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            tools = placeToolbar()
+            keyNodes.invalidateRoot()
+            invalidate()
+        }
+
     private val showVoice get() = voiceAvailable && ToolKey.VOICE in settings.toolbar && !rules.password
 
     /**
@@ -661,7 +679,7 @@ class KeyboardView(context: Context) : View(context) {
         if (width == 0 || searchKeys) return emptyList()
         val selected = selection
         if (selected != null && settings.selectionTools && !rules.password) return placeSelection(selected)
-        if (suggestions.isNotEmpty() && !rules.password) return placeSuggestions()
+        if (suggestions.isNotEmpty() && !rules.password) return privateStrip(placeSuggestions())
         if (offer != null && !rules.password) return placeOffer()
         if (tip != null && !rules.password) return placeTip()
         val left = keysLeft
@@ -677,16 +695,49 @@ class KeyboardView(context: Context) : View(context) {
         val slot = min((right - left) / items.size, TOOL_SLOT_DP * dp)
         val placed = ArrayList<Placement>(items.size)
         val lead = min(2, items.size)
-        for (index in 0 until lead) {
-            placed += Placement(items[index], Box(left + index * slot, top, left + (index + 1) * slot, bottom))
+        var rest = items.drop(lead)
+        var restSlot = slot
+        if (notLearning) {
+            // The badge takes the start in place of Hide and the first button, as the mockup has it; the editing
+            // buttons stay at the end. Hide is still a swipe down off the space bar, and the system's own button.
+            // For the words to be read whole, the buttons first close up, never below a fingertip; only if that is
+            // not enough does the end give up a button, and the badge's words are drawn a little smaller before that.
+            val label = context.getString(R.string.not_learning_here)
+            val wanted = privateWidth(label)
+            fun fits() = right - left - rest.size * restSlot >= wanted * PRIVATE_SQUEEZE
+            if (rest.isNotEmpty()) restSlot = min(slot, max(PRIVATE_TOOL_DP * dp, (right - left - wanted) / rest.size))
+            while (rest.isNotEmpty() && !fits()) rest = rest.dropLast(1)
+            placed += Placement(Key(label, KeyKind.PRIVATE), Box(left, top, right - rest.size * restSlot, bottom))
+        } else {
+            for (index in 0 until lead) {
+                placed += Placement(items[index], Box(left + index * slot, top, left + (index + 1) * slot, bottom))
+            }
         }
-        val rest = items.drop(lead)
-        var x = right - rest.size * slot
+        var x = right - rest.size * restSlot
         for (key in rest) {
-            placed += Placement(key, Box(x, top, x + slot, bottom))
-            x += slot
+            placed += Placement(key, Box(x, top, x + restSlot, bottom))
+            x += restSlot
         }
         return placed
+    }
+
+    /**
+     * The strip with room made at its start for the eye, when nothing here is learned: the words are narrowed to
+     * the right of it, and the emoji and the mic are left where they are. Added last, so the first word is still the
+     * first placement, which is how the strip knows which one is what was typed.
+     */
+    private fun privateStrip(strip: List<Placement>): List<Placement> {
+        if (!notLearning) return strip
+        val start = keysLeft
+        val end = strip.filter { it.key.kind != KeyKind.SUGGESTION }.minOfOrNull { it.box.left } ?: keysRight
+        val badge = min(PRIVATE_SLOT_DP * dp, (end - start) / (suggestions.size + 1))
+        val scale = (end - start - badge) / (end - start)
+        fun moved(x: Float) = start + badge + (x - start) * scale
+        val label = context.getString(R.string.not_learning_here)
+        return strip.map {
+            if (it.key.kind != KeyKind.SUGGESTION) it
+            else Placement(it.key, Box(moved(it.box.left), it.box.top, moved(it.box.right), it.box.bottom))
+        } + Placement(Key(label, KeyKind.PRIVATE), Box(start, strip.first().box.top, start + badge, strip.first().box.bottom))
     }
 
     private fun toolKey(tool: ToolKey): Key = when (tool) {
@@ -1095,6 +1146,10 @@ class KeyboardView(context: Context) : View(context) {
                 }
                 continue
             }
+            if (placement.key.kind == KeyKind.PRIVATE) {
+                drawPrivate(canvas, placement)
+                continue
+            }
             if (placement.key.kind == KeyKind.SUGGESTED_EMOJI) {
                 // After a line like the ones between the words, and in the emoji's own colors.
                 text.textSize = min(box.height * 0.46f, 20 * dp)
@@ -1107,6 +1162,49 @@ class KeyboardView(context: Context) : View(context) {
             }
             Icons.tool(canvas, placement.key.kind, cx, cy, size, stroke, fill)
         }
+    }
+
+    /**
+     * The eye with a line through it, then "Not learning here" in the keys' own label color, sized down to fit before
+     * it is ever cut short. In the strip there is only room for the eye, which is drawn alone in the middle of its
+     * place; a screen reader reads the words either way.
+     */
+    private fun privateGlyph() = min(toolbarHeight * 0.46f, 18 * dp)
+
+    /** How wide the badge is with its words at their usual size: the eye, the gap, the words, and a margin each side. */
+    private fun privateWidth(label: String): Float {
+        text.textSize = selectionTextSize()
+        sizedAt = -1f
+        return 2 * PRIVATE_PAD_DP * dp + privateGlyph() + PRIVATE_GAP_DP * dp + text.measureText(label)
+    }
+
+    private fun drawPrivate(canvas: Canvas, placement: Placement) {
+        val box = placement.box
+        val cy = (box.top + box.bottom) / 2
+        val glyph = privateGlyph()
+        stroke.color = theme.label
+        stroke.strokeWidth = max(1.5f * dp, glyph * 0.09f)
+        text.textSize = selectionTextSize()
+        sizedAt = -1f
+        val pad = PRIVATE_PAD_DP * dp
+        val start = box.left + pad + glyph + PRIVATE_GAP_DP * dp
+        val room = box.right - start - pad
+        if (room < text.textSize * 3) {
+            Icons.eyeOff(canvas, (box.left + box.right) / 2, cy, glyph, stroke)
+            return
+        }
+        Icons.eyeOff(canvas, box.left + pad + glyph / 2, cy, glyph, stroke)
+        var label = placement.key.label
+        val wide = text.measureText(label)
+        if (wide > room) text.textSize = max(MIN_COUNT_DP * dp, text.textSize * room / wide)
+        if (text.measureText(label) > room) {
+            val fits = text.breakText(label, true, room - text.measureText("…"), null)
+            label = label.take(fits).trimEnd() + "…"
+        }
+        text.color = theme.label
+        text.textAlign = Paint.Align.LEFT
+        canvas.drawText(label, start, cy - (text.descent() + text.ascent()) / 2, text)
+        text.textAlign = Paint.Align.CENTER
     }
 
     /** The count, as plain text sized down until it fits, and Style, as a button with its name on it. */
@@ -1426,7 +1524,11 @@ class KeyboardView(context: Context) : View(context) {
         val radius = theme.keyRadiusDp * dp
         scratch.set(box.left, box.top, box.right, box.bottom)
         fill.color = if (menu.lit || isHeld(menu.item)) blend(theme.preview, theme.pressTint) else theme.preview
+        // A soft shadow, since it sits over keys drawn in the same color in the light themes and would vanish into
+        // them without one.
+        fill.setShadowLayer(10 * dp, 0f, 3 * dp, FORGET_SHADOW)
         canvas.drawRoundRect(scratch, radius, radius, fill)
+        fill.clearShadowLayer()
         val cy = (box.top + box.bottom) / 2
         val icon = FORGET_ICON_DP * dp
         val iconX = box.left + MENU_TEXT_PAD_DP * dp + icon / 2
@@ -2140,7 +2242,7 @@ class KeyboardView(context: Context) : View(context) {
                 closeStyleMenu()
                 l.onStyle(TextStyle.valueOf(key.output))
             }
-            KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE, KeyKind.TIP -> Unit
+            KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE, KeyKind.TIP, KeyKind.PRIVATE -> Unit
             KeyKind.TIP_DONE -> tip?.let { shown ->
                 tip = null
                 l.onTipDone(shown)
@@ -2324,7 +2426,7 @@ class KeyboardView(context: Context) : View(context) {
         val OFFER_KINDS = setOf(KeyKind.OFFER, KeyKind.OFFER_YES, KeyKind.OFFER_NO, KeyKind.TIP, KeyKind.TIP_DONE)
 
         /** Read by a screen reader, not pressed: the strip's question, the count of what is selected, the menu's note. */
-        val READ_ONLY_KINDS = setOf(KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE, KeyKind.TIP)
+        val READ_ONLY_KINDS = setOf(KeyKind.OFFER, KeyKind.SELECTION, KeyKind.STYLE_NOTE, KeyKind.TIP, KeyKind.PRIVATE)
         const val EDIT_HINT = "↑"            // the corner of the five keys a swipe up edits with
         const val MIN_TOOL_DP = 44f        // no toolbar button narrower than this; the list is cut from the end first
         const val SELECTION_SLOTS = 7f     // Hide, about two for the count, Style, Cut, Copy and Paste
@@ -2346,7 +2448,13 @@ class KeyboardView(context: Context) : View(context) {
         const val PILL_FADE_MS = 250L
         const val PILL_PAD_DP = 12f
         const val FORGET_ICON_DP = 18f
+        const val PRIVATE_SLOT_DP = 36f   // the eye alone at the start of the strip
+        const val PRIVATE_TOOL_DP = 48f   // the buttons beside the badge close up, but never below a fingertip
+        const val PRIVATE_SQUEEZE = 0.85f // the badge's words may be drawn this much smaller before a button goes
+        const val PRIVATE_PAD_DP = 12f
+        const val PRIVATE_GAP_DP = 8f
         const val DESTRUCTIVE_ON_DARK = 0xFFFF6961.toInt()
         const val DESTRUCTIVE_ON_LIGHT = 0xFFD70015.toInt()
+        const val FORGET_SHADOW = 0x59000000
     }
 }

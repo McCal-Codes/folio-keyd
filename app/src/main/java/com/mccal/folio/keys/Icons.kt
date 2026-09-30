@@ -333,6 +333,20 @@ object Icons {
         canvas.drawLine(cx + half * 0.2f, cy - half * 0.28f, cx + half * 0.2f, cy + half * 0.55f, stroke)
     }
 
+    /** An eye with a line through it: nothing typed here is kept. */
+    fun eyeOff(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        // The eye's outline as two shallow curves meeting in points at the corners, and the pupil in the middle.
+        path.reset()
+        path.moveTo(cx - half, cy)
+        path.quadTo(cx, cy - half * 1.15f, cx + half, cy)
+        path.quadTo(cx, cy + half * 1.15f, cx - half, cy)
+        path.close()
+        canvas.drawPath(path, stroke)
+        canvas.drawCircle(cx, cy, half * 0.26f, stroke)
+        canvas.drawLine(cx - half * 0.8f, cy - half * 0.8f, cx + half * 0.8f, cy + half * 0.8f, stroke)
+    }
+
     /** A cross, for forgetting one clip. */
     fun close(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
         val half = size / 2 * 0.62f

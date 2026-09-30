@@ -5,4 +5,6 @@
     <!-- What a screen reader says holding a word in the strip does. -->
     <string name="forget_suggestion_action">Don’t suggest</string>
     <string name="confirm_forget_turned_down">Suggest the words you turned down again?</string>
+    <!-- The strip's left end in a field Keyd does not learn from: a password, an app that asked, or a per-app setting. -->
+    <string name="not_learning_here">Not learning here</string>
 </resources>

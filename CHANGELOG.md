@@ -8,6 +8,7 @@ under Settings › About › What's New.
 
 ### Added
 - **Hold a suggestion to remove it:** hold a word in the strip and choose Don’t suggest. A word Keyd learned is forgotten; a dictionary word is never offered or used as a correction again, though you can still type it.
+- **Not learning here:** in a password field, a private tab, or an app you turned learning off for, the toolbar says so. While words are in the strip it is just the eye, so no suggestion loses its place.
 
 ## [0.4.0] - 2026-09-30
 
