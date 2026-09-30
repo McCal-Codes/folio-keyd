@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -26,6 +27,22 @@ class WhatsNewIconsTest {
             "Hold delay and backspace speed", "Delete forward")
         val glyphs = titles.map { WhatsNew.glyph(it).first }
         assertEquals(glyphs.toString(), titles.size, glyphs.toSet().size)
+    }
+
+    @Test
+    fun `the five features on any release's sheet never share a picture`() {
+        val markdown = File("../CHANGELOG.md").takeIf { it.exists() } ?: File("CHANGELOG.md")
+        val releases = WhatsNew.parse(markdown.readText())
+        assertTrue(releases.size >= 5)
+        for (release in releases) {
+            val titles = release.sections.filter { it.first.equals("Added", true) }.flatMap { it.second }
+                .map(WhatsNew::split).take(5).map { it.title ?: it.detail }
+            val glyphs = WhatsNew.glyphs(titles).map { it.first }
+            assertEquals("${release.version}: $glyphs", titles.size, glyphs.toSet().size)
+        }
+        // A title with nothing of its own to match still gets a picture nobody else on the sheet has.
+        val plain = WhatsNew.glyphs(listOf("Faster", "Smaller", "Quieter")).map { it.first }
+        assertEquals(3, plain.toSet().size)
     }
 
     @Test

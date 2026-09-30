@@ -62,34 +62,69 @@ internal object WhatsNew {
         return seen != null && seen != versionName
     }
 
-    /** A settings glyph and tile colour for a feature, from words in its title, the way Folio picks its symbols. */
-    fun glyph(title: String): Pair<SettingsIcon.Glyph, String> {
-        val t = title.lowercase(java.util.Locale.ROOT)
-        return when {
-            "dev" in t -> SettingsIcon.Glyph.KEYS to "#B44A0C"
-            // Features that have a picture of their own come first, so no two neighbors share the shift arrow.
-            "search" in t -> SettingsIcon.Glyph.SEARCH to "#0071E3"
-            "undo" in t -> SettingsIcon.Glyph.UNDO to "#C93400"
-            "emoji" in t -> SettingsIcon.Glyph.EMOJI to "#5E5CE6"
-            "tip" in t -> SettingsIcon.Glyph.TIP to "#9A5200"
-            "period" in t || "symbol" in t -> SettingsIcon.Glyph.SYMBOLS to "#8944AB"
-            "delete" in t -> SettingsIcon.Glyph.BACKSPACE to "#D70015"
-            "delay" in t -> SettingsIcon.Glyph.TIMER to "#0A6E75"
-            "select" in t -> SettingsIcon.Glyph.SELECT to "#0071E3"
-            "toolbar" in t || "cursor" in t || "one-handed" in t -> SettingsIcon.Glyph.MOVE to "#636366"
-            "feel" in t -> SettingsIcon.Glyph.SOUND to "#D70015"
-            "fix" in t || "word" in t || "contraction" in t -> SettingsIcon.Glyph.TYPING to "#248A3D"
-            "whether" in t || "setting" in t || "status" in t -> SettingsIcon.Glyph.TYPING to "#248A3D"
-            "new" in t || "about" in t -> SettingsIcon.Glyph.SHORTCUTS to "#0071E3"
-            "language" in t -> SettingsIcon.Glyph.LANGUAGES to "#0071E3"
-            "shortcut" in t || "emoji" in t -> SettingsIcon.Glyph.SHORTCUTS to "#5E5CE6"
-            "clipboard" in t -> SettingsIcon.Glyph.CLIPBOARD to "#636366"
-            "permission" in t || "privacy" in t -> SettingsIcon.Glyph.PRIVACY to "#1B7A33"
-            "split" in t || "fold" in t || "look" in t -> SettingsIcon.Glyph.LOOK to "#8944AB"
-            "correct" in t || "typing" in t -> SettingsIcon.Glyph.TYPING to "#248A3D"
-            else -> SettingsIcon.Glyph.KEYS to "#C93400"
+    /** A settings glyph and tile color for a feature, from words in its title, the way Folio picks its symbols. */
+    fun glyph(title: String): Pair<SettingsIcon.Glyph, String> = candidates(title).first()
+
+    /**
+     * Glyphs for the features one release shows, in order, no two alike. Each takes the first of its own matches
+     * that no earlier feature took, then the first unused one from [SPARE], so two features about typing don't
+     * both get the text cursor and read as one thing twice.
+     */
+    fun glyphs(titles: List<String>): List<Pair<SettingsIcon.Glyph, String>> {
+        val used = mutableSetOf<SettingsIcon.Glyph>()
+        return titles.map { title ->
+            val pick = (candidates(title) + SPARE).firstOrNull { it.first !in used } ?: glyph(title)
+            used += pick.first
+            pick
         }
     }
+
+    /** Every glyph whose words are in [title], best first, ending with the shift arrow everything falls back on. */
+    private fun candidates(title: String): List<Pair<SettingsIcon.Glyph, String>> {
+        val t = title.lowercase(java.util.Locale.ROOT)
+        return RULES.filter { (words, _) -> words.any { it in t } }.map { it.second } + (SettingsIcon.Glyph.KEYS to "#C93400")
+    }
+
+    private val RULES: List<Pair<List<String>, Pair<SettingsIcon.Glyph, String>>> = listOf(
+        listOf("dev") to (SettingsIcon.Glyph.KEYS to "#B44A0C"),
+        listOf("what's new", "what’s new") to (SettingsIcon.Glyph.SPARKLES to "#0071E3"),
+        // Features that have a picture of their own come first, so no two neighbors share the shift arrow.
+        listOf("search") to (SettingsIcon.Glyph.SEARCH to "#0071E3"),
+        listOf("undo") to (SettingsIcon.Glyph.UNDO to "#C93400"),
+        listOf("emoji") to (SettingsIcon.Glyph.EMOJI to "#5E5CE6"),
+        listOf("tip") to (SettingsIcon.Glyph.TIP to "#9A5200"),
+        listOf("period", "symbol") to (SettingsIcon.Glyph.SYMBOLS to "#8944AB"),
+        listOf("delete") to (SettingsIcon.Glyph.BACKSPACE to "#D70015"),
+        listOf("delay") to (SettingsIcon.Glyph.TIMER to "#0A6E75"),
+        listOf("select") to (SettingsIcon.Glyph.SELECT to "#0071E3"),
+        listOf("toolbar", "cursor", "one-handed") to (SettingsIcon.Glyph.MOVE to "#636366"),
+        listOf("gesture", "swipe", "flick") to (SettingsIcon.Glyph.HAND to "#C93400"),
+        listOf("style", "theme", "color") to (SettingsIcon.Glyph.PALETTE to "#8944AB"),
+        listOf("report", "problem") to (SettingsIcon.Glyph.REPORT to "#9A5200"),
+        listOf("per-app", "apps") to (SettingsIcon.Glyph.APPS to "#C75C00"),
+        listOf("feel", "sound", "vibration") to (SettingsIcon.Glyph.SOUND to "#D70015"),
+        listOf("smart", "autocorrect") to (SettingsIcon.Glyph.WAND to "#248A3D"),
+        listOf("fix", "word", "contraction") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
+        listOf("whether", "setting", "status") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
+        listOf("new", "about") to (SettingsIcon.Glyph.SHORTCUTS to "#0071E3"),
+        listOf("language") to (SettingsIcon.Glyph.LANGUAGES to "#0071E3"),
+        listOf("shortcut") to (SettingsIcon.Glyph.SHORTCUTS to "#5E5CE6"),
+        listOf("clipboard") to (SettingsIcon.Glyph.CLIPBOARD to "#636366"),
+        listOf("permission", "privacy") to (SettingsIcon.Glyph.PRIVACY to "#1B7A33"),
+        listOf("split", "fold", "look") to (SettingsIcon.Glyph.LOOK to "#8944AB"),
+        listOf("correct", "typing") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
+    )
+
+    /** What a feature gets once its own matches are taken: pictures that stand for nothing in particular first. */
+    private val SPARE: List<Pair<SettingsIcon.Glyph, String>> = listOf(
+        SettingsIcon.Glyph.SPARKLES to "#0071E3", SettingsIcon.Glyph.WAND to "#248A3D",
+        SettingsIcon.Glyph.HAND to "#C93400", SettingsIcon.Glyph.PALETTE to "#8944AB",
+        SettingsIcon.Glyph.TIMER to "#0A6E75", SettingsIcon.Glyph.MOVE to "#636366",
+        SettingsIcon.Glyph.TIP to "#9A5200", SettingsIcon.Glyph.SELECT to "#0071E3",
+        SettingsIcon.Glyph.TYPING to "#248A3D", SettingsIcon.Glyph.KEYS to "#C93400",
+        SettingsIcon.Glyph.SHORTCUTS to "#5E5CE6", SettingsIcon.Glyph.LOOK to "#8944AB",
+        SettingsIcon.Glyph.SOUND to "#D70015", SettingsIcon.Glyph.APPS to "#C75C00",
+    ) + SettingsIcon.Glyph.entries.filter { it != SettingsIcon.Glyph.WARNING }.map { it to "#636366" }
 
     private const val PREFS = "whats_new"
     private const val SEEN = "seen_version"
