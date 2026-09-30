@@ -55,10 +55,10 @@ class KeysSettingsTest {
     fun `keys and gestures shows the new rows in their groups`() {
         val a = keys()
         for (label in listOf(
-            "Hold the period for", ", ? ! ' \" : ; -", "HOLD DELAY", "Follow phone", "Shorter", "Longer",
-            "BACKSPACE SPEED", "Slower", "Normal", "Faster", "Two fingers to undo", "Swipe left to undo, right to redo",
+            "Hold the period for", ", ? ! ' \" : ; -", "TIMING", "Touch and hold delay", "Phone", "Shorter", "Longer",
+            "Backspace speed", "Slower", "Normal", "Faster", "Two fingers to undo", "Swipe left to undo, right to redo",
             "Holding shift while you press backspace deletes the letter after the cursor instead.",
-            "How fast a held backspace keeps deleting.",
+            "Phone uses Android’s own Touch and hold delay.",
         )) assertNotNull("missing $label", a.text(label))
     }
 
@@ -69,7 +69,7 @@ class KeysSettingsTest {
         a.tap("Faster")
         assertEquals(HoldDelay.SHORTER, a.stored().holdDelay)
         assertEquals(BackspaceSpeed.FASTER, a.stored().backspaceSpeed)
-        a.tap("Follow phone")
+        a.tap("Phone")
         assertEquals(HoldDelay.FOLLOW_PHONE, a.stored().holdDelay)
     }
 
@@ -79,6 +79,15 @@ class KeysSettingsTest {
         assertTrue(a.stored().twoFingerUndo)
         a.tap("Two fingers to undo")
         assertFalse(a.stored().twoFingerUndo)
+    }
+
+    @Test
+    fun `back to letters is in the keys group and can be turned off`() {
+        val a = keys()
+        assertNotNull(a.text("After numbers or symbols"))
+        assertTrue(a.stored().backToLetters)
+        a.tap("Back to letters after a space")
+        assertFalse(a.stored().backToLetters)
     }
 
     @Test

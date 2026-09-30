@@ -3,7 +3,7 @@ plugins {
 }
 
 // Semantic version, same rule as Folio: versionCode = MAJOR * 10000 + MINOR * 100 + PATCH.
-val keysVersion = "0.3.2"
+val keysVersion = "0.4.0"
 
 // Bundle the changelog so Keyd can show What's New after an update, the same way Folio does.
 val bundleChangelog = tasks.register<Copy>("bundleChangelog") {

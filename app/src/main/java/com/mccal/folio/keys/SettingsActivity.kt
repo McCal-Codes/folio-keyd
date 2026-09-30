@@ -21,6 +21,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -62,6 +64,10 @@ class SettingsActivity : Activity() {
         PRIVACY(R.string.page_privacy, MAIN),
         DEVELOPER(R.string.page_developer, MAIN),
         WHATS_NEW(R.string.row_whats_new, MAIN),
+        /** Everything in the release What's New shows. Its title is the version, so [title] is only the fallback. */
+        CHANGES(R.string.fixes_and_improvements, WHATS_NEW),
+        HISTORY(R.string.row_earlier_versions, WHATS_NEW),
+        SEARCH(R.string.page_search, MAIN),
         REPORT(R.string.page_report, MAIN),
         PREVIEW(R.string.page_preview, REPORT),
     }
@@ -89,6 +95,12 @@ class SettingsActivity : Activity() {
         // An off switch's track. The divider grey was 1.71:1 on a white card in light mode, with a white thumb on it:
         // too faint to see there was a control at all. This clears the 3:1 a control needs (WCAG 1.4.11).
         val off = if (dark) Color.parseColor("#636366") else Color.parseColor("#8E8E93")
+        // A segmented control's track and its raised choice: iOS's grouped fill under a card-colored thumb.
+        val track = if (dark) Color.BLACK else Color.parseColor("#E3E3E8")
+        val raised = if (dark) Color.parseColor("#3A3A3C") else Color.WHITE
+        // The line around the raised choice. The raised fill is only 1.3:1 on the track in light mode, so this is
+        // what shows which option is chosen, and it clears 3:1 on the track in both (WCAG 1.4.11).
+        val outline = secondary
     }
 
     private lateinit var colors: Palette
@@ -101,11 +113,14 @@ class SettingsActivity : Activity() {
     // Android 16 no longer calls onBackPressed for an app that targets it; the system's back gesture goes through
     // this callback instead, and only while there is a page to step back to.
     private val back: Any? by lazy {
-        if (Build.VERSION.SDK_INT >= 33) OnBackInvokedCallback { page.parent?.let { show(it) } } else null
+        if (Build.VERSION.SDK_INT >= 33) OnBackInvokedCallback { backTo()?.let { show(it) } } else null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Each page names itself in large type, as Gboard's and Samsung's settings do; the window's own bar above it
+        // would say "Keyd settings" a second time. The label stays, for Recents and the launcher.
+        actionBar?.hide()
         DevLog.catchCrashes(this)
         // Settings can open before the keyboard has run since an update, so the toolbar is settled here too.
         Settings.settleToolbar(prefs, Settings.updated(this), Settings.firstInstalled(this))
@@ -116,6 +131,8 @@ class SettingsActivity : Activity() {
             // Like Folio: the first time Settings opens after an update, it opens on what's new.
             ?: if (WhatsNew.shouldShow(this, versionName())) Page.WHATS_NEW else Page.MAIN
         app = savedInstanceState?.getString(APP)
+        query = savedInstanceState?.getString(QUERY).orEmpty()
+        fromSearch = savedInstanceState?.getBoolean(FROM_SEARCH) == true
         if (page == Page.APP && app == null) page = Page.APPS
         savedInstanceState?.let { state ->
             answers = DevLog.Answers(
@@ -125,24 +142,65 @@ class SettingsActivity : Activity() {
                 include = DevLog.Include(flags[0], flags[1], flags[2], flags[3])
             }
         }
-        colors = Palette(
-            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
-        )
+        val dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        colors = Palette(dark)
         window.decorView.setBackgroundColor(colors.background)
+        barIcons(light = !dark)
         render()
+    }
+
+    /**
+     * With the title bar gone the page runs under the status bar, so its icons have to be drawn for the page's own
+     * background: dark icons on the light grey, light ones on black. Android draws them light unless told.
+     */
+    private fun barIcons(light: Boolean) {
+        // Android 15 and later draw every app edge to edge; below it the page is asked to, so it looks the same on
+        // Keyd's oldest phones, with clear bars over the page's own background.
+        if (Build.VERSION.SDK_INT < 35) {
+            window.setDecorFitsSystemWindows(false)
+            @Suppress("DEPRECATION")
+            window.statusBarColor = Color.TRANSPARENT
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = Color.TRANSPARENT
+        }
+        val bars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        window.insetsController?.setSystemBarsAppearance(if (light) bars else 0, bars)
+    }
+
+    /**
+     * Keeps the page clear of the status and navigation bars, a camera cutout on its side (the Fold's cover screen
+     * turned over), and the keyboard while search has it up. The page still scrolls under the bars.
+     */
+    private fun pad(view: View, insets: WindowInsets): WindowInsets {
+        val clear = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+        val keyboard = insets.getInsets(WindowInsets.Type.ime())
+        view.setPadding(clear.left, clear.top, clear.right, maxOf(clear.bottom, keyboard.bottom))
+        return WindowInsets.CONSUMED
     }
 
     override fun onResume() {
         super.onResume()
         // Languages and shortcuts are changed on other screens; coming back should show what they are now.
         settings = Settings.load(prefs)
+        if (stopped) searchCache = null
+        stopped = false
         render(keepScroll = true)
     }
+
+    override fun onStop() {
+        super.onStop()
+        // Something else was on screen and may have changed what the pages hold, like the languages turned on.
+        stopped = true
+    }
+
+    private var stopped = false
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(PAGE, page.name)
         outState.putString(APP, app)
+        outState.putString(QUERY, query)
+        outState.putBoolean(FROM_SEARCH, fromSearch)
         outState.putString(ANSWER_APP, answers.app)
         outState.putString(ANSWER_DID, answers.did)
         outState.putString(ANSWER_SAW, answers.saw)
@@ -154,11 +212,18 @@ class SettingsActivity : Activity() {
     @android.annotation.SuppressLint("GestureBackNavigation")
     @Deprecated("Only reached below Android 13; above it the back callback does this.")
     override fun onBackPressed() {
-        val parent = page.parent
+        val parent = backTo()
         if (parent != null) show(parent) else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
-    private fun show(next: Page) {
+    /** Set while the page on screen was opened from a search result, so Back returns to the results. */
+    private var fromSearch = false
+
+    /** Where Back goes: the search results, for a page one opened, and otherwise the page this one is under. */
+    private fun backTo(): Page? = if (fromSearch && page != Page.SEARCH) Page.SEARCH else page.parent
+
+    private fun show(next: Page, fromSearch: Boolean = false) {
+        this.fromSearch = fromSearch
         page = next
         render()
     }
@@ -169,6 +234,8 @@ class SettingsActivity : Activity() {
      * back to the top of the page after every switch.
      */
     private fun change(update: Settings) {
+        // A row's title can depend on a setting (the toolbar's buttons), so search reads the pages again next time.
+        searchCache = null
         settings = update
         settings.save(prefs)
         // Read back rather than trusting the copy: saving can change more than the one switch.
@@ -181,7 +248,21 @@ class SettingsActivity : Activity() {
     private var autocorrectLabel: TextView? = null
     private var autocorrectRow: View? = null
 
+    /** Suggest an emoji follows suggestions too, on the same page now, so it greys in place like autocorrect. */
+    private var emojiSwitch: Pair<Switch, TextView>? = null
+
     private fun refreshDependents() {
+        preview?.let { board ->
+            board.settings = settings
+            board.rows = Layouts.rows(Layer.LETTERS, false, board.rules, numberRow = settings.numberRow)
+            board.requestLayout()
+            board.invalidate()
+        }
+        emojiSwitch?.let { (switch, label) ->
+            switch.isEnabled = settings.suggestions
+            label.setTextColor(if (settings.suggestions) colors.text else colors.secondary)
+            (switch.parent as? View)?.let { row -> row.isEnabled = settings.suggestions; row.isClickable = settings.suggestions }
+        }
         val switch = autocorrect ?: return
         val enabled = settings.suggestions
         switch.setOnCheckedChangeListener(null)   // showing the state is not the person changing it
@@ -195,12 +276,15 @@ class SettingsActivity : Activity() {
 
     private fun render(keepScroll: Boolean = false) {
         autocorrect = null
+        preview = null
+        emojiSwitch = null
         val y = if (keepScroll) scroll?.scrollY ?: 0 else 0
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16f), dp(8f), dp(16f), dp(32f))
         }
-        page.parent?.let { parent ->
+        // What's New is a sheet, not a settings page: no back link, and Continue is how it is left.
+        backTo()?.takeIf { page != Page.WHATS_NEW }?.let { parent ->
             column.addView(TextView(this).apply {
                 text = getString(R.string.back_to, getString(parent.title))
                 setTextColor(colors.link)
@@ -213,7 +297,11 @@ class SettingsActivity : Activity() {
         }
         // What's New draws its own centred header, as Folio's does.
         if (page != Page.WHATS_NEW) column.addView(TextView(this).apply {
-            text = if (page == Page.APP) appName(app.orEmpty()) else getString(page.title)
+            text = when (page) {
+                Page.APP -> appName(app.orEmpty())
+                Page.CHANGES -> shownRelease()?.let { getString(R.string.status_version, it.version) } ?: getString(page.title)
+                else -> getString(page.title)
+            }
             setTextColor(colors.text)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f)
             typeface = Typeface.DEFAULT_BOLD
@@ -221,6 +309,35 @@ class SettingsActivity : Activity() {
             isAccessibilityHeading = true
             setPadding(0, dp(if (page.parent == null) 24f else 4f), 0, dp(10f))
         })
+        content(page, column)
+        scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(column)
+            clipToPadding = false
+            setOnApplyWindowInsetsListener { view, insets -> pad(view, insets) }
+        }
+        setContentView(scroll)
+        val found = highlight?.let { column.findViewWithTag<View>(rowTag(it)) }
+        highlight = null
+        if (found != null) scroll?.post { reveal(found) } else scroll?.post { scroll?.scrollTo(0, y) }
+        // A button that moved a row rebuilt the page; TalkBack goes back to the button, now in its new place.
+        focusAfterRender?.let { wanted ->
+            focusAfterRender = null
+            column.findViewWithTag<View>(wanted)?.let { view ->
+                view.post { view.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null) }
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            val callback = back as OnBackInvokedCallback
+            onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback)
+            if (backTo() != null) {
+                onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+            }
+        }
+    }
+
+    /** A page's rows, into [column]: what the screen shows, and what search reads while [index] is set. */
+    private fun content(page: Page, column: LinearLayout) {
         when (page) {
             Page.MAIN -> main(column)
             Page.TYPING -> typing(column)
@@ -239,70 +356,51 @@ class SettingsActivity : Activity() {
             Page.WHATS_NEW -> whatsNew(column)
             Page.REPORT -> report(column)
             Page.PREVIEW -> preview(column)
-        }
-        scroll = ScrollView(this).apply {
-            isFillViewport = true
-            addView(column)
-            fitsSystemWindows = true
-        }
-        setContentView(scroll)
-        scroll?.post { scroll?.scrollTo(0, y) }
-        // A button that moved a row rebuilt the page; TalkBack goes back to the button, now in its new place.
-        focusAfterRender?.let { wanted ->
-            focusAfterRender = null
-            column.findViewWithTag<View>(wanted)?.let { view ->
-                view.post { view.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null) }
-            }
-        }
-        if (Build.VERSION.SDK_INT >= 33) {
-            val callback = back as OnBackInvokedCallback
-            onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback)
-            if (page.parent != null) {
-                onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
-            }
+            Page.CHANGES -> changes(column)
+            Page.HISTORY -> history(column)
+            Page.SEARCH -> search(column)
         }
     }
 
     // ---- Pages ---------------------------------------------------------------------------------------------------
 
     private fun main(column: LinearLayout) {
+        searchField(column)
         status(column)
         if (DevLog.crashedSinceLooked(this)) crashCard(column)
         group(column) {
-            nav(it, SettingsIcon.Glyph.LANGUAGES, "#0071E3", getString(R.string.row_languages), languages()) {
+            nav(it, SettingsIcon.Glyph.LANGUAGES, "#0071E3", getString(R.string.row_languages), typingIn()?.ownName ?: languages()) {
                 show(Page.LANGUAGES)
             }
             val count = Shortcuts.decode(prefs.getString(SHORTCUTS, null)).size
-            nav(
-                it, SettingsIcon.Glyph.SHORTCUTS, "#5E5CE6", getString(R.string.row_shortcuts),
-                resources.getQuantityString(R.plurals.value_shortcuts, count, count),
-            ) { startActivity(Intent(this, ShortcutsActivity::class.java)) }
+            nav(it, SettingsIcon.Glyph.SHORTCUTS, "#5E5CE6", getString(R.string.row_shortcuts), count.toString()) {
+                startActivity(Intent(this, ShortcutsActivity::class.java))
+            }
         }
+        header(column, getString(R.string.header_typing))
         group(column) {
-            toggle(it, getString(R.string.settings_suggestions), settings.suggestions) { on -> settings.copy(suggestions = on) }
-            // Autocorrect is the strip's top answer applied for you, so with the strip off it is off too, whatever it
-            // is set to. The switch shows that - off, and greyed - and keeps the choice for when the strip is back.
-            toggle(
-                it, getString(R.string.settings_autocorrect), Settings.correcting(settings), enabled = settings.suggestions,
-            ) { on -> settings.copy(autocorrect = on) }
+            nav(it, SettingsIcon.Glyph.WAND, "#248A3D", getString(R.string.page_typing), null,
+                subtitle = getString(R.string.row_typing_sub)) { show(Page.TYPING) }
+            nav(it, SettingsIcon.Glyph.HAND, "#C93400", getString(R.string.page_keys), null,
+                subtitle = getString(R.string.row_keys_sub)) { show(Page.KEYS) }
         }
-        footer(column, getString(R.string.footer_corrections))
+        header(column, getString(R.string.header_look_and_feel))
         group(column) {
-            nav(it, SettingsIcon.Glyph.TYPING, "#248A3D", getString(R.string.page_typing), null) { show(Page.TYPING) }
-            nav(it, SettingsIcon.Glyph.KEYS, "#C93400", getString(R.string.page_keys), null) { show(Page.KEYS) }
-            nav(it, SettingsIcon.Glyph.LOOK, "#8944AB", getString(R.string.page_look), null) { show(Page.LOOK) }
-            nav(it, SettingsIcon.Glyph.SOUND, "#D70015", getString(R.string.page_feel), null) { show(Page.FEEL) }
+            nav(it, SettingsIcon.Glyph.PALETTE, "#8944AB", getString(R.string.page_look), null,
+                subtitle = getString(R.string.row_look_sub)) { show(Page.LOOK) }
+            nav(it, SettingsIcon.Glyph.SOUND, "#D70015", getString(R.string.page_feel), null,
+                subtitle = feelSummary()) { show(Page.FEEL) }
+        }
+        header(column, getString(R.string.header_more))
+        group(column) {
             nav(
                 it, SettingsIcon.Glyph.CLIPBOARD, "#636366", getString(R.string.page_clipboard),
                 getString(if (settings.clipboardHistory) R.string.value_on else R.string.value_off),
             ) { show(Page.CLIPBOARD) }
-        }
-        group(column) {
             nav(it, SettingsIcon.Glyph.PRIVACY, "#1B7A33", getString(R.string.page_privacy), getString(R.string.value_no_internet)) {
                 show(Page.PRIVACY)
             }
         }
-        footer(column, getString(R.string.footer_main))
         if (DevLog.isDevBuild(packageName)) {
             val errors = DevLog.errors(this).size
             group(column) {
@@ -316,12 +414,219 @@ class SettingsActivity : Activity() {
         }
         header(column, getString(R.string.header_about))
         group(column) {
+            nav(it, SettingsIcon.Glyph.SPARKLES, "#0071E3", getString(R.string.row_whats_new), null) { openWhatsNew() }
+            nav(it, SettingsIcon.Glyph.REPORT, "#9A5200", getString(R.string.row_report), null) { show(Page.REPORT) }
             value(it, getString(R.string.row_version), versionName())
-            link(it, getString(R.string.row_whats_new)) { show(Page.WHATS_NEW) }
-            link(it, getString(R.string.row_report)) { show(Page.REPORT) }
         }
-        footer(column, getString(R.string.footer_about))
+        footer(column, getString(R.string.footer_main))
     }
+
+    /** What Sound and vibration is set to, in a few words: "Medium vibration, sound on". */
+    private fun feelSummary(): String = getString(
+        R.string.summary_feel,
+        getString(when (settings.vibration) {
+            Vibration.OFF -> R.string.summary_vibration_off
+            Vibration.LIGHT -> R.string.summary_vibration_light
+            Vibration.MEDIUM -> R.string.summary_vibration_medium
+            Vibration.STRONG -> R.string.summary_vibration_strong
+        }),
+        getString(if (settings.sound) R.string.summary_sound_on else R.string.summary_sound_off),
+    )
+
+    // ---- Search --------------------------------------------------------------------------------------------------
+
+    /** What is typed in the search field, kept with the page so turning the phone doesn't lose it. */
+    private var query = ""
+
+    /** The row to scroll to and mark once its page is drawn, by title: where a search result leads. */
+    private var highlight: String? = null
+
+    /** Set while search reads the pages: every row helper notes its row here instead of building it. */
+    private var index: MutableList<SearchEntry>? = null
+    private var indexPage = Page.MAIN
+    private var indexHeader: String? = null
+    private var indexGroupStart = 0
+
+    /** Notes a row for search while [index] is set, and says so, so the helper builds nothing. */
+    private fun indexed(title: String, subtitle: String? = null): Boolean {
+        val list = index ?: return false
+        list += SearchEntry(title, subtitle, null, indexHeader, indexPage.name, getString(indexPage.title), keywords(title))
+        return true
+    }
+
+    /** The explanation a row had before the redesign, by its title, for search to match but the page not to show. */
+    private fun keywords(title: String): String? {
+        val words = keywordsByTitle ?: KEYWORDS.entries.associate { (row, notes) ->
+            getString(row) to notes.joinToString(" ") { getString(it) }
+        }.also { keywordsByTitle = it }
+        return words[title]
+    }
+
+    private var keywordsByTitle: Map<String, String>? = null
+
+    /**
+     * Every row on every page someone can search, read from the pages themselves. The pages are drawn into nothing
+     * with [index] set, so this can never fall out of step with what the pages show.
+     */
+    internal fun searchIndex(): List<SearchEntry> = searchCache ?: buildIndex().also { searchCache = it }
+
+    /**
+     * The index, once read. Drawing every page into nothing is not free, so it is read the first time something is
+     * searched for and kept until a setting changes or Settings comes back from another screen; not on every page
+     * drawn, every letter typed, or every turn of the phone before anything is typed.
+     */
+    private var searchCache: List<SearchEntry>? = null
+
+    /** How many times the index has been read, for the test that it is not read again for nothing. */
+    internal var indexBuilds = 0
+        private set
+
+    private fun buildIndex(): List<SearchEntry> {
+        indexBuilds++
+        val out = mutableListOf<SearchEntry>()
+        index = out
+        try {
+            for (searched in SEARCHED + listOfNotNull(Page.DEVELOPER.takeIf { DevLog.isDevBuild(packageName) })) {
+                indexPage = searched
+                indexHeader = null
+                indexGroupStart = out.size
+                content(searched, LinearLayout(this))
+            }
+        } finally {
+            index = null
+        }
+        return out.distinctBy { it.title to it.page }
+    }
+
+    /** The field on the first page. It only looks like one: a tap opens the search page, with the keyboard up. */
+    private fun searchField(column: LinearLayout) {
+        if (index != null) return
+        column.addView(searchBox().apply {
+            addView(TextView(context).apply {
+                text = getString(R.string.search_hint)
+                setTextColor(colors.secondary)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            })
+            isClickable = true
+            isFocusable = true
+            contentDescription = getString(R.string.search_hint)
+            accessibilityDelegate = object : View.AccessibilityDelegate() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.className = android.widget.Button::class.java.name
+                }
+            }
+            setOnClickListener { show(Page.SEARCH) }
+        })
+    }
+
+    /** The rounded field both search boxes are drawn in, with the magnifier at its start. */
+    private fun searchBox() = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        minimumHeight = dp(48f)
+        setPadding(dp(12f), dp(4f), dp(12f), dp(4f))
+        val fill = colors.card
+        background = GradientDrawable().apply { setColor(fill); cornerRadius = dp(12f).toFloat() }
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            .apply { topMargin = dp(4f) }
+        addView(SearchGlyph(context, colors.secondary), LinearLayout.LayoutParams(dp(20f), dp(20f)).apply { marginEnd = dp(10f) })
+    }
+
+    /**
+     * Samsung's settings search: every setting whose name, the line under it or the note under its group holds
+     * what was typed, each with the page it is on, so a setting can be found without knowing which group it was
+     * put in. The results change as each letter is typed; the field is never rebuilt, so the keyboard stays up.
+     */
+    private fun search(column: LinearLayout) {
+        if (index != null) return
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // One live region each for the count and for "no match", made once and only changed when what they say
+        // changes, so TalkBack says "3 results" once rather than at every letter that leaves it at 3.
+        header(results, "")
+        val count = (results.getChildAt(results.childCount - 1) as TextView).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            visibility = View.GONE
+        }
+        val none = TextView(this).apply {
+            setTextColor(colors.secondary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            gravity = Gravity.CENTER
+            setPadding(dp(16f), dp(32f), dp(16f), dp(16f))
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            visibility = View.GONE
+        }
+        results.addView(none)
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        results.addView(list)
+        fun say(view: TextView, text: String?) {
+            if (text == null) { view.visibility = View.GONE; return }
+            if (view.text.toString() != text) view.text = text
+            view.visibility = View.VISIBLE
+        }
+        fun showResults() {
+            list.removeAllViews()
+            val hits = if (query.isBlank()) emptyList() else SettingsSearch.find(searchIndex(), query)
+            say(none, getString(R.string.search_none, query.trim()).takeIf { query.isNotBlank() && hits.isEmpty() })
+            say(count, resources.getQuantityString(R.plurals.search_results, hits.size, hits.size).takeIf { hits.isNotEmpty() })
+            if (hits.isEmpty()) return
+            group(list) { card ->
+                hits.forEach { hit ->
+                    nav(card, null, null, hit.title, null, subtitle = hit.where) {
+                        highlight = hit.title
+                        show(Page.valueOf(hit.page), fromSearch = true)
+                    }
+                }
+            }
+        }
+        val field = EditText(this).apply {
+            setText(query)
+            hint = getString(R.string.search_hint)
+            setTextColor(colors.text)
+            setHintTextColor(colors.secondary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            background = null
+            setPadding(0, 0, 0, 0)
+            isSingleLine = true
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_FILTER
+            // No content description: it would be read instead of what is typed. The hint names the field.
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(s: Editable?) {
+                    query = s?.toString().orEmpty()
+                    showResults()
+                }
+            })
+        }
+        column.addView(searchBox().apply {
+            addView(field, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        })
+        column.addView(results)
+        footer(column, getString(R.string.search_note))
+        showResults()
+        field.requestFocus()
+        field.post { getSystemService(InputMethodManager::class.java)?.showSoftInput(field, 0) }
+    }
+
+    /** Scrolls a search result's row into view and marks it for a moment, and gives it TalkBack's focus. */
+    private fun reveal(row: View) {
+        var top = 0
+        var v: View? = row
+        while (v != null && v !== scroll) {
+            top += v.top
+            v = v.parent as? View
+        }
+        scroll?.scrollTo(0, (top - dp(96f)).coerceAtLeast(0))
+        val before = row.background
+        val mark = colors.link
+        row.background = GradientDrawable().apply { setColor(mark); alpha = 48 }
+        row.postDelayed({ row.background = before }, 1500)
+        row.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
+    }
+
+    private fun rowTag(title: String) = "row:$title"
 
     /**
      * Shown after Keyd has crashed, until the person either sends a report or says not now. The crash is already
@@ -411,7 +716,9 @@ class SettingsActivity : Activity() {
 
     /** One question on the report form: its label above, a field the label names for TalkBack, 48dp at least. */
     private fun question(card: LinearLayout, title: String, current: String, multiLine: Boolean, changed: (String) -> Unit) {
+        if (indexed(title)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(title)
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.NO_GRAVITY
             val field = EditText(context).apply {
@@ -454,38 +761,39 @@ class SettingsActivity : Activity() {
             packageName = packageName,
         )
         group(column) { card ->
+            if (index != null) return@group
+            val name = applicationInfo.loadLabel(packageManager).toString()
+            // "Keyd is on" only when it is both on and chosen; otherwise the name, and what is missing under it.
+            val title = if (state == SetupState.IN_USE) getString(R.string.status_on, name) else name
+            val line = when (state) {
+                SetupState.IN_USE -> getString(R.string.status_chosen, versionName())
+                SetupState.ADDED -> getString(R.string.status_line, getString(R.string.status_added), versionName())
+                SetupState.NOT_ADDED -> getString(R.string.status_line, getString(R.string.status_not_added), versionName())
+            }
             LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
+                setPadding(dp(16f), dp(12f), dp(16f), dp(12f))
                 addView(android.widget.ImageView(context).apply {
                     setImageDrawable(applicationInfo.loadIcon(packageManager))
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                }, LinearLayout.LayoutParams(dp(60f), dp(60f)).apply { marginEnd = dp(14f) })
+                }, LinearLayout.LayoutParams(dp(56f), dp(56f)).apply { marginEnd = dp(14f) })
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(TextView(context).apply {
-                        text = applicationInfo.loadLabel(packageManager)
+                        text = title
                         setTextColor(colors.text)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
                         typeface = Typeface.DEFAULT_BOLD
                     })
                     addView(TextView(context).apply {
-                        text = getString(R.string.status_version, versionName())
-                        setTextColor(colors.secondary)
+                        text = line
+                        setTextColor(if (state == SetupState.IN_USE) colors.secondary else colors.link)
                         setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                    })
-                    addView(TextView(context).apply {
-                        text = getString(when (state) {
-                            SetupState.IN_USE -> R.string.status_in_use
-                            SetupState.ADDED -> R.string.status_added
-                            SetupState.NOT_ADDED -> R.string.status_not_added
-                        })
-                        setTextColor(if (state == SetupState.IN_USE) colors.on else colors.link)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                     })
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 isFocusable = true
+                contentDescription = "$title, $line"
                 card.addView(this)
             }
             when (state) {
@@ -506,22 +814,40 @@ class SettingsActivity : Activity() {
 
     private fun buildLine(): String = "$packageName ${versionName()} (${versionCode()}) ${BuildConfig.GIT_COMMIT}"
 
-    private var fixesOpen = false
     private val historyOpen = mutableSetOf<String>()
 
+    /** Which release What's New shows when something other than this build's own is asked for; see [openWhatsNew]. */
+    private var release: String? = null
+
+    /** What's New for [version], or for this build when null. Also how a test draws another release's sheet. */
+    internal fun openWhatsNew(version: String? = null) {
+        release = version
+        show(Page.WHATS_NEW)
+    }
+
+    /** The release What's New is about: the one asked for, else this build's, else the newest in the file. */
+    private fun shownRelease(): ReleaseNotes? {
+        val notes = WhatsNew.notes(this)
+        val version = release ?: WhatsNew.releaseVersion(versionName())
+        return notes.firstOrNull { it.version == version } ?: notes.firstOrNull()
+    }
+
+    /** The release's new features, and everything else it changed or fixed, as What's New splits them. */
+    private fun ReleaseNotes.features() = sections.filter { it.first.equals("Added", true) }.flatMap { it.second }.map(WhatsNew::split)
+    private fun ReleaseNotes.others() = sections.filterNot { it.first.equals("Added", true) }
+
     /**
-     * What's New, laid out like Folio's: the icon, the title and a version pill; each new feature with its icon, a
-     * bold title and a line about it; changes and fixes folded into one group; every earlier release under Version
-     * History. All of it comes from the CHANGELOG.md bundled into this build.
+     * What's New, as a sheet like Apple's and Folio's: the icon, the title and a version pill; the first five new
+     * features, each with a picture of its own, a bold title and a line about it; then a row for the rest of the
+     * features and one for the fixes, both leading to the whole release, and every earlier release a tap further.
+     * All of it comes from the CHANGELOG.md bundled into this build.
      */
     private fun whatsNew(column: LinearLayout) {
-        val notes = WhatsNew.notes(this)
-        val version = WhatsNew.releaseVersion(versionName())
-        val release = notes.firstOrNull { it.version == version } ?: notes.firstOrNull()
+        val shown = shownRelease()
         column.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dp(12f), 0, dp(8f))
+            setPadding(0, dp(28f), 0, dp(8f))
             addView(android.widget.ImageView(context).apply {
                 setImageDrawable(applicationInfo.loadIcon(packageManager))
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -529,47 +855,39 @@ class SettingsActivity : Activity() {
             addView(TextView(context).apply {
                 text = getString(R.string.whats_new_heading)
                 setTextColor(colors.text)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 28f)
                 typeface = Typeface.DEFAULT_BOLD
                 gravity = Gravity.CENTER
+                isFocusable = true
                 isAccessibilityHeading = true
-                setPadding(0, dp(14f), 0, 0)
+                setPadding(0, dp(12f), 0, 0)
             })
-            release?.let { notes ->
-                addView(LinearLayout(context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER
-                    setPadding(0, dp(8f), 0, 0)
-                    addView(TextView(context).apply {
-                        text = getString(R.string.status_version, notes.version)
-                        setTextColor(colors.link)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                        typeface = Typeface.DEFAULT_BOLD
-                        val tint = colors.link
-                        background = GradientDrawable().apply { setColor(tint); alpha = 40; cornerRadius = dp(10f).toFloat() }
-                        setPadding(dp(10f), dp(4f), dp(10f), dp(4f))
-                    })
-                    notes.date?.takeIf { !it.equals("Unreleased", true) }?.let { date ->
-                        addView(TextView(context).apply {
-                            text = date
-                            setTextColor(colors.secondary)
-                            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-                            setPadding(dp(8f), 0, 0, 0)
-                        })
-                    }
-                })
+            shown?.let { notes ->
+                addView(TextView(context).apply {
+                    text = getString(R.string.status_version, notes.version)
+                    setTextColor(colors.link)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                    typeface = Typeface.DEFAULT_BOLD
+                    val tint = colors.link
+                    background = GradientDrawable().apply { setColor(tint); alpha = 40; cornerRadius = dp(14f).toFloat() }
+                    setPadding(dp(12f), dp(4f), dp(12f), dp(4f))
+                    contentDescription = listOfNotNull(
+                        text, notes.date?.takeIf { !it.equals("Unreleased", true) },
+                    ).joinToString(", ")
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = dp(8f) })
             }
         })
-        val sections = release?.sections.orEmpty()
-        val features = sections.filter { it.first.equals("Added", true) }.flatMap { it.second }.map(WhatsNew::split)
-        val others = sections.filterNot { it.first.equals("Added", true) }.flatMap { it.second }.map(WhatsNew::split)
-        features.forEach { note ->
+        val features = shown?.features().orEmpty()
+        val highlights = features.take(SHOWN_FEATURES)
+        val glyphs = WhatsNew.glyphs(highlights.map { it.title ?: it.detail })
+        highlights.forEachIndexed { i, note ->
             column.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
-                setPadding(dp(4f), dp(14f), dp(4f), 0)
-                val (glyph, tile) = WhatsNew.glyph(note.title ?: note.detail)
+                setPadding(dp(4f), dp(12f), dp(4f), dp(2f))
+                val (glyph, tile) = glyphs[i]
                 addView(SettingsIcon(context, glyph, Color.parseColor(tile)),
-                    LinearLayout.LayoutParams(dp(36f), dp(36f)).apply { marginEnd = dp(14f); topMargin = dp(2f) })
+                    LinearLayout.LayoutParams(dp(44f), dp(44f)).apply { marginEnd = dp(14f) })
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     note.title?.let { title ->
@@ -583,25 +901,68 @@ class SettingsActivity : Activity() {
                     addView(TextView(context).apply {
                         text = note.detail
                         setTextColor(colors.secondary)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                         setLineSpacing(0f, 1.1f)
                     })
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 isFocusable = true
             })
         }
-        if (others.isNotEmpty()) group(column) { card ->
-            disclosure(card, getString(R.string.fixes_and_improvements), "${others.size}", fixesOpen) {
-                fixesOpen = !fixesOpen
-                render(keepScroll = true)
-            }
-            if (fixesOpen) others.forEach { note ->
-                row(card, iconSpace = false).apply { addView(label(note.title?.let { "$it: ${note.detail}" } ?: note.detail)) }
-            }
+        val more = features.drop(SHOWN_FEATURES)
+        val fixes = shown?.others().orEmpty().sumOf { it.second.size }
+        if (more.isNotEmpty() || fixes > 0) group(column) { card ->
+            if (more.isNotEmpty()) nav(
+                card, null, null, resources.getQuantityString(R.plurals.more_features, more.size, more.size), null,
+                // Titles as the changelog writes them: lowercasing "Keyd Dev" or "TalkBack" would misspell them.
+                subtitle = more.joinToString(", ") { note -> note.title ?: note.detail },
+            ) { show(Page.CHANGES) }
+            if (fixes > 0) nav(card, null, null, getString(R.string.fixes_and_improvements), fixes.toString()) { show(Page.CHANGES) }
         }
-        val older = notes.filter { it != release }
-        if (older.isNotEmpty()) header(column, getString(R.string.header_version_history))
-        older.forEach { notes ->
+        if (WhatsNew.notes(this).any { it != shown }) group(column) {
+            nav(it, null, null, getString(R.string.row_earlier_versions), null) { show(Page.HISTORY) }
+        }
+        primary(column, getString(R.string.action_continue)) { show(Page.MAIN) }
+    }
+
+    /** Everything in the release What's New is about: the features past the first five, then each other section. */
+    private fun changes(column: LinearLayout) {
+        val shown = shownRelease() ?: return
+        val more = shown.features().drop(SHOWN_FEATURES)
+        if (more.isNotEmpty()) {
+            header(column, getString(R.string.header_more_features))
+            group(column) { card -> more.forEach { note(card, it) } }
+        }
+        shown.others().forEach { (heading, items) ->
+            if (heading.isNotBlank()) header(column, heading.uppercase(java.util.Locale.ROOT))
+            group(column) { card -> items.map(WhatsNew::split).forEach { note(card, it) } }
+        }
+        if (WhatsNew.notes(this).any { it != shown }) group(column) {
+            nav(it, null, null, getString(R.string.row_earlier_versions), null) { show(Page.HISTORY) }
+        }
+    }
+
+    /** One changelog line in a card: its bold title, if it has one, then the rest. Read, not pressed. */
+    private fun note(card: LinearLayout, note: NoteItem) {
+        row(card, iconSpace = false).apply {
+            val line = android.text.SpannableStringBuilder()
+            note.title?.let { title ->
+                line.append("$title: ")
+                line.setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, title.length + 1, 0)
+            }
+            line.append(note.detail)
+            addView(label("").apply {
+                text = line
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setLineSpacing(0f, 1.1f)
+            })
+            isFocusable = true
+        }
+    }
+
+    /** Every release before the one What's New is about, each opening to its notes, as Version History did. */
+    private fun history(column: LinearLayout) {
+        val shown = shownRelease()
+        WhatsNew.notes(this).filter { it != shown }.forEach { notes ->
             val open = notes.version in historyOpen
             group(column) { card ->
                 disclosure(card, getString(R.string.status_version, notes.version), notes.date, open) {
@@ -615,7 +976,6 @@ class SettingsActivity : Activity() {
                 }
             }
         }
-        primary(column, getString(R.string.action_continue)) { show(Page.MAIN) }
     }
 
     /** A row that opens and closes what's under it, with the count or date on the right, like iOS disclosure rows. */
@@ -795,31 +1155,48 @@ class SettingsActivity : Activity() {
     }
 
     private fun typing(column: LinearLayout) {
-        group(column) { toggle(it, getString(R.string.settings_spell_check), settings.spellCheck) { on -> settings.copy(spellCheck = on) } }
-        footer(column, getString(R.string.settings_spell_check_note))
-        group(column) { toggle(it, getString(R.string.settings_learn), settings.learn) { on -> settings.copy(learn = on) } }
-        footer(column, getString(R.string.settings_learn_note))
+        header(column, getString(R.string.header_suggestions))
         group(column) {
+            // The strip's own switch: fixing typos and the emoji both come from it, so both follow it.
+            switchRow(
+                it, getString(R.string.settings_suggestions), settings.suggestions,
+                subtitle = getString(R.string.settings_suggestions_sub),
+            ) { on -> change(settings.copy(suggestions = on)) }
             switchRow(
                 it, getString(R.string.settings_suggest_emoji), settings.suggestEmoji,
                 subtitle = getString(R.string.settings_suggest_emoji_sub), enabled = settings.suggestions,
             ) { on -> change(settings.copy(suggestEmoji = on)) }
         }
+        // Kept from the old page: where the emoji come from is a privacy answer, not decoration.
         footer(column, getString(R.string.settings_suggest_emoji_note))
+        header(column, getString(R.string.header_corrections))
+        group(column) {
+            // Autocorrect is the strip's top answer applied for you, so with the strip off it is off too, whatever it
+            // is set to. The switch shows that - off, and greyed - and keeps the choice for when the strip is back.
+            toggle(
+                it, getString(R.string.settings_autocorrect), Settings.correcting(settings), enabled = settings.suggestions,
+            ) { on -> settings.copy(autocorrect = on) }
+            // Where it never runs is a privacy answer, so it stays on screen when the rest of the old note went.
+            switchRow(
+                it, getString(R.string.settings_spell_check), settings.spellCheck,
+                subtitle = getString(R.string.settings_spell_check_sub),
+            ) { on -> change(settings.copy(spellCheck = on)) }
+            toggle(it, getString(R.string.settings_learn), settings.learn) { on -> settings.copy(learn = on) }
+            val fixes = Insights.decode(prefs.getString(INSIGHTS, null)).fixed().sumOf { entry -> entry.count }
+            nav(it, null, null, getString(R.string.page_what_it_fixes),
+                resources.getQuantityString(R.plurals.value_fixes, fixes, fixes)) { show(Page.WHAT_IT_FIXES) }
+        }
+        footer(column, getString(R.string.footer_corrections))
+        // And what learning never touches.
+        footer(column, getString(R.string.settings_learn_note))
+        header(column, getString(R.string.header_capitals))
         group(column) {
             toggle(it, getString(R.string.settings_capitals), settings.autoCapitalise) { on -> settings.copy(autoCapitalise = on) }
             toggle(it, getString(R.string.settings_double_space), settings.doubleSpaceFullStop) { on -> settings.copy(doubleSpaceFullStop = on) }
         }
-        footer(column, "${getString(R.string.settings_capitals_note)} ${getString(R.string.settings_double_space_note)}")
-        group(column) {
-            nav(
-                it, SettingsIcon.Glyph.TYPING, "#248A3D", getString(R.string.page_what_it_fixes), null,
-                subtitle = getString(R.string.row_what_it_fixes_note),
-            ) { show(Page.WHAT_IT_FIXES) }
-        }
         val changed = AppProfiles.load(prefs).changed.size
         group(column) {
-            nav(it, null, null, getString(R.string.row_per_app),
+            nav(it, SettingsIcon.Glyph.APPS, "#C75C00", getString(R.string.row_per_app),
                 resources.getQuantityString(R.plurals.value_apps, changed, changed)) { show(Page.APPS) }
         }
     }
@@ -1105,30 +1482,19 @@ class SettingsActivity : Activity() {
         group(column) {
             toggle(it, getString(R.string.settings_number_row), settings.numberRow) { on -> settings.copy(numberRow = on) }
             toggle(it, getString(R.string.settings_accents), settings.accents) { on -> settings.copy(accents = on) }
-            toggle(it, getString(R.string.settings_preview), settings.keyPreview) { on -> settings.copy(keyPreview = on) }
+            switchRow(
+                it, getString(R.string.settings_back_to_letters), settings.backToLetters,
+                subtitle = getString(R.string.settings_back_to_letters_note),
+            ) { on -> change(settings.copy(backToLetters = on)) }
             nav(it, null, null, getString(R.string.row_period), spacedSymbols(settings.periodSymbols)) { show(Page.PERIOD) }
+            val buttons = settings.toolbar.size
+            nav(it, null, null, getString(R.string.row_toolbar),
+                resources.getQuantityString(R.plurals.value_buttons, buttons, buttons)) { show(Page.TOOLBAR) }
         }
-        footer(column, "${getString(R.string.settings_number_row_note)} ${getString(R.string.settings_accents_note)}")
-        header(column, getString(R.string.header_hold_delay))
+        header(column, getString(R.string.header_gestures))
         group(column) {
-            pick(it, listOf(
-                getString(R.string.hold_follow_phone) to HoldDelay.FOLLOW_PHONE,
-                getString(R.string.hold_shorter) to HoldDelay.SHORTER,
-                getString(R.string.hold_longer) to HoldDelay.LONGER,
-            ), settings.holdDelay) { value -> settings.copy(holdDelay = value) }
-        }
-        footer(column, getString(R.string.footer_hold_delay))
-        header(column, getString(R.string.header_backspace_speed))
-        group(column) {
-            pick(it, listOf(
-                getString(R.string.speed_slower) to BackspaceSpeed.SLOWER,
-                getString(R.string.speed_normal) to BackspaceSpeed.NORMAL,
-                getString(R.string.speed_faster) to BackspaceSpeed.FASTER,
-            ), settings.backspaceSpeed) { value -> settings.copy(backspaceSpeed = value) }
-        }
-        footer(column, getString(R.string.footer_backspace_speed))
-        header(column, getString(R.string.header_editing))
-        group(column) {
+            toggle(it, getString(R.string.settings_cursor_swipe), settings.cursorSwipe) { on -> settings.copy(cursorSwipe = on) }
+            toggle(it, getString(R.string.settings_delete_word), settings.deleteWordSwipe) { on -> settings.copy(deleteWordSwipe = on) }
             switchRow(
                 it, getString(R.string.settings_edit_swipes), settings.editSwipes,
                 subtitle = getString(R.string.settings_edit_swipes_note),
@@ -1139,25 +1505,29 @@ class SettingsActivity : Activity() {
                 it, getString(R.string.settings_two_finger), settings.twoFingerUndo,
                 subtitle = getString(R.string.settings_two_finger_note),
             ) { on -> change(settings.copy(twoFingerUndo = on)) }
-            val buttons = settings.toolbar.size
-            nav(it, null, null, getString(R.string.row_toolbar),
-                resources.getQuantityString(R.plurals.value_buttons, buttons, buttons)) { show(Page.TOOLBAR) }
+            toggle(it, getString(R.string.settings_swipe_hide), settings.swipeDownToHide) { on -> settings.copy(swipeDownToHide = on) }
         }
-        footer(column, getString(R.string.footer_editing))
+        // Delete forward has no switch, so this line is the only place Settings can mention it.
         footer(column, getString(R.string.footer_shift_backspace))
         header(column, getString(R.string.header_flicks))
         group(column) {
             toggle(it, getString(R.string.settings_flick_down), settings.flickForAlternate) { on -> settings.copy(flickForAlternate = on) }
             toggle(it, getString(R.string.settings_flick_up), settings.flickForCapital) { on -> settings.copy(flickForCapital = on) }
         }
-        footer(column, "${getString(R.string.settings_flick_down_note)} ${getString(R.string.settings_flick_up_note)}")
-        header(column, getString(R.string.header_space))
+        header(column, getString(R.string.header_timing))
         group(column) {
-            toggle(it, getString(R.string.settings_cursor_swipe), settings.cursorSwipe) { on -> settings.copy(cursorSwipe = on) }
-            toggle(it, getString(R.string.settings_swipe_hide), settings.swipeDownToHide) { on -> settings.copy(swipeDownToHide = on) }
-            toggle(it, getString(R.string.settings_delete_word), settings.deleteWordSwipe) { on -> settings.copy(deleteWordSwipe = on) }
+            segmented(it, getString(R.string.segment_hold_delay), listOf(
+                getString(R.string.hold_shorter) to HoldDelay.SHORTER,
+                getString(R.string.hold_follow_phone) to HoldDelay.FOLLOW_PHONE,
+                getString(R.string.hold_longer) to HoldDelay.LONGER,
+            ), settings.holdDelay) { value -> settings.copy(holdDelay = value) }
+            segmented(it, getString(R.string.segment_backspace_speed), listOf(
+                getString(R.string.speed_slower) to BackspaceSpeed.SLOWER,
+                getString(R.string.speed_normal) to BackspaceSpeed.NORMAL,
+                getString(R.string.speed_faster) to BackspaceSpeed.FASTER,
+            ), settings.backspaceSpeed) { value -> settings.copy(backspaceSpeed = value) }
         }
-        footer(column, getString(R.string.settings_gestures_note))
+        footer(column, getString(R.string.footer_timing))
         header(column, getString(R.string.header_tips))
         group(column) {
             switchRow(
@@ -1289,7 +1659,10 @@ class SettingsActivity : Activity() {
     /** One button on the toolbar: its name, a move up and a move down, and the switch that takes it off. */
     private fun chosenRow(card: LinearLayout, tool: ToolKey, index: Int, chosen: List<ToolKey>) {
         val name = toolName(tool)
+        // A button already on the toolbar is found by search too, not only the ones that could be added.
+        if (indexed(name)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(name)
             addView(label(name))
             fun moved(by: Int) = chosen.toMutableList().apply { add(index + by, removeAt(index)) }
             val up = getString(R.string.toolbar_move_up, name)
@@ -1365,6 +1738,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun look(column: LinearLayout) {
+        keyboardPreview(column)
         header(column, getString(R.string.header_key_style))
         group(column) {
             pick(it, listOf(
@@ -1373,54 +1747,67 @@ class SettingsActivity : Activity() {
                 getString(R.string.settings_key_style_samsung) to KeyStyle.SAMSUNG,
             ), settings.keyStyle) { value -> settings.copy(keyStyle = value) }
         }
-        footer(column, getString(R.string.footer_key_style))
-        header(column, getString(R.string.settings_appearance).uppercase())
+        header(column, getString(R.string.header_theme))
         group(column) {
-            pick(it, listOf(
+            segmented(it, getString(R.string.settings_appearance), listOf(
                 getString(R.string.settings_appearance_system) to Appearance.SYSTEM,
                 getString(R.string.settings_appearance_light) to Appearance.LIGHT,
                 getString(R.string.settings_appearance_dark) to Appearance.DARK,
             ), settings.appearance) { value -> settings.copy(appearance = value) }
+            toggle(it, getString(R.string.settings_pure_black), settings.pureBlack) { on -> settings.copy(pureBlack = on) }
+            toggle(it, getString(R.string.settings_high_contrast), settings.highContrast) { on -> settings.copy(highContrast = on) }
         }
-        footer(column, getString(R.string.settings_appearance_note))
+        header(column, getString(R.string.header_size_layout))
         group(column) {
-            switchRow(
-                it, getString(R.string.settings_pure_black), settings.pureBlack,
-                subtitle = getString(R.string.settings_pure_black_note),
-            ) { on -> change(settings.copy(pureBlack = on)) }
-        }
-        group(column) { toggle(it, getString(R.string.settings_high_contrast), settings.highContrast) { on -> settings.copy(highContrast = on) } }
-        footer(column, getString(R.string.settings_high_contrast_note))
-        header(column, getString(R.string.settings_size).uppercase())
-        group(column) {
-            pick(it, listOf(
+            segmented(it, getString(R.string.settings_size), listOf(
                 getString(R.string.settings_size_small) to Size.SMALL,
                 getString(R.string.settings_size_medium) to Size.MEDIUM,
                 getString(R.string.settings_size_large) to Size.LARGE,
             ), settings.size) { value -> settings.copy(size = value) }
-        }
-        footer(column, getString(R.string.settings_size_note))
-        header(column, getString(R.string.settings_split).uppercase())
-        group(column) {
-            pick(it, listOf(
+            segmented(it, getString(R.string.settings_split), listOf(
                 getString(R.string.settings_split_auto) to Split.AUTO,
                 getString(R.string.settings_split_always) to Split.ALWAYS,
                 getString(R.string.settings_split_never) to Split.NEVER,
             ), settings.split) { value -> settings.copy(split = value) }
-        }
-        footer(column, getString(R.string.settings_split_note))
-        header(column, getString(R.string.settings_one_handed).uppercase())
-        group(column) {
-            pick(it, listOf(
+            segmented(it, getString(R.string.settings_one_handed), listOf(
                 getString(R.string.settings_one_handed_off) to OneHanded.OFF,
                 getString(R.string.settings_one_handed_left) to OneHanded.LEFT,
                 getString(R.string.settings_one_handed_right) to OneHanded.RIGHT,
             ), settings.oneHanded) { value -> settings.copy(oneHanded = value) }
         }
-        footer(column, getString(R.string.settings_one_handed_note))
+        footer(column, getString(R.string.footer_layout))
+    }
+
+    /** The keyboard itself, drawn with the settings on this page and redrawn as they change. Look, not touch. */
+    private var preview: KeyboardView? = null
+
+    private fun keyboardPreview(column: LinearLayout) {
+        if (index != null) return
+        val board = KeyboardView(this).apply {
+            settings = this@SettingsActivity.settings
+            rules = FieldRules()
+            rows = Layouts.rows(Layer.LETTERS, false, rules, numberRow = this@SettingsActivity.settings.numberRow)
+        }
+        preview = board
+        column.addView(object : android.widget.FrameLayout(this) {
+            // A picture of the keys, so a tap on it types nothing and opens nothing.
+            override fun onInterceptTouchEvent(ev: android.view.MotionEvent?) = true
+            @android.annotation.SuppressLint("ClickableViewAccessibility")
+            override fun onTouchEvent(event: android.view.MotionEvent?) = true
+        }.apply {
+            val fill = colors.card
+            background = GradientDrawable().apply { setColor(fill); cornerRadius = dp(12f).toFloat() }
+            clipToOutline = true
+            contentDescription = getString(R.string.keyboard_preview)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            addView(board, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(8f) }
+        })
     }
 
     private fun feel(column: LinearLayout) {
+        header(column, getString(R.string.header_sound))
         group(column) {
             toggle(it, getString(R.string.settings_sound), settings.sound) { on -> settings.copy(sound = on) }
             switchRow(
@@ -1428,14 +1815,18 @@ class SettingsActivity : Activity() {
                 subtitle = getString(R.string.settings_mute_bluetooth_note),
             ) { on -> change(settings.copy(muteWithBluetooth = on)) }
         }
-        header(column, getString(R.string.settings_vibrate).uppercase())
+        header(column, getString(R.string.header_vibration))
         group(column) {
-            pick(it, listOf(
+            segmented(it, getString(R.string.segment_strength), listOf(
                 getString(R.string.vibration_off) to Vibration.OFF,
                 getString(R.string.vibration_light) to Vibration.LIGHT,
                 getString(R.string.vibration_medium) to Vibration.MEDIUM,
                 getString(R.string.vibration_strong) to Vibration.STRONG,
             ), settings.vibration) { value -> settings.copy(vibration = value) }
+        }
+        header(column, getString(R.string.header_key_press))
+        group(column) {
+            toggle(it, getString(R.string.settings_preview), settings.keyPreview) { on -> settings.copy(keyPreview = on) }
         }
         footer(column, getString(R.string.settings_system_note))
     }
@@ -1681,14 +2072,29 @@ class SettingsActivity : Activity() {
 
     // ---- The grouped list ----------------------------------------------------------------------------------------
 
-    private fun header(column: LinearLayout, text: String) = column.addView(TextView(this).apply {
-        this.text = text
-        setTextColor(colors.secondary)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-        setPadding(dp(16f), dp(18f), dp(16f), dp(6f))
-    })
+    private fun header(column: LinearLayout, text: String) {
+        if (index != null) indexHeader = text
+        column.addView(TextView(this).apply {
+            this.text = text
+            setTextColor(colors.secondary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(dp(16f), dp(18f), dp(16f), dp(6f))
+            isAccessibilityHeading = true
+        })
+    }
 
-    private fun footer(column: LinearLayout, text: String) = column.addView(TextView(this).apply {
+    private fun footer(column: LinearLayout, text: String) {
+        // For search, a note belongs to the rows of the group it sits under.
+        index?.let { list ->
+            // A group can have more than one note under it (Corrections has two); each row keeps all of them.
+            for (i in indexGroupStart until list.size) {
+                list[i] = list[i].copy(footer = list[i].footer?.let { "$it\n$text" } ?: text)
+            }
+        }
+        footerView(column, text)
+    }
+
+    private fun footerView(column: LinearLayout, text: String) = column.addView(TextView(this).apply {
         this.text = text
         setTextColor(colors.secondary)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
@@ -1730,24 +2136,31 @@ class SettingsActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 .apply { topMargin = dp(12f) }
         }
+        if (index != null) indexGroupStart = index!!.size
         rows(card)
         column.addView(card)
+        // A group with no header of its own is not under the one before it.
+        if (index != null) indexHeader = null
     }
 
     private fun row(card: LinearLayout, iconSpace: Boolean): LinearLayout {
-        if (card.childCount > 0) {
-            card.addView(View(this).apply {
-                setBackgroundColor(colors.divider)
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
-                    .apply { marginStart = dp(if (iconSpace) 58f else 16f) }
-            })
-        }
+        divider(card, iconSpace)
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = dp(52f)
             setPadding(dp(16f), dp(8f), dp(16f), dp(8f))
             card.addView(this)
+        }
+    }
+
+    private fun divider(card: LinearLayout, iconSpace: Boolean) {
+        if (card.childCount > 0) {
+            card.addView(View(this).apply {
+                setBackgroundColor(colors.divider)
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
+                    .apply { marginStart = dp(if (iconSpace) 58f else 16f) }
+            })
         }
     }
 
@@ -1785,7 +2198,9 @@ class SettingsActivity : Activity() {
         card: LinearLayout, glyph: SettingsIcon.Glyph?, tile: String?, title: String, value: String?,
         subtitle: String? = null, open: () -> Unit,
     ) {
+        if (indexed(title, subtitle)) return
         row(card, iconSpace = glyph != null).apply {
+            tag = rowTag(title)
             if (glyph != null && tile != null) {
                 addView(SettingsIcon(context, glyph, Color.parseColor(tile)), LinearLayout.LayoutParams(dp(29f), dp(29f))
                     .apply { marginEnd = dp(13f) })
@@ -1811,7 +2226,9 @@ class SettingsActivity : Activity() {
     }
 
     private fun toggle(card: LinearLayout, title: String, on: Boolean, enabled: Boolean = true, update: (Boolean) -> Settings) {
+        if (indexed(title)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(title)
             addView(label(title, if (enabled) colors.text else colors.secondary))
             val switch = Switch(context).apply {
                 isChecked = on
@@ -1848,7 +2265,9 @@ class SettingsActivity : Activity() {
         card: LinearLayout, title: String, on: Boolean, subtitle: String? = null, enabled: Boolean = true,
         changed: (Boolean) -> Unit,
     ) {
+        if (indexed(title, subtitle)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(title)
             val name = label(title, if (enabled) colors.text else colors.secondary)
             if (subtitle == null) addView(name) else addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
@@ -1875,12 +2294,15 @@ class SettingsActivity : Activity() {
             background = selectable()
             isEnabled = enabled
             isClickable = enabled
+            if (title == getString(R.string.settings_suggest_emoji)) emojiSwitch = switch to name
         }
     }
 
     /** A row that does something ordinary, in the link colour: red is kept for rows that throw something away. */
     private fun link(card: LinearLayout, title: String, run: () -> Unit) {
+        if (indexed(title)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(title)
             addView(label(title, colors.link))
             isClickable = true
             background = selectable()
@@ -1897,8 +2319,10 @@ class SettingsActivity : Activity() {
             tick.visibility = if (value == chosen) View.VISIBLE else View.INVISIBLE
             row.isSelected = value == chosen
         }
+        if (index != null) return options.forEach { indexed(it.first) }
         for ((text, value) in options) {
             row(card, iconSpace = false).apply {
+                tag = rowTag(text)
                 addView(label(text))
                 val tick = TextView(context).apply {
                     this.text = "✓"
@@ -1930,16 +2354,46 @@ class SettingsActivity : Activity() {
         show()
     }
 
+    /**
+     * One choice out of a few fixed ones, all in one row: [Segmented], under its label. Saved at once, like [pick],
+     * and nothing else on the page moves.
+     */
+    private fun <T> segmented(card: LinearLayout, title: String, options: List<Pair<String, T>>, current: T, update: (T) -> Settings) {
+        if (indexed(title, options.joinToString(", ") { it.first })) return
+        divider(card, iconSpace = false)
+        card.addView(LinearLayout(this).apply {
+            tag = rowTag(title)
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16f), dp(10f), dp(16f), dp(12f))
+            addView(TextView(context).apply {
+                text = title
+                setTextColor(colors.text)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setPadding(0, 0, 0, dp(8f))
+                // The group below carries the name, so TalkBack reads it once, with the options.
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            })
+            addView(Segmented(
+                context, title, options.map { it.first }, options.indexOfFirst { it.second == current }.coerceAtLeast(0),
+                Segmented.Colors(colors.track, colors.raised, colors.text, colors.outline),
+            ) { chosen -> change(update(options[chosen].second)) })
+        })
+    }
+
     /** A row that only says something: read, not pressed. */
     private fun plain(card: LinearLayout, title: String) {
+        if (indexed(title)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(title)
             addView(label(title))
             isFocusable = true
         }
     }
 
     private fun value(card: LinearLayout, title: String, value: String) {
+        if (indexed(title)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(title)
             addView(label(title))
             addView(trailing(value))
             isFocusable = true
@@ -1948,7 +2402,9 @@ class SettingsActivity : Activity() {
     }
 
     private fun action(card: LinearLayout, title: String, enabled: Boolean, run: () -> Unit) {
+        if (indexed(title)) return
         row(card, iconSpace = false).apply {
+            tag = rowTag(title)
             addView(label(title, if (enabled) colors.destructive else colors.secondary))
             isEnabled = enabled
             isClickable = enabled
@@ -1965,11 +2421,49 @@ class SettingsActivity : Activity() {
     }
 
     private companion object {
+        /**
+         * Rows whose old explanation is no longer on screen, and that explanation. Kept for search, so a setting can
+         * still be found by what it does as well as by its name.
+         */
+        val KEYWORDS: Map<Int, List<Int>> = mapOf(
+            R.string.settings_spell_check to listOf(R.string.settings_spell_check_note),
+            R.string.settings_learn to listOf(R.string.settings_learn_note),
+            R.string.settings_capitals to listOf(R.string.settings_capitals_note),
+            R.string.settings_double_space to listOf(R.string.settings_double_space_note),
+            R.string.settings_number_row to listOf(R.string.settings_number_row_note),
+            R.string.settings_accents to listOf(R.string.settings_accents_note),
+            R.string.page_what_it_fixes to listOf(R.string.row_what_it_fixes_note),
+            R.string.settings_cursor_swipe to listOf(R.string.settings_gestures_note),
+            R.string.settings_delete_word to listOf(R.string.settings_gestures_note),
+            R.string.settings_edit_swipes to listOf(R.string.footer_editing),
+            R.string.settings_flick_down to listOf(R.string.settings_flick_down_note),
+            R.string.settings_flick_up to listOf(R.string.settings_flick_up_note),
+            R.string.segment_hold_delay to listOf(R.string.footer_hold_delay),
+            R.string.segment_backspace_speed to listOf(R.string.footer_backspace_speed),
+            R.string.settings_key_style_folio to listOf(R.string.footer_key_style),
+            R.string.settings_key_style_material to listOf(R.string.footer_key_style),
+            R.string.settings_key_style_samsung to listOf(R.string.footer_key_style),
+            R.string.settings_appearance to listOf(R.string.settings_appearance_note),
+            R.string.settings_pure_black to listOf(R.string.settings_pure_black_note),
+            R.string.settings_high_contrast to listOf(R.string.settings_high_contrast_note),
+            R.string.settings_size to listOf(R.string.settings_size_note),
+            R.string.settings_split to listOf(R.string.settings_split_note),
+            R.string.settings_one_handed to listOf(R.string.settings_one_handed_note),
+        )
+
         const val LEARNED = "learnedWords"
         const val SEEN = "seenWords"
         const val SHORTCUTS = "shortcuts"
         const val INSIGHTS = "typingInsights"
         const val PAGE = "page"
+        const val QUERY = "query"
+        const val FROM_SEARCH = "fromSearch"
+
+        /** The pages search reads. Not the ones that are about one app, one release or one report. */
+        val SEARCHED = listOf(
+            Page.MAIN, Page.TYPING, Page.WHAT_IT_FIXES, Page.KEYS, Page.TOOLBAR, Page.PERIOD, Page.LANGUAGES,
+            Page.LOOK, Page.FEEL, Page.CLIPBOARD, Page.PRIVACY,
+        )
         const val APP = "app"
 
         /** Marks a switch being set to show a state, so its listener knows nobody tapped it. */
@@ -1984,6 +2478,9 @@ class SettingsActivity : Activity() {
 
         /** Each list on What it fixes shows this many, most counted first. */
         const val SHOWN_PAIRS = 10
+
+        /** What's New shows this many new features in full; the rest are one row away. */
+        const val SHOWN_FEATURES = 5
     }
 }
 

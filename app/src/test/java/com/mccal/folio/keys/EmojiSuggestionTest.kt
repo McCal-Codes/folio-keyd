@@ -101,7 +101,7 @@ class EmojiSuggestionTest {
     }
 
     @Test
-    fun `the typing page has the switch and says where the emoji come from`() {
+    fun `the smart typing page has the switch, under suggestions`() {
         val activity = Robolectric.buildActivity(SettingsActivity::class.java).setup().get()
         fun all(): List<View> {
             val out = mutableListOf<View>()
@@ -115,9 +115,9 @@ class EmojiSuggestionTest {
             while (!target.isClickable && target.parent is View) target = target.parent as View
             return target
         }
-        row("Typing").performClick()
+        row("Smart typing").performClick()
         assertNotNull(label(activity.getString(R.string.settings_suggest_emoji_sub)))
-        assertNotNull(label(activity.getString(R.string.settings_suggest_emoji_note)))
+        assertNotNull(label("SUGGESTIONS"))
         val target = row(activity.getString(R.string.settings_suggest_emoji))
         fun find(v: View): Switch? = v as? Switch
             ?: (v as? ViewGroup)?.let { g -> (0 until g.childCount).firstNotNullOfOrNull { find(g.getChildAt(it)) } }

@@ -16,7 +16,6 @@
     <string name="style_note">Styled letters are symbols, not text: screen readers may read them oddly, and search won’t find them.</string>
 
     <!-- Keys and gestures › Editing -->
-    <string name="header_editing">EDITING</string>
     <string name="settings_edit_swipes">Swipe up on Z X C V A to edit</string>
     <string name="settings_edit_swipes_note">Undo, cut, copy, paste, select all</string>
     <string name="settings_shift_select">Slide from shift to select</string>
