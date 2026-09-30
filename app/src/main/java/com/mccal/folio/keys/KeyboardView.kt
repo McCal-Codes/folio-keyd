@@ -766,17 +766,24 @@ class KeyboardView(context: Context) : View(context) {
      * The strip with room made at its start for the eye, when nothing here is learned: the words are narrowed to
      * the right of it, and the emoji and the mic are left where they are. Added last, so the first word is still the
      * first placement, which is how the strip knows which one is what was typed.
+     *
+     * On a split keyboard only the left half's words make room, inside that half, so none is pushed onto the gap
+     * and the right half still starts where its keys do.
      */
     private fun privateStrip(strip: List<Placement>): List<Placement> {
         if (!notLearning) return strip
         val start = keysLeft
-        val end = strip.filter { it.key.kind != KeyKind.SUGGESTION }.minOfOrNull { it.box.left } ?: keysRight
-        val badge = min(PRIVATE_SLOT_DP * dp, (end - start) / (suggestions.size + 1))
+        val words = strip.filter { it.key.kind == KeyKind.SUGGESTION }
+        val split = gapRight > gapLeft && words.none { it.box.left < gapLeft && it.box.right > gapLeft + 0.5f }
+        fun squeezed(it: Placement) = it.key.kind == KeyKind.SUGGESTION && (!split || it.box.right <= gapLeft + 0.5f)
+        val end = if (split) gapLeft
+        else strip.filter { it.key.kind != KeyKind.SUGGESTION }.minOfOrNull { it.box.left } ?: keysRight
+        val badge = min(PRIVATE_SLOT_DP * dp, (end - start) / (strip.count(::squeezed) + 1))
         val scale = (end - start - badge) / (end - start)
         fun moved(x: Float) = start + badge + (x - start) * scale
         val label = context.getString(R.string.not_learning_here)
         return strip.map {
-            if (it.key.kind != KeyKind.SUGGESTION) it
+            if (!squeezed(it)) it
             else Placement(it.key, Box(moved(it.box.left), it.box.top, moved(it.box.right), it.box.bottom))
         } + Placement(Key(label, KeyKind.PRIVATE), Box(start, strip.first().box.top, start + badge, strip.first().box.bottom))
     }

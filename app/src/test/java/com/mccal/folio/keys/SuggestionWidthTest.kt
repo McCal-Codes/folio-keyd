@@ -95,6 +95,27 @@ class SuggestionWidthTest {
     }
 
     @Test
+    fun `on a split keyboard the not learning badge squeezes only the left half`() {
+        val touches = strip(932, Split.ALWAYS)
+        val lanes = touches.view.stripLanes
+        assertEquals("the keys are split", 2, lanes.size)
+        val gapLeft = lanes[0].second.toFloat()
+        val gapRight = lanes[1].first.toFloat()
+        val rightBefore = touches.words().filter { it.box.left >= gapRight - 0.5f }.map { it.box }
+        touches.view.notLearning = true
+        val placed = touches.view.toolbarPlacements
+        for (item in placed) {
+            val box = item.box
+            assertTrue("${item.key.label} lies on the gap", box.right <= gapLeft + 1f || box.left >= gapRight - 1f)
+        }
+        val words = touches.words()
+        assertEquals("the typed word is still first", "Hel", words.first().key.label)
+        assertEquals("the right half is untouched", rightBefore, words.filter { it.box.left >= gapRight - 0.5f }.map { it.box })
+        val eye = placed.single { it.key.kind == KeyKind.PRIVATE }
+        assertTrue(words.filter { it.box.right <= gapLeft + 1f }.all { it.box.left >= eye.box.right - 0.5f })
+    }
+
+    @Test
     fun `the engine offers enough for the widest strip`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val words = Dictionary.load(context, Language.ENGLISH)
