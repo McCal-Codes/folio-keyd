@@ -17,6 +17,7 @@ under Settings › About › What's New.
 - Punctuation typed right after a suggestion goes before its space: "hello. ", not "hello .".
 - Keyd lets go of memory it can load again while it is out of sight.
 - Report a problem says why the strip came up empty, if an error was the reason.
+- The keyboard does less work when shift changes, when you scroll long clips, and on every suggestion.
 
 ## [0.3.1] - 2026-09-29
 

@@ -60,6 +60,9 @@ internal class ClipboardPanel(context: Context) : View(context) {
     var clips: List<Clipboard.Clip> = emptyList()
         set(value) {
             field = value.sortedWith(compareByDescending<Clipboard.Clip> { it.pinned }.thenByDescending { it.at })
+            // Keep the cut lines of the clips that are still here; a copy adds one row, it doesn't change the others.
+            val kept = field.mapTo(HashSet()) { it.text }
+            shownLines.keys.retainAll(kept)
             measureScroll()
             requestLayout()
             invalidate()
@@ -68,16 +71,26 @@ internal class ClipboardPanel(context: Context) : View(context) {
     private val dp = context.resources.displayMetrics.density
     private var theme = Theme.of(context)
 
+    /**
+     * The theme is built when something it depends on changes, not on every frame: a fling redraws sixty or a hundred
+     * and twenty times a second, and the colors are the same each time. The night bits are checked on draw as well,
+     * since the phone can change them while the panel is off screen and never told.
+     */
+    private var themeStale = true
+    private var themeNight = -1
+
     /** Shared with the keys, so the panels never disagree about whether it is night. */
     var appearance: Appearance = Appearance.SYSTEM
         set(value) {
             field = value
+            themeStale = true
             invalidate()
         }
 
     var highContrast: Boolean = false
         set(value) {
             field = value
+            themeStale = true
             invalidate()
         }
 
@@ -91,6 +104,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
     var pureBlack: Boolean = false
         set(value) {
             field = value
+            themeStale = true
             invalidate()
         }
 
@@ -98,6 +112,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
     var keyStyle: KeyStyle = KeyStyle.FOLIO
         set(value) {
             field = value
+            themeStale = true
             invalidate()
         }
 
@@ -109,7 +124,19 @@ internal class ClipboardPanel(context: Context) : View(context) {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
     }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val text = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG)
+
+    /**
+     * Each clip's text as its row shows it: on one line and cut to fit. A clip can be 4,000 characters, and measuring
+     * that on every frame of a scroll is most of what the panel used to spend drawing, so each is cut once for the
+     * room it has and kept until the room changes or the clip goes.
+     */
+    private val shownLines = HashMap<String, CharSequence>()
+    private var shownRoom = -1f
+
+    /** How many times a clip has been cut to fit, so a test can tell a cached row from a measured one. */
+    internal var ellipsized = 0
+        private set
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val rect = RectF()
 
@@ -186,7 +213,12 @@ internal class ClipboardPanel(context: Context) : View(context) {
     // ---- drawing --------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
-        theme = Theme.of(context, appearance, highContrast, keyStyle, pureBlack)
+        val night = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        if (themeStale || night != themeNight) {
+            theme = Theme.of(context, appearance, highContrast, keyStyle, pureBlack)
+            themeStale = false
+            themeNight = night
+        }
         rect.set(panelPad, panelPad, width - panelPad, height - panelPad)
         fill.color = theme.board
         canvas.drawRoundRect(rect, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
@@ -223,7 +255,7 @@ internal class ClipboardPanel(context: Context) : View(context) {
             // with its contents makes a list you cannot aim at.
             text.color = theme.label
             val room = width - edge * 2 - buttonWidth * 2 - 12 * dp
-            val shown = TextUtils.ellipsize(clip.text.replace('\n', ' '), TextPaintOf(text), room, TextUtils.TruncateAt.END)
+            val shown = shownLine(clip.text, room)
             canvas.drawText(shown, 0, shown.length, edge + 8 * dp, top + rowHeight / 2 + text.textSize * 0.36f, text)
 
             val pinCx = width - edge - buttonWidth * 1.5f
@@ -236,6 +268,17 @@ internal class ClipboardPanel(context: Context) : View(context) {
             Icons.close(canvas, closeCx, cy, 18 * dp, stroke)
         }
         canvas.restore()
+    }
+
+    private fun shownLine(clip: String, room: Float): CharSequence {
+        if (room != shownRoom) {
+            shownLines.clear()
+            shownRoom = room
+        }
+        return shownLines.getOrPut(clip) {
+            ellipsized++
+            TextUtils.ellipsize(clip.replace('\n', ' '), text, room, TextUtils.TruncateAt.END)
+        }
     }
 
     private fun drawTabs(canvas: Canvas) {
@@ -546,6 +589,3 @@ internal class ClipboardPanel(context: Context) : View(context) {
         const val TABS = 3
     }
 }
-
-/** Paint is what measures text; the ellipsize call wants a TextPaint, which is the same thing with a wrapper. */
-private fun TextPaintOf(paint: Paint) = android.text.TextPaint(paint)

@@ -136,7 +136,7 @@ object Suggestions {
         // What someone has typed before, judged on the same scale: a name they use constantly should beat a word
         // the language happens to contain but they never write.
         if (learned != null) {
-            for (word in learned.all()) {
+            for (word in learned.unordered) {
                 if (word.equals(typed, ignoreCase = true)) continue
                 val lowerWord = word.lowercase()
                 val cost = when {
