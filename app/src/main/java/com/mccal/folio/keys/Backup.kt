@@ -102,7 +102,8 @@ internal object Backup {
         root.optJSONArray("neverSuggest")?.let { list ->
             for (index in 0 until list.length()) {
                 val word = list.optString(index)
-                if (word.length <= MAX_WORD && word.none { it.isWhitespace() }) mergedNever.add(word)
+                // Spaces are fine: the strip offers phrases like "on my way", and those can be turned down too.
+                if (word.length <= MAX_WORD && word.none { it.isWhitespace() && it != ' ' }) mergedNever.add(word)
             }
         }
         return Result.Added(mergedWords, mergedShortcuts, newWords, newShortcuts, mergedNever)

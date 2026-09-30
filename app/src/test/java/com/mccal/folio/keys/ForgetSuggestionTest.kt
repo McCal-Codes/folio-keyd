@@ -292,4 +292,15 @@ class ForgetSuggestionTest {
             Learned(), Shortcuts(), NeverSuggest.decode("the")) as Backup.Result.Added
         assertEquals(listOf("the"), old.never.all())
     }
+
+    @Test
+    fun `a phrase turned down comes back from a backup`() {
+        val list = NeverSuggest().apply { add("on my way") }
+        val file = Backup.export(Learned(), Shortcuts(), list)
+        val result = Backup.merge(file, Learned(), Shortcuts(), NeverSuggest()) as Backup.Result.Added
+        assertEquals(listOf("on my way"), result.never.all())
+        val tabbed = file.replace("on my way", "on\\tmy way")
+        val rejected = Backup.merge(tabbed, Learned(), Shortcuts(), NeverSuggest()) as Backup.Result.Added
+        assertEquals("a tab is not something the strip offers", emptyList<String>(), rejected.never.all())
+    }
 }
