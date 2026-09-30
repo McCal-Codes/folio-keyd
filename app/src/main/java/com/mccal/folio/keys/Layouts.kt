@@ -152,7 +152,10 @@ object Layouts {
             }
             if (index < source.lastIndex) keys else bottomOfLetters(keys, layer)
         }
-        val top = if (numberRow && letters) listOf(DIGITS) else emptyList()
+        // A password field gets the digits whatever the setting says, as it does on Gboard and Samsung: passwords
+        // are where letters and digits mix most, and the 123 key there means hopping layers blind, with every
+        // character hidden as it is typed. The setting itself is left alone. A PIN never reaches here; it has the pad.
+        val top = if ((numberRow || rules.password) && letters) listOf(DIGITS) else emptyList()
         return top + rows + listOf(spaceRow(layer, rules))
     }
 
