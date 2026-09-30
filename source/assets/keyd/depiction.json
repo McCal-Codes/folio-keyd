@@ -63,6 +63,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.4.0",
+          "notes": {
+            "en": "Keyd 0.4.0 has new Settings you can search, one-tap choices, a new What's New, digits in password fields, and back to letters after a space."
+          }
+        },
+        {
           "version": "0.3.2",
           "notes": {
             "en": "Keyd 0.3.2 fixes the little things: punctuation after a suggestion, Search in every search box, a period key for web addresses, and backspace on emoji."
