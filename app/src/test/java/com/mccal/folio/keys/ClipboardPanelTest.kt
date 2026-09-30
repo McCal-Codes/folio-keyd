@@ -75,6 +75,31 @@ class ClipboardPanelTest {
     /** The middle of the first row's text, well clear of either button. */
     private fun firstRowY() = (8 + 26) * density
 
+    private fun draw() = panel.draw(android.graphics.Canvas(android.graphics.Bitmap.createBitmap(
+        panel.width, panel.height, android.graphics.Bitmap.Config.ARGB_8888,
+    )))
+
+    @Test fun `drawing again doesn't measure the clips again`() {
+        draw()
+        assertEquals(2, panel.ellipsized)
+        draw()
+        assertEquals(2, panel.ellipsized)
+    }
+
+    @Test fun `a new width cuts the clips again`() {
+        draw()
+        lay(600)
+        draw()
+        assertEquals(4, panel.ellipsized)
+    }
+
+    @Test fun `a new clip is the only one measured`() {
+        draw()
+        panel.clips = panel.clips + Clipboard.Clip("third thing", now + 1)
+        draw()
+        assertEquals(3, panel.ellipsized)
+    }
+
     @Test fun `pinned clips come first, then the newest`() {
         panel.clips = listOf(
             Clipboard.Clip("old and loose", now - 100),
