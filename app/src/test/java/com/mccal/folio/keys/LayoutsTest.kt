@@ -46,10 +46,26 @@ class LayoutsTest {
     fun `a field that takes several lines gets a return, not an action`() {
         val rules = Layouts.rules(
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
-            EditorInfo.IME_ACTION_SEND,
+            EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_ENTER_ACTION,
         )
         assertTrue(rules.multiline)
         assertEquals("return", rules.actionLabel)
+    }
+
+    @Test
+    fun `a search box of several lines says Search`() {
+        val rules = Layouts.rules(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_SEARCH)
+        assertEquals("Search", rules.actionLabel)
+    }
+
+    @Test
+    fun `web and email fields have a period as well as dot com`() {
+        for (variation in listOf(InputType.TYPE_TEXT_VARIATION_URI, InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)) {
+            val rules = Layouts.rules(InputType.TYPE_CLASS_TEXT or variation, EditorInfo.IME_ACTION_GO)
+            val labels = Layouts.rows(Layer.LETTERS, shifted = false, rules = rules).last().map { it.label }
+            assertTrue(labels.toString(), "." in labels && ".com" in labels)
+            assertTrue("the period comes before .com", labels.indexOf(".") < labels.indexOf(".com"))
+        }
     }
 
     @Test

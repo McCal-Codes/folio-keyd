@@ -708,14 +708,19 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         previous = SENTENCE_START
         wordStart = true
         wordChanged()
+        // The order Android's own keyboard uses. A field that asked for plain Enter gets it: Android's text fields
+        // ask on their own for every box that takes more than one line, so a message box still gets its new line.
+        // A field that names an action gets the action even when it takes more than one line: a search box built
+        // that way (the Google app's, some browsers') wants Search, and a new line there looks like the key broke.
+        val hasAction = action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED
         when {
-            rules.multiline -> connection.commitText("\n", 1)
-            // The app asked for Enter itself: some search boxes and web forms listen for the key, not the action.
+            rules.plainEnter && rules.multiline -> connection.commitText("\n", 1)
+            // Some search boxes and web forms listen for the key, not the action.
             rules.plainEnter -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
             // performEditorAction's answer only says whether the call reached the app, not whether the app did
             // anything with it, so there is no "it ignored Search" to fall back from.
-            action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED ->
-                connection.performEditorAction(action)
+            hasAction -> connection.performEditorAction(action)
+            rules.multiline -> connection.commitText("\n", 1)
             else -> sendKey(connection, KeyEvent.KEYCODE_ENTER)
         }
     }

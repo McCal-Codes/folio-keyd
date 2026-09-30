@@ -857,15 +857,35 @@ class KeysServiceTest {
 
     @Test
     fun `a field that takes several lines gets a new line instead`() {
+        // What Android's text fields send for a message box: several lines, an action, and "plain Enter" on top.
         start(
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
-            EditorInfo.IME_ACTION_SEND,
+            EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_ENTER_ACTION,
         )
         type("one")
         actions.onAction()
         type("two")
         assertEquals("one\ntwo", text)
         assertTrue("a multiline field should not be sent", field.performed.isEmpty())
+    }
+
+    @Test
+    fun `a search box of several lines that asks for Search gets Search`() {
+        // The Google app's search box: more than one line, Search, and no "plain Enter".
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_SEARCH)
+        type("fold")
+        actions.onAction()
+        assertEquals(listOf(EditorInfo.IME_ACTION_SEARCH), field.performed)
+        assertEquals("no new line typed into the search", "fold", text)
+    }
+
+    @Test
+    fun `several lines and no action is a new line`() {
+        start(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE, EditorInfo.IME_ACTION_UNSPECIFIED)
+        type("one")
+        actions.onAction()
+        assertEquals("one\n", text)
+        assertTrue(field.performed.isEmpty())
     }
 
     @Test

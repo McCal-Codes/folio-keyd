@@ -199,13 +199,14 @@ object Layouts {
             else -> listOf(Key(","))
         }
         val tail = when {
-            rules.kind == FieldKind.EMAIL || rules.kind == FieldKind.URL -> emptyList()
+            // A plain period as well as .com: "keyd.dev" and "first.last@" should not need the symbols for each dot.
+            rules.kind == FieldKind.EMAIL || rules.kind == FieldKind.URL -> if (punctuation) listOf(Key(".")) else emptyList()
             punctuation -> listOf(Key(".", holdsSymbols = true))
             else -> emptyList()
         }
         return listOf(layerKey, Key("🌐", KeyKind.GLOBE)) + extras.take(1) +
             listOf(Key("space", KeyKind.SPACE, weight = 4.2f, output = " ")) +
-            extras.drop(1) + tail + Key(rules.actionLabel, KeyKind.ACTION, weight = 1.5f)
+            tail + extras.drop(1) + Key(rules.actionLabel, KeyKind.ACTION, weight = 1.5f)
     }
 
     /**
@@ -305,7 +306,7 @@ object Layouts {
             // A key that sends Enter says return, whatever action the app also named: "Search" on a key that does
             // not search is a promise the key cannot keep.
             actionLabel = if (plainEnter) "return"
-                else actionLabel?.takeIf { it.isNotBlank() } ?: actionFor(imeOptions, multiline),
+                else actionLabel?.takeIf { it.isNotBlank() } ?: actionFor(imeOptions),
             password = password,
             noLearning = imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0,
             multiline = multiline,
@@ -315,9 +316,11 @@ object Layouts {
         )
     }
 
-    /** The action the app asked for, and "return" when it asked for nothing or the field takes more than one line. */
-    private fun actionFor(imeOptions: Int, multiline: Boolean): String {
-        if (multiline) return "return"
+    /**
+     * The action the app asked for, and "return" when it asked for nothing. A field of several lines that names an
+     * action gets it, as the return key does (TextActions.onAction), so the key says what it will do.
+     */
+    private fun actionFor(imeOptions: Int): String {
         return when (imeOptions and EditorInfo.IME_MASK_ACTION) {
             EditorInfo.IME_ACTION_GO -> "Go"
             EditorInfo.IME_ACTION_SEARCH -> "Search"

@@ -18,6 +18,8 @@ under Settings › About › What's New.
 - Keyd lets go of memory it can load again while it is out of sight.
 - Report a problem says why the strip came up empty, if an error was the reason.
 - The keyboard does less work when shift changes, when you scroll long clips, and on every suggestion.
+- Return searches in search boxes that take more than one line, like the Google app's, instead of starting a new line.
+- Web address and email keyboards have a period key beside .com.
 
 ## [0.3.1] - 2026-09-29
 
