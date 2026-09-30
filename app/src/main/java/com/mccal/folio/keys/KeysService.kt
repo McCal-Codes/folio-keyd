@@ -97,6 +97,7 @@ class KeysService : InputMethodService(), Ime {
     private var learned: Learned? = null
     private var shortcuts: Shortcuts? = null
     private var insights: Insights? = null
+    private var never: NeverSuggest? = null
 
     /**
      * Counted but not yet saved. A fix is counted on every corrected word, and writing the whole preferences file for
@@ -170,6 +171,11 @@ class KeysService : InputMethodService(), Ime {
         if (shortcuts == null || rules != written[SHORTCUTS]) {
             shortcuts = Shortcuts.decode(rules)
             written[SHORTCUTS] = rules
+        }
+        val turnedDown = prefs.getString(NeverSuggest.KEY, null)
+        if (never == null || turnedDown != written[NeverSuggest.KEY]) {
+            never = NeverSuggest.decode(turnedDown)
+            written[NeverSuggest.KEY] = turnedDown
         }
         val counts = prefs.getString(INSIGHTS, null)
         if (insights == null || counts != written[INSIGHTS]) {
@@ -358,7 +364,7 @@ class KeysService : InputMethodService(), Ime {
             val shift = actions.shift
             background.postDelayed(
                 {
-                    val found = runCatching { Suggestions.predict(previous, nextWords, shift) }
+                    val found = runCatching { Suggestions.predict(previous, nextWords, shift, never) }
                         .onFailure { DevLog.errorOnce(this, "Suggestions.predict", it) }.getOrDefault(emptyList())
                     main.post {
                         if (mine != asked) return@post
@@ -393,12 +399,12 @@ class KeysService : InputMethodService(), Ime {
                     proximityFor = keys
                 }
                 val found = runCatching {
-                    Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions, previous, nextWords)
+                    Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions, previous, nextWords, never)
                 }.onFailure { DevLog.errorOnce(this, "Suggestions.forWord", it) }.getOrDefault(emptyList())
                 val fix = runCatching {
                     Suggestions.correction(
                         word, words, proximity, learned, contractions, previous,
-                        compounds = language == Language.GERMAN, next = nextWords,
+                        compounds = language == Language.GERMAN, next = nextWords, never = never,
                     )
                 }.onFailure { DevLog.errorOnce(this, "Suggestions.correction", it) }.getOrNull()
                 // "Never heard of it" is a different question from "here is what you probably meant", and a word
@@ -578,6 +584,25 @@ class KeysService : InputMethodService(), Ime {
         }
     }
 
+    /**
+     * A word held in the strip and turned down. A learned word is forgotten; one the dictionary has, or anything else
+     * the strip found it through, goes on the never-suggest list, since there is nothing to take it out of.
+     */
+    override fun forget(word: String) {
+        background.post {
+            sync()
+            val lower = word.lowercase()
+            val store = learned ?: Learned().also { learned = it }
+            val wasLearned = store.count(lower) > 0
+            if (store.forget(lower)) save(store)
+            val known = dictionary?.let { Suggestions.known(lower, it) } ?: true
+            if (!wasLearned || known) {
+                val list = never ?: NeverSuggest().also { never = it }
+                if (list.add(lower)) save(NeverSuggest.KEY to list.encode())
+            }
+        }
+    }
+
     /** Learned words and their sightings, saved together so the two never disagree. */
     private fun save(store: Learned) = save(LEARNED to store.encode(), SEEN to store.encodeSeen())
 
@@ -585,13 +610,15 @@ class KeysService : InputMethodService(), Ime {
     fun forgetLearned() {
         background.post {
             learned?.clear()
+            never = NeverSuggest()
             insights = Insights()
             insightsDirty = false
             background.removeCallbacks(saveInsights)
             written[LEARNED] = null
             written[INSIGHTS] = null
             written[SEEN] = null
-            prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).apply()
+            written[NeverSuggest.KEY] = null
+            prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).remove(NeverSuggest.KEY).apply()
         }
     }
 
@@ -983,6 +1010,9 @@ class KeysService : InputMethodService(), Ime {
         main.removeCallbacks(countSelection)
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
+        // Said on the keyboard only where it is about this field or this app: the field asked, or this app's own
+        // settings turned learning off. With learning off everywhere it is not news in any one of them.
+        keyboard?.notLearning = actions.rules.ephemeral || (!chosen.learn && Settings.load(prefs).learn)
         // A keyboard may read the clipboard while it is the one on screen, so this is the moment to look. The field
         // has just been read, which is what decides whether anything may be kept from it at all.
         rememberClip(chosen)

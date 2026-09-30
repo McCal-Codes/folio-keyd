@@ -117,6 +117,12 @@ class Learned(
         return gone.size
     }
 
+    /**
+     * One word taken back out, for holding it in the strip and choosing Don't suggest. Its sightings go too, or a
+     * near miss watched for a while would come straight back in. True when anything was there to forget.
+     */
+    fun forget(word: String): Boolean = (words.remove(word) != null) or (seen.remove(word) != null)
+
     /** Emptied, for the tap that says "forget what you have learned about me". */
     fun clear() {
         words.clear()

@@ -152,7 +152,7 @@
         <item quantity="other">Forget the %1$d words Keyd has learned?</item>
     </plurals>
     <string name="back_to">‹ %1$s</string>
-    <string name="confirm_forget_detail">It will start suggesting other words for them again, and the fixes it has counted start again from nothing. Rules and text shortcuts stay as they are. This cannot be undone.</string>
+    <string name="confirm_forget_detail">It will start suggesting other words for them again, and the fixes it has counted start again from nothing, and words you asked it not to suggest can be suggested again. Rules and text shortcuts stay as they are. This cannot be undone.</string>
     <string name="confirm_reset">Put every setting back to normal?</string>
     <string name="confirm_reset_detail">Apps with their own settings go back to the usual ones. Learned words, fix counts, shortcuts and clipboard history stay as they are.</string>
     <string name="action_cancel">Cancel</string>

@@ -93,6 +93,7 @@ object Suggestions {
         contractions: Contractions.Table? = null,
         previous: String = "",
         next: NextWords? = null,
+        never: NeverSuggest? = null,
     ): List<String> {
         if (typed.isEmpty()) return emptyList()
         val lower = typed.lowercase()
@@ -166,6 +167,9 @@ object Suggestions {
         // there to put them back, the bare forms are never worth offering.
         if (contractions != null) scored.keys.removeAll { contractions.sure.containsKey(it.lowercase()) }
 
+        // Held in the strip and turned down: gone before the strip is filled, so the next word takes its place.
+        if (never != null && never.size > 0) scored.keys.removeAll { it in never }
+
         // "May" the name and "may" the word are one suggestion once they wear the case of what was typed, and
         // the strip is too short to spend two of its places on it.
         val ranked = scored.entries
@@ -185,7 +189,7 @@ object Suggestions {
             shortcuts?.expand(typed)?.let { matchCase(typed, it) },
             contractions?.let { Contractions.offer(typed, it) },
             split,
-        ).distinct()
+        ).distinct().filter { never == null || it !in never }
         return (first + ranked.filter { it !in first }).take(LIMIT)
     }
 
@@ -215,12 +219,15 @@ object Suggestions {
         previous: String = "",
         compounds: Boolean = false,
         next: NextWords? = null,
+        never: NeverSuggest? = null,
     ): String? {
         val lower = typed.lowercase()
         // Something kept on purpose is never argued with, apostrophe or not.
         if ((learned?.count(lower) ?: 0) > 0) return null
         // Ahead of the dictionary check, because the dictionary knows "dont": see [Contractions].
-        if (contractions != null) Contractions.fix(typed, contractions, previous)?.let { return it }
+        if (contractions != null) {
+            Contractions.fix(typed, contractions, previous)?.takeIf { never == null || it !in never }?.let { return it }
+        }
         if (typed.length < SHORTEST_CORRECTABLE) return null
         if (known(lower, words)) return null
         // Halfway through a longer word is not a mistake. "keyb" is not a word, and "key" is one letter away, but
@@ -247,6 +254,8 @@ object Suggestions {
                     // "jusqu'" and "ma'" are halves of words. Put in on their own they cut the word in two.
                     if (candidate.endsWith('\'')) continue
                     if (!possessive && isPossessive(candidate)) continue
+                    // A word someone asked never to be suggested is never put in unasked either.
+                    if (never != null && candidate in never) continue
                     val edits = cost(lower, candidate.lowercase(), 1, proximity)
                     if (edits > SCALE) continue
                     // How likely the slip was comes first; how common the word is, and how often it follows the word
@@ -268,7 +277,7 @@ object Suggestions {
         // guess one letter out - "thesis" and "tote" were what these used to become. Not in a language that writes
         // its compounds as one word, where two common words run together is how a third one is spelled.
         val slip = if (compounds) null else spaceSlip(lower, words)
-        if (slip != null && slip.sure && slip.rank <= SPLIT_SURE) {
+        if (slip != null && slip.sure && slip.rank <= SPLIT_SURE && (never == null || slip.words !in never)) {
             // It still has to beat a correction, and a letter pressed twice is good evidence too: "allso" is "also",
             // not "all so". So the pair wins over a real slip only when both its words are far commoner than the
             // one the slip would make.
@@ -339,9 +348,9 @@ object Suggestions {
      * What might come next, after a space: the words that most often follow [previous], in the case [shift] asks
      * for. Empty when nothing is known about the word before.
      */
-    fun predict(previous: String, next: NextWords?, shift: Shift = Shift.OFF): List<String> {
+    fun predict(previous: String, next: NextWords?, shift: Shift = Shift.OFF, never: NeverSuggest? = null): List<String> {
         if (next == null || previous.isEmpty()) return emptyList()
-        return next.after(previous).take(LIMIT).map {
+        return next.after(previous).filter { never == null || it !in never }.take(LIMIT).map {
             when (shift) {
                 Shift.OFF -> it
                 Shift.ONCE -> it.replaceFirstChar { first -> first.uppercaseChar() }

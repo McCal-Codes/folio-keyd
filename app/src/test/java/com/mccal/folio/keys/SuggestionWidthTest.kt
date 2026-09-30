@@ -32,8 +32,8 @@ class SuggestionWidthTest {
     private fun Touches.words() = view.toolbarPlacements.filter { it.key.kind == KeyKind.SUGGESTION }
 
     @Test
-    fun `a cover screen's strip offers three words`() {
-        for (widthDp in listOf(330, 360, 400)) {
+    fun `a narrow phone's strip offers three words`() {
+        for (widthDp in listOf(330, 360)) {
             val touches = strip(widthDp)
             assertEquals("at $widthDp dp", listOf("Hel", "Hello", "Help"), touches.words().map { it.key.label })
             assertEquals(KeyKind.VOICE, touches.view.toolbarPlacements.last().key.kind)
@@ -53,8 +53,8 @@ class SuggestionWidthTest {
 
     @Test
     fun `in between it grows one word at a time`() {
-        assertEquals(4, strip(520).view.wordSlots())
-        assertEquals(5, strip(620).view.wordSlots())
+        assertEquals("a Fold8 cover screen keeps the four it had", 4, strip(475).view.wordSlots())
+        assertEquals(5, strip(560).view.wordSlots())
     }
 
     @Test
