@@ -24,6 +24,14 @@
     <string name="emoji_search_clear">Clear search</string>
     <string name="emoji_search_hint">Type a word, like heart or cat</string>
     <string name="emoji_search_none">Nothing for “%1$s”</string>
+    <string name="emoji_tones">Skin tones</string>
+    <string name="emoji_tone_named">%1$s, %2$s</string>
+    <string name="emoji_tone_default">Default skin tone</string>
+    <string name="emoji_tone_light">Light skin tone</string>
+    <string name="emoji_tone_medium_light">Medium-light skin tone</string>
+    <string name="emoji_tone_medium">Medium skin tone</string>
+    <string name="emoji_tone_medium_dark">Medium-dark skin tone</string>
+    <string name="emoji_tone_dark">Dark skin tone</string>
     <string name="setup_learning">Keyd remembers words you type that it does not already know — names, places, the way you spell things — so it stops suggesting something else instead. It is kept on this phone, never from a password field, and never from an app that asks it not to.</string>
     <plurals name="setup_forget">
         <item quantity="one">Forget the word it has learned, and the fixes it has counted</item>
@@ -40,6 +48,9 @@
     <string name="settings_suggest_emoji">Suggest an emoji</string>
     <string name="settings_suggest_emoji_sub">When a word has one</string>
     <string name="settings_suggest_emoji_note">Emoji come from Unicode\'s own emoji names, in the language you are typing, so pizza offers 🍕. Nothing is looked up online.</string>
+    <string name="header_emoji">EMOJI</string>
+    <string name="settings_skin_tone">Skin tone</string>
+    <string name="settings_skin_tone_note">What an emoji starts with. Holding one lets you pick another, and it keeps the one you picked.</string>
     <string name="suggested_emoji">Emoji %1$s</string>
     <string name="settings_learn_note">Remembers words it does not know, so it stops suggesting something else instead. Never from a password field, or from an app that asks it not to.</string>
     <string name="settings_capitals">Capital at the start of a sentence</string>

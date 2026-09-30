@@ -43,6 +43,9 @@ class EmojiPanel(context: Context) : View(context) {
 
         /** Open the search: a row for a word, and the letters to type it with. */
         fun onSearch() {}
+
+        /** A tone picked for [emoji] by holding it, just before [onEmoji] types it in that tone. */
+        fun onSkinTone(emoji: String, tone: Int) {}
     }
 
     var listener: Listener? = null
@@ -54,6 +57,16 @@ class EmojiPanel(context: Context) : View(context) {
             if (category == 0) requestLayout()
             invalidate()
         }
+
+    /** Which tone each emoji is typed in. Owned by the service, like the recents. */
+    var tones: SkinTones.Choices = SkinTones.Choices()
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    /** Keyd's own "Hold for" choice, so holding an emoji takes as long as holding a letter. */
+    var holdDelay: HoldDelay = HoldDelay.FOLLOW_PHONE
 
     private val dp = context.resources.displayMetrics.density
     private var theme = Theme.of(context)
@@ -114,6 +127,19 @@ class EmojiPanel(context: Context) : View(context) {
     private var pressed = -1
     private var velocity: VelocityTracker? = null
 
+    /** The held emoji's row of tones, while it is open. */
+    private var picker: TonePicker? = null
+
+    /** Whether this press opened [picker], so letting go of it can pick; a later press only taps. */
+    private var pickerFromThisPress = false
+
+    /** Whether this press began while [picker] was open, and so belongs to it rather than to the grid. */
+    private var pressOnPicker = false
+
+    private val hold = Runnable { held() }
+    /** Its own handler rather than the view's, which only runs once the view is attached to a window. */
+    private val timer = android.os.Handler(android.os.Looper.getMainLooper())
+
     private var columns = 8
     private var cell = 44 * dp
     private var gridTop = 0f
@@ -132,6 +158,9 @@ class EmojiPanel(context: Context) : View(context) {
 
     private fun items(): List<String> =
         if (category == 0) recents else Emoji.CATEGORIES[category - 1].items
+
+    /** Emoji [index] as it is drawn and typed: in its tone, if it has them. */
+    private fun shown(list: List<String>, index: Int): String = tones.apply(list[index])
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         val navigation = insets.getInsets(WindowInsets.Type.navigationBars()).bottom.toFloat()
@@ -197,6 +226,7 @@ class EmojiPanel(context: Context) : View(context) {
 
         drawGrid(canvas)
         drawTabs(canvas)
+        picker?.draw(canvas, theme, fill, glyph, dp)
     }
 
     /** The same pill the letters have, and hidden for the same reason: the system already draws one there. */
@@ -241,7 +271,7 @@ class EmojiPanel(context: Context) : View(context) {
                 fill.color = theme.pressTint
                 canvas.drawRoundRect(rect, 10 * dp, 10 * dp, fill)
             }
-            canvas.drawText(list[index], cx, cy + baseline, glyph)
+            canvas.drawText(shown(list, index), cx, cy + baseline, glyph)
         }
         canvas.restore()
     }
@@ -307,6 +337,13 @@ class EmojiPanel(context: Context) : View(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 scroller.forceFinished(true)
+                pressOnPicker = picker != null
+                pickerFromThisPress = false
+                if (pressOnPicker) {
+                    downX = event.x
+                    downY = event.y
+                    return true
+                }
                 velocity = VelocityTracker.obtain().also { it.addMovement(event) }
                 downX = event.x
                 downY = event.y
@@ -316,12 +353,25 @@ class EmojiPanel(context: Context) : View(context) {
                 inGrid = event.y in gridTop..gridBottom
                 pressed = if (inGrid) indexAt(event.x, event.y) else -1
                 if (pressed >= 0) invalidate()
+                if (pressed >= 0 && SkinTones.supports(items()[pressed])) timer.postDelayed(hold, holdDelay.millis)
             }
             MotionEvent.ACTION_MOVE -> {
+                picker?.let { open ->
+                    // Only the press that opened the row slides over it; a tap on an open row is a tap.
+                    if (pickerFromThisPress) {
+                        val over = open.near(event.x, event.y)
+                        if (over != open.over) {
+                            open.over = over
+                            invalidate()
+                        }
+                    }
+                    return true
+                }
                 velocity?.addMovement(event)
                 if (!dragging && inGrid && abs(event.y - downY) > touchSlop) {
                     dragging = true
                     pressed = -1
+                    timer.removeCallbacks(hold)
                 }
                 if (dragging) {
                     scroll = (downScroll - (event.y - downY)).coerceIn(0f, maxScroll)
@@ -329,6 +379,20 @@ class EmojiPanel(context: Context) : View(context) {
                 }
             }
             MotionEvent.ACTION_UP -> {
+                picker?.let { open ->
+                    val tone = if (pickerFromThisPress) open.near(event.x, event.y) else open.at(event.x, event.y)
+                    when {
+                        tone >= 0 -> pick(open, tone)
+                        // Let go where it was held, or off the row: it stays open for a tap.
+                        pickerFromThisPress -> open.over = -1
+                        // A tap anywhere else closes it, and does nothing more: the row was covering the grid.
+                        else -> picker = null
+                    }
+                    release()
+                    invalidate()
+                    performClick()
+                    return true
+                }
                 velocity?.addMovement(event)
                 if (dragging) {
                     fling()
@@ -339,9 +403,47 @@ class EmojiPanel(context: Context) : View(context) {
                 invalidate()
                 performClick()
             }
-            MotionEvent.ACTION_CANCEL -> release()
+            MotionEvent.ACTION_CANCEL -> {
+                if (pickerFromThisPress) picker = null
+                release()
+                invalidate()
+            }
         }
         return true
+    }
+
+    /** Held long enough on an emoji with tones: open its row, lit on the tone it is typed in now. */
+    private fun held() {
+        val list = items()
+        val index = pressed
+        if (index !in list.indices || dragging || !SkinTones.supports(list[index])) return
+        openPicker(index)
+        pickerFromThisPress = true
+        pressed = -1
+        Haptics.feel(this, vibration)
+    }
+
+    private fun openPicker(index: Int) {
+        val list = items()
+        val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        val row = index / columns
+        val left = edge + (index % columns) * cell
+        val top = gridTop + row * cell - scroll
+        picker = TonePicker.place(
+            list[index], tones.toneFor(list[index]), Box(left, top, left + cell, top + cell),
+            left = panelPad + sideInset, right = width - panelPad - sideInset, top = panelPad, dp = dp,
+        )
+        cells.invalidateRoot()
+        invalidate()
+    }
+
+    /** Types [tone] of the open row's emoji, and keeps it as that emoji's tone from now on. */
+    private fun pick(open: TonePicker, tone: Int) {
+        picker = null
+        cells.invalidateRoot()
+        Haptics.feel(this, vibration)
+        listener?.onSkinTone(open.emoji, tone)
+        listener?.onEmoji(open.items[tone])
     }
 
     /** Carry on where the finger left off, which is the difference between a list and a sheet of paper. */
@@ -355,6 +457,9 @@ class EmojiPanel(context: Context) : View(context) {
     }
 
     private fun release() {
+        timer.removeCallbacks(hold)
+        pickerFromThisPress = false
+        pressOnPicker = false
         velocity?.recycle()
         velocity = null
         pressed = -1
@@ -385,7 +490,7 @@ class EmojiPanel(context: Context) : View(context) {
         val list = items()
         if (index in list.indices) {
             Haptics.feel(this, vibration)
-            listener?.onEmoji(list[index])
+            listener?.onEmoji(shown(list, index))
         }
     }
 
@@ -422,7 +527,7 @@ class EmojiPanel(context: Context) : View(context) {
 
     private fun nameOf(id: Int): String {
         val list = items()
-        if (id < list.size) return list[id]
+        if (id < list.size) return shown(list, id)
         val tab = id - list.size
         val slots = tabSlots()
         return when (tab) {
@@ -435,9 +540,20 @@ class EmojiPanel(context: Context) : View(context) {
     }
 
     private fun activate(id: Int): Boolean {
+        picker?.let { open ->
+            if (id >= TONE_ID) {
+                pick(open, id - TONE_ID)
+                return true
+            }
+            // Anything else pressed closes the row first, as it does for a finger.
+            picker = null
+            cells.invalidateRoot()
+            invalidate()
+        }
+        if (id >= TONE_ID) return false
         val list = items()
         if (id < list.size) {
-            listener?.onEmoji(list[id])
+            listener?.onEmoji(shown(list, id))
             return true
         }
         val tab = id - list.size
@@ -451,8 +567,17 @@ class EmojiPanel(context: Context) : View(context) {
         return true
     }
 
+    /** Whether virtual view [id] is an emoji that holding offers tones on. */
+    private fun tonesAt(id: Int): Boolean = items().getOrNull(id)?.let { SkinTones.supports(it) } == true
+
     private inner class CellNodes : ExploreByTouchHelper(this@EmojiPanel) {
         override fun getVirtualViewAt(x: Float, y: Float): Int {
+            picker?.let { open ->
+                // The row sits over the grid, so under it only the tones are there to be found.
+                val tone = open.at(x, y)
+                if (tone >= 0) return TONE_ID + tone
+                if (open.outline.contains(x, y)) return HOST_ID
+            }
             if (y >= gridBottom) {
                 val slot = tabSlots().indexOfFirst { x >= it.first && x < it.second }
                 return if (slot < 0) HOST_ID else items().size + slot
@@ -464,9 +589,27 @@ class EmojiPanel(context: Context) : View(context) {
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
             val total = items().size + tabSlots().size
             for (id in 0 until total) if (boundsOf(id) != null) ids.add(id)
+            picker?.let { open -> for (tone in open.boxes.indices) ids.add(TONE_ID + tone) }
         }
 
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
+            val open = picker
+            if (id >= TONE_ID) {
+                val tone = id - TONE_ID
+                val box = open?.boxes?.getOrNull(tone)
+                if (box == null) {
+                    node.contentDescription = ""
+                    node.setBoundsInParent(Rect(0, 0, 1, 1))
+                    return
+                }
+                // The toned emoji itself, which TalkBack reads with its tone: "thumbs up: medium skin tone".
+                node.contentDescription = open.items[tone]
+                node.className = "android.widget.Button"
+                node.isSelected = tone == open.current
+                node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+                node.setBoundsInParent(Rect(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt()))
+                return
+            }
             val bounds = boundsOf(id)
             if (bounds == null) {
                 node.contentDescription = ""
@@ -476,10 +619,18 @@ class EmojiPanel(context: Context) : View(context) {
             node.contentDescription = nameOf(id)
             node.className = "android.widget.Button"
             node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+            // The tones a held finger gets, a double tap and hold gets too.
+            if (tonesAt(id)) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
             node.setBoundsInParent(bounds)
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: Bundle?): Boolean {
+            if (action == AccessibilityNodeInfo.ACTION_LONG_CLICK) {
+                if (!tonesAt(id)) return false
+                openPicker(id)
+                sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_LONG_CLICKED)
+                return true
+            }
             if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
             if (!activate(id)) return false
             sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)
@@ -498,7 +649,19 @@ class EmojiPanel(context: Context) : View(context) {
     internal val visibleColumns: Int get() = columns
     internal val cellSizeDp: Float get() = cell / dp
     internal val tabCount: Int get() = tabSlots().size
-    internal fun showing(): List<String> = items()
+    internal fun showing(): List<String> = items().indices.map { shown(items(), it) }
+
+    /** The open row of tones, for a test: what it offers and where. */
+    internal val toneItems: List<String> get() = picker?.items.orEmpty()
+    internal val toneBoxes: List<Box> get() = picker?.boxes.orEmpty()
+
+    /** Where emoji [index] of what is showing sits, for a test that holds it. */
+    internal fun cellBox(index: Int): Box {
+        val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        val left = edge + (index % columns) * cell
+        val top = gridTop + (index / columns) * cell - scroll
+        return Box(left, top, left + cell, top + cell)
+    }
     /**
      * Opened: show the recents if there are any, and the faces if there are not.
      *
@@ -510,6 +673,7 @@ class EmojiPanel(context: Context) : View(context) {
     }
 
     internal fun selectCategory(which: Int) {
+        picker = null
         category = which
         scroll = 0f
         requestLayout()
@@ -525,7 +689,10 @@ class EmojiPanel(context: Context) : View(context) {
         const val MIN_FLING_DP = 50f
         const val HANDLE_W_DP = 38f
         const val HANDLE_H_DP = 4f
-        const val RECENT_TAB = "🕒"   // a clock face, which reads as colour beside the other tabs
+        const val RECENT_TAB = "🕒"
+
+        /** The tones' virtual view ids, well clear of the grid's and the tabs'. */
+        const val TONE_ID = 1_000_000   // a clock face, which reads as colour beside the other tabs
 
         /** The letters keyboard is four rows; matching it keeps the app above from jumping when you switch. */
         const val ROWS_LIKE_LETTERS = 4

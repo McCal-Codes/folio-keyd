@@ -299,7 +299,8 @@ internal object DevLog {
     private val pending = ArrayList<String>()
     private val reported = HashSet<String>()
     private const val BATCH = 50
-    private val SWITCH = Regex("true|false|[A-Z][A-Z0-9_]*(\\+[A-Z][A-Z0-9_]*)*")
+    // A single digit is a small fixed choice kept as a number, like the emoji skin tone; nothing typed is one digit long.
+    private val SWITCH = Regex("true|false|[0-9]|[A-Z][A-Z0-9_]*(\\+[A-Z][A-Z0-9_]*)*")
     private val LIST = Regex("\\[([^\\]]*)]")
     private const val LOG_FILE = "dev-log.txt"
     private const val ERROR_FILE = "dev-errors.txt"

@@ -1169,6 +1169,16 @@ class SettingsActivity : Activity() {
         }
         // Kept from the old page: where the emoji come from is a privacy answer, not decoration.
         footer(column, getString(R.string.settings_suggest_emoji_note))
+        header(column, getString(R.string.header_emoji))
+        group(column) {
+            // The raised hand in each tone, the way iOS shows the choice; each is read out by name.
+            val tones = (0 until SkinTones.COUNT).toList()
+            segmented(
+                it, getString(R.string.settings_skin_tone), tones.map { tone -> SkinTones.withTone("✋", tone) to tone },
+                settings.emojiSkinTone, spoken = tones.map { tone -> SkinTones.spoken(this, tone) },
+            ) { tone -> settings.copy(emojiSkinTone = tone) }
+        }
+        footer(column, getString(R.string.settings_skin_tone_note))
         header(column, getString(R.string.header_corrections))
         group(column) {
             // Autocorrect is the strip's top answer applied for you, so with the strip off it is off too, whatever it
@@ -2358,7 +2368,10 @@ class SettingsActivity : Activity() {
      * One choice out of a few fixed ones, all in one row: [Segmented], under its label. Saved at once, like [pick],
      * and nothing else on the page moves.
      */
-    private fun <T> segmented(card: LinearLayout, title: String, options: List<Pair<String, T>>, current: T, update: (T) -> Settings) {
+    private fun <T> segmented(
+        card: LinearLayout, title: String, options: List<Pair<String, T>>, current: T,
+        spoken: List<String>? = null, update: (T) -> Settings,
+    ) {
         if (indexed(title, options.joinToString(", ") { it.first })) return
         divider(card, iconSpace = false)
         card.addView(LinearLayout(this).apply {
@@ -2375,7 +2388,7 @@ class SettingsActivity : Activity() {
             })
             addView(Segmented(
                 context, title, options.map { it.first }, options.indexOfFirst { it.second == current }.coerceAtLeast(0),
-                Segmented.Colors(colors.track, colors.raised, colors.text, colors.outline),
+                Segmented.Colors(colors.track, colors.raised, colors.text, colors.outline), spoken,
             ) { chosen -> change(update(options[chosen].second)) })
         })
     }

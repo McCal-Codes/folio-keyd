@@ -158,7 +158,8 @@ class DevLogTest {
         assertTrue("twoFingerUndo=true" in lines)
         // Symbols that look like a choice's name still stay out.
         assertTrue(DevLog.switches(Settings(periodSymbols = "OK")).none { it.startsWith("periodSymbols") })
-        assertTrue(lines.all { Regex("[a-zA-Z]+=(true|false|[A-Z_]+(\\+[A-Z_]+)*)").matches(it) })
+        assertTrue(lines.all { Regex("[a-zA-Z]+=(true|false|[0-9]|[A-Z_]+(\\+[A-Z_]+)*)").matches(it) })
+        assertTrue("emojiSkinTone=0" in lines)
         assertTrue("keyStyle=FOLIO" in lines)
         assertTrue("toolbar=EMOJI+UNDO+CURSOR_PAD+COPY+PASTE+CLIPBOARD+VOICE" in lines)
         assertTrue("toolbar=NONE" in DevLog.switches(Settings(toolbar = emptyList())))

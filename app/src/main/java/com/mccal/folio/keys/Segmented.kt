@@ -27,6 +27,8 @@ internal class Segmented(
     options: List<String>,
     selected: Int,
     private val colors: Colors,
+    /** What TalkBack says for each option, where the text on it is not a word: ✋🏽 is "Medium skin tone". */
+    private val spoken: List<String>? = null,
     private val picked: (Int) -> Unit,
 ) : ViewGroup(context) {
 
@@ -64,6 +66,7 @@ internal class Segmented(
 
     private fun button(index: Int, text: String, count: Int) = TextView(context).apply {
         this.text = text
+        spoken?.getOrNull(index)?.let { contentDescription = it }
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         setTextColor(colors.text)
         gravity = Gravity.CENTER

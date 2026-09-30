@@ -108,6 +108,13 @@ class KeysService : InputMethodService(), Ime {
     /** Which language's emoji names the search has. Only touched on the suggestion thread, like [loadedFor]. */
     private var emojiNamesFor: Language? = null
     private var emojiNames: EmojiSearch? = null
+
+    /**
+     * Which tone each emoji is typed in: the Settings default, and each one picked by holding it. Read on the
+     * suggestion thread for the strip's emoji, so replaced whole rather than changed.
+     */
+    @Volatile
+    private var skinTones = SkinTones.Choices()
     private var proximityFor: List<Placement>? = null
 
     /**
@@ -396,7 +403,7 @@ class KeysService : InputMethodService(), Ime {
                 val names = emojiNames?.takeIf { emojiNamesFor == language }
                 if (emojiOn && names == null) background.post { loadEmojiNames(language) }
                 val emoji = if (!emojiOn) null else runCatching {
-                    Suggestions.emoji(word, words, names)?.let { SuggestedEmoji(it, names?.nameOf(it) ?: it) }
+                    Suggestions.emoji(word, words, names)?.let { SuggestedEmoji(skinTones.apply(it), names?.nameOf(it) ?: it) }
                 }.onFailure { DevLog.errorOnce(this, "Suggestions.emoji", it) }.getOrNull()
                 // Timings and counts only: the word itself never goes in the log.
                 val took = android.os.SystemClock.elapsedRealtime() - started
@@ -599,6 +606,8 @@ class KeysService : InputMethodService(), Ime {
                 override fun onLetters() = showEmoji(false)
 
                 override fun onSearch() = showEmojiSearch(true)
+
+                override fun onSkinTone(emoji: String, tone: Int) = pickTone(emoji, tone)
             }
         }
         val finder = EmojiSearchPanel(this).also {
@@ -613,6 +622,8 @@ class KeysService : InputMethodService(), Ime {
                 override fun onBack() = showEmoji(true)
 
                 override fun onHide() = requestHideSelf(0)
+
+                override fun onSkinTone(emoji: String, tone: Int) = pickTone(emoji, tone)
             }
         }
         val clips = ClipboardPanel(this).also {
@@ -695,6 +706,19 @@ class KeysService : InputMethodService(), Ime {
     }
 
     override fun rememberEmoji(emoji: String) = remember(emoji)
+
+    /** Held an emoji and picked a tone: it is typed in that one from now on, on the grid, in search and in the strip. */
+    private fun pickTone(emoji: String, tone: Int) {
+        val updated = skinTones.picking(emoji, tone)
+        prefs.edit().putString(SKIN_TONES, SkinTones.encode(updated.picked)).apply()
+        showTones(updated)
+    }
+
+    private fun showTones(choices: SkinTones.Choices) {
+        skinTones = choices
+        emoji?.tones = choices
+        emojiSearch?.tones = choices
+    }
 
     private fun remember(value: String) {
         val grid = emoji ?: return
@@ -872,6 +896,7 @@ class KeysService : InputMethodService(), Ime {
         emoji?.highContrast = chosen.highContrast
         emoji?.keyStyle = chosen.keyStyle
         emoji?.feel(chosen)
+        showTones(SkinTones.Choices(chosen.emojiSkinTone, SkinTones.decode(prefs.getString(SKIN_TONES, null))))
         clipboard?.feel(chosen)
         pad?.feel(chosen)
         main.removeCallbacks(countSelection)
@@ -920,6 +945,7 @@ class KeysService : InputMethodService(), Ime {
 
     private fun EmojiPanel.feel(settings: Settings) {
         vibration = settings.vibration
+        holdDelay = settings.holdDelay
         pureBlack = settings.pureBlack
     }
 
@@ -1050,6 +1076,7 @@ class KeysService : InputMethodService(), Ime {
         /** The subtype mode a voice input method declares. */
         const val VOICE_MODE = "voice"
         const val RECENTS = "emojiRecents"
+        const val SKIN_TONES = "emojiTones"
         const val LEARNED = "learnedWords"
         const val SEEN = "seenWords"
         const val PRUNED_SLIPS = "prunedSlips1"
