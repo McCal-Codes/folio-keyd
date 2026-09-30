@@ -90,6 +90,7 @@ internal object WhatsNew {
         listOf("what's new", "what’s new") to (SettingsIcon.Glyph.SPARKLES to "#0071E3"),
         // Features that have a picture of their own come first, so no two neighbors share the shift arrow.
         listOf("search") to (SettingsIcon.Glyph.SEARCH to "#0071E3"),
+        listOf("choice", "one row", "one tap") to (SettingsIcon.Glyph.CHOICES to "#248A3D"),
         listOf("undo") to (SettingsIcon.Glyph.UNDO to "#C93400"),
         listOf("emoji") to (SettingsIcon.Glyph.EMOJI to "#5E5CE6"),
         listOf("tip") to (SettingsIcon.Glyph.TIP to "#9A5200"),

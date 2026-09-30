@@ -113,6 +113,9 @@ class SettingsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Each page names itself in large type, as Gboard's and Samsung's settings do; the window's own bar above it
+        // would say "Keyd settings" a second time. The label stays, for Recents and the launcher.
+        actionBar?.hide()
         DevLog.catchCrashes(this)
         // Settings can open before the keyboard has run since an update, so the toolbar is settled here too.
         Settings.settleToolbar(prefs, Settings.updated(this), Settings.firstInstalled(this))

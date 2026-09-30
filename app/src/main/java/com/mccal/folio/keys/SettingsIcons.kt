@@ -23,7 +23,7 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
     enum class Glyph {
         LANGUAGES, SHORTCUTS, TYPING, KEYS, LOOK, SOUND, CLIPBOARD, PRIVACY, WARNING,
         UNDO, EMOJI, TIP, SEARCH, BACKSPACE, SELECT, MOVE, SYMBOLS, TIMER,
-        WAND, HAND, PALETTE, SPARKLES, REPORT, APPS,
+        WAND, HAND, PALETTE, SPARKLES, REPORT, APPS, CHOICES,
     }
 
     private val density = context.resources.displayMetrics.density
@@ -99,6 +99,15 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
                 canvas.drawPath(path, stroke)
                 canvas.drawLine(cx, cy - g * .12f, cx, cy + g * .1f, stroke)
                 canvas.drawCircle(cx, cy + g * .24f, stroke.strokeWidth * .7f, fill)
+            }
+            Glyph.CHOICES -> {
+                // A segmented control: one rounded bar in three parts, the middle one chosen.
+                val w = g * .92f
+                val h = g * .44f
+                box.set(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+                canvas.drawRoundRect(box, h / 2, h / 2, stroke)
+                box.set(cx - w / 6, cy - h / 2, cx + w / 6, cy + h / 2)
+                canvas.drawRoundRect(box, h * .3f, h * .3f, fill)
             }
             Glyph.UNDO -> Icons.undo(canvas, cx, cy, g, stroke)
             Glyph.EMOJI -> Icons.smiley(canvas, cx, cy, g, stroke, fill)
