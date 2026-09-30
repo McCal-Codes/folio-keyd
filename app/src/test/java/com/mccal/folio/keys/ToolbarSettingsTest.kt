@@ -59,13 +59,12 @@ class ToolbarSettingsTest {
     }
 
     @Test
-    fun `keys and gestures has an editing group, and its switches save`() {
+    fun `keys and gestures has the editing swipes with the gestures, and their switches save`() {
         val a = open()
         a.tap("Keys and gestures")
-        assertNotNull(a.text("EDITING"))
+        assertNotNull(a.text("GESTURES"))
         assertNotNull(a.text("Undo, cut, copy, paste, select all"))
         assertNotNull(a.text("7 buttons"))
-        assertNotNull(a.text("On those five keys a swipe up edits instead of typing a capital. Turn it off to get the capital back."))
         a.tap("Swipe up on Z X C V A to edit")
         a.tap("Slide from shift to select")
         a.tap("Word count and styles when text is selected")

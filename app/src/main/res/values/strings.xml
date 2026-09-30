@@ -44,8 +44,8 @@
     <string name="settings_learn_note">Remembers words it does not know, so it stops suggesting something else instead. Never from a password field, or from an app that asks it not to.</string>
     <string name="settings_capitals">Capital at the start of a sentence</string>
     <string name="settings_capitals_note">Only where the app asks for it.</string>
-    <string name="settings_double_space">Double-space for a full stop</string>
-    <string name="settings_double_space_note">Two spaces after a word become a full stop and a space.</string>
+    <string name="settings_double_space">Double-space for a period</string>
+    <string name="settings_double_space_note">Two spaces after a word become a period and a space.</string>
     <string name="settings_number_row">Number row</string>
     <string name="settings_number_row_note">Digits on their own row instead of behind the 123 key. Costs a row of height.</string>
     <string name="settings_accents">Hold a key for accents</string>
@@ -53,8 +53,8 @@
     <string name="settings_preview">Show the letter above your finger</string>
     <string name="settings_sound">Sound</string>
     <string name="settings_vibrate">Vibration</string>
-    <string name="settings_system_note">Sound and vibration also follow the phone\'s own settings, so turning them on here cannot turn them on there.</string>
-    <string name="settings_flick_down">Flick a key down for its corner character</string>
+    <string name="settings_system_note">Sound and vibration also follow the phone’s own settings.</string>
+    <string name="settings_flick_down">Flick down for the corner character</string>
     <string name="settings_flick_down_note">The digit printed on the top row, without waiting for a long press. It is already on the keycap, so nothing is hidden.</string>
     <string name="settings_flick_up">Flick a letter up for a capital</string>
     <string name="settings_flick_up_note">Faster than shift for a single letter.</string>
@@ -66,12 +66,12 @@
     <string name="settings_size_large">Tall</string>
     <string name="settings_appearance">Light or dark</string>
     <string name="settings_appearance_note">Following the phone is what almost everyone wants.</string>
-    <string name="settings_appearance_system">Follow phone</string>
+    <string name="settings_appearance_system">Phone</string>
     <string name="settings_appearance_light">Light</string>
     <string name="settings_appearance_dark">Dark</string>
     <string name="settings_split">Split keyboard</string>
     <string name="settings_split_note">Two halves under two thumbs. Automatic splits on a screen big enough in both directions — unfolded, or a tablet — and not on a phone lying on its side.</string>
-    <string name="settings_split_auto">Automatic</string>
+    <string name="settings_split_auto">Auto</string>
     <string name="settings_split_always">Always</string>
     <string name="settings_split_never">Never</string>
     <string name="settings_one_handed">One-handed</string>
@@ -82,7 +82,7 @@
     <string name="one_handed_full_width">Full width</string>
     <string name="one_handed_other_side">Move to the other side</string>
     <string name="settings_cursor_swipe">Swipe the space bar to move the cursor</string>
-    <string name="settings_delete_word">Swipe left on backspace for a whole word</string>
+    <string name="settings_delete_word">Swipe left on backspace for a word</string>
     <string name="settings_swipe_hide">Swipe down on the space bar to hide</string>
     <string name="settings_reset">Put every setting back to normal</string>
     <string name="shortcuts_title">Text shortcuts</string>
@@ -96,7 +96,7 @@
     <string name="shortcuts_rejected">A shortcut needs a single word and something different for it to stand for.</string>
     <string name="settings_high_contrast">High contrast</string>
     <string name="settings_high_contrast_note">Pushes the keys and their labels as far apart as they go, rather than the softer greys of the ordinary palette.</string>
-    <string name="settings_spell_check">Underline words it does not know</string>
+    <string name="settings_spell_check">Underline words it doesn’t know</string>
     <string name="settings_spell_check_note">The same squiggle the rest of the phone uses for a misspelling. Tap an underlined word and the editor offers what it thinks you meant. Never in a password field.</string>
     <string name="settings_clipboard">Clipboard history</string>
     <string name="settings_clipboard_note">Keeps what you copy so you can put it back without leaving the keyboard. Nothing from a password field, nothing an app marks sensitive, and forgotten after an hour unless you pin it. It stays on this phone: Keyd has no way to send anything anywhere.</string>
@@ -109,9 +109,9 @@
 
     <!-- The grouped settings screen: page names, rows that lead somewhere, and one footer per group. -->
     <string name="page_main">Keyd</string>
-    <string name="page_typing">Typing</string>
+    <string name="page_typing">Smart typing</string>
     <string name="page_keys">Keys and gestures</string>
-    <string name="page_look">Look and size</string>
+    <string name="page_look">Style and layout</string>
     <string name="page_feel">Sound and vibration</string>
     <string name="page_clipboard">Clipboard</string>
     <string name="page_privacy">Privacy</string>
@@ -180,7 +180,7 @@
     <string name="row_app">App</string>
     <string name="row_commit">Commit</string>
     <string name="whats_new_heading">What\'s New in Keyd</string>
-    <string name="fixes_and_improvements">Fixes and Improvements</string>
+    <string name="fixes_and_improvements">Fixes and improvements</string>
     <string name="header_version_history">VERSION HISTORY</string>
     <string name="action_continue">Continue</string>
     <string name="state_expanded">Expanded</string>
@@ -195,4 +195,59 @@
     <string name="test_kind_url">Web address</string>
     <string name="test_kind_email">Email</string>
     <string name="footer_test_box">Nothing typed here teaches Keyd a word. Pick a kind of field to get its keys and its return key, as the same kind of field in another app would.</string>
+
+    <!-- 0.4.0 Settings: search, the regrouped first page, segmented choices and the What's New sheet. -->
+    <string name="page_search">Search</string>
+    <string name="search_hint">Search settings</string>
+    <string name="search_note">Searches every setting’s name and what it does, on this phone.</string>
+    <plurals name="search_results">
+        <item quantity="one">%d RESULT</item>
+        <item quantity="other">%d RESULTS</item>
+    </plurals>
+    <string name="search_none">No settings match “%1$s”</string>
+    <string name="status_on">%1$s is on</string>
+    <string name="status_chosen">Chosen as your keyboard · Version %1$s</string>
+    <string name="status_line">%1$s · Version %2$s</string>
+    <string name="header_typing">TYPING</string>
+    <string name="header_look_and_feel">LOOK AND FEEL</string>
+    <string name="header_more">MORE</string>
+    <string name="row_typing_sub">Suggestions, fixes, emoji, capitals</string>
+    <string name="row_keys_sub">Swipes, holds, the toolbar</string>
+    <string name="row_look_sub">Key style, theme, height, split</string>
+    <string name="summary_vibration_off">No vibration</string>
+    <string name="summary_vibration_light">Light vibration</string>
+    <string name="summary_vibration_medium">Medium vibration</string>
+    <string name="summary_vibration_strong">Strong vibration</string>
+    <string name="summary_sound_on">sound on</string>
+    <string name="summary_sound_off">sound off</string>
+    <string name="summary_feel">%1$s, %2$s</string>
+    <string name="header_suggestions">SUGGESTIONS</string>
+    <string name="settings_suggestions_sub">As you type, and the next word</string>
+    <string name="header_corrections">CORRECTIONS</string>
+    <string name="header_capitals">CAPITALS AND SPACING</string>
+    <plurals name="value_fixes">
+        <item quantity="one">%d fix</item>
+        <item quantity="other">%d fixes</item>
+    </plurals>
+    <string name="header_gestures">GESTURES</string>
+    <string name="header_timing">TIMING</string>
+    <string name="segment_hold_delay">Touch and hold delay</string>
+    <string name="segment_backspace_speed">Backspace speed</string>
+    <string name="footer_timing">Phone uses Android’s own Touch and hold delay.</string>
+    <string name="header_theme">THEME</string>
+    <string name="header_size_layout">SIZE AND LAYOUT</string>
+    <string name="footer_layout">Auto splits the keyboard around the fold. One-handed is for screens too small to split.</string>
+    <string name="keyboard_preview">How the keyboard looks with these settings</string>
+    <string name="header_sound">SOUND</string>
+    <string name="header_vibration">VIBRATION</string>
+    <string name="segment_strength">Strength</string>
+    <string name="header_key_press">WHEN YOU PRESS A KEY</string>
+    <string name="segment_selected">Selected, %1$d of %2$d</string>
+    <string name="segment_not_selected">%1$d of %2$d</string>
+    <plurals name="more_features">
+        <item quantity="one">%d more new feature</item>
+        <item quantity="other">%d more new features</item>
+    </plurals>
+    <string name="row_earlier_versions">Earlier versions</string>
+    <string name="header_more_features">MORE NEW FEATURES</string>
 </resources>

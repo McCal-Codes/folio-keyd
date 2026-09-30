@@ -64,11 +64,14 @@ class SettingsScreenTest {
     @Test
     fun `the first page is short and leads to the rest`() {
         val a = open()
-        for (label in listOf("Languages", "Text shortcuts", "Suggestions", "Fix clear typos", "Typing",
-            "Keys and gestures", "Look and size", "Sound and vibration", "Clipboard", "Privacy")) {
+        for (label in listOf("Search settings", "Languages", "Text shortcuts", "TYPING", "Smart typing",
+            "Suggestions, fixes, emoji, capitals", "Keys and gestures", "Swipes, holds, the toolbar", "LOOK AND FEEL",
+            "Style and layout", "Key style, theme, height, split", "Sound and vibration", "Medium vibration, sound on",
+            "MORE", "Clipboard", "Privacy", "ABOUT", "What's new", "Report a problem", "Version")) {
             assertNotNull("missing $label", a.text(label))
         }
         // The detail lives a level down now, not in a paragraph under every switch.
+        assertNull(a.text("Suggestions"))
         assertNull(a.text("Number row"))
         assertNull(a.text("Flick a letter up for a capital"))
     }
@@ -77,7 +80,7 @@ class SettingsScreenTest {
     fun `every setting Keyd has is on some page`() {
         val a = open()
         val found = mutableSetOf<String>()
-        for (page in listOf("Typing", "Keys and gestures", "Look and size", "Sound and vibration", "Clipboard")) {
+        for (page in listOf("Smart typing", "Keys and gestures", "Style and layout", "Sound and vibration", "Clipboard")) {
             a.tap(page)
             found += a.all().filterIsInstance<TextView>().map { it.text.toString() }
             a.tap("‹ Keyd")
@@ -113,17 +116,18 @@ class SettingsScreenTest {
     fun `a change leaves the page where it is, so TalkBack stays on the row`() {
         val a = open()
         a.tap("Keys and gestures")
-        val before = a.text("Swipe left on backspace for a whole word")
-        a.tap("Swipe left on backspace for a whole word")
+        val before = a.text("Swipe left on backspace for a word")
+        a.tap("Swipe left on backspace for a word")
         a.tap(a.getString(R.string.settings_flick_up))
         // The same views, not a rebuilt page: rebuilding sent TalkBack's focus back to the top after every switch.
-        assertTrue(before === a.text("Swipe left on backspace for a whole word"))
+        assertTrue(before === a.text("Swipe left on backspace for a word"))
         assertFalse(a.stored().deleteWordSwipe)
     }
 
     @Test
     fun `turning suggestions off shows autocorrect going off with it`() {
         val a = open()
+        a.tap("Smart typing")
         a.tap("Suggestions")
         assertFalse(a.stored().suggestions)
         // Autocorrect is off in effect, and the switch says so - off and greyed - rather than showing on while
@@ -139,7 +143,7 @@ class SettingsScreenTest {
     @Test
     fun `a choice is a tick, and picking one saves it`() {
         val a = open()
-        a.tap("Look and size")
+        a.tap("Style and layout")
         a.tap(a.getString(R.string.settings_split_never))
         assertEquals(Split.NEVER, a.stored().split)
     }
@@ -147,9 +151,9 @@ class SettingsScreenTest {
     @Test
     fun `one-handed is picked on the look page, and saved`() {
         val a = open()
-        a.tap("Look and size")
-        assertNotNull(a.text("ONE-HANDED"))
-        assertNotNull(a.text("A narrower keyboard against one edge. Only on screens too small to split."))
+        a.tap("Style and layout")
+        assertNotNull(a.text("One-handed"))
+        assertNotNull(a.text("Auto splits the keyboard around the fold. One-handed is for screens too small to split."))
         a.tap(a.getString(R.string.settings_one_handed_right))
         assertEquals(OneHanded.RIGHT, a.stored().oneHanded)
         a.tap(a.getString(R.string.settings_one_handed_off))
@@ -202,7 +206,7 @@ class SettingsScreenTest {
         assertEquals(Settings.DEFAULT_TOOLBAR - ToolKey.VOICE - ToolKey.CURSOR_PAD, a.stored().toolbar)
         a.tap("‹ Keys and gestures")
         a.tap("‹ Keyd")
-        a.tap("Look and size")
+        a.tap("Style and layout")
         assertNotNull(a.text("KEY STYLE"))
         a.tap("Samsung")
         assertEquals(KeyStyle.SAMSUNG, a.stored().keyStyle)
@@ -325,8 +329,8 @@ class SettingsScreenTest {
     @Test
     fun `typing leads to what it fixes, which starts empty`() {
         val a = open()
-        a.tap("Typing")
-        assertNotNull(a.text("The words it corrects for you, and the ones you put back"))
+        a.tap("Smart typing")
+        assertNotNull(a.text("0 fixes"))
         a.tap("What it fixes")
         for (label in listOf(
             "Keyd keeps count of the fixes it makes and the ones you undo, on this phone only, and never from a password field.",
@@ -336,14 +340,14 @@ class SettingsScreenTest {
         assertTrue(a.switchIn("Offer these on the keyboard").isChecked)
         // Nothing to forget, so the red row can't be tapped.
         assertFalse((a.text("Forget these counts")!!.parent as View).isEnabled)
-        a.tap("‹ Typing")
+        a.tap("‹ Smart typing")
         assertNotNull(a.text("What it fixes"))
     }
 
     @Test
     fun `a fix shows its count, and a tap makes it a rule`() {
         val a = openWithCounts()
-        a.tap("Typing")
+        a.tap("Smart typing")
         a.tap("What it fixes")
         assertNotNull(a.text("teh → the"))
         assertNotNull(a.text("41 times"))
@@ -360,7 +364,7 @@ class SettingsScreenTest {
     @Test
     fun `a word put back can be kept with a tap`() {
         val a = openWithCounts()
-        a.tap("Typing")
+        a.tap("Smart typing")
         a.tap("What it fixes")
         assertNotNull(a.text("3 times"))
         a.tap("Folio")
@@ -372,7 +376,7 @@ class SettingsScreenTest {
     @Test
     fun `offers on the keyboard can be turned off`() {
         val a = open()
-        a.tap("Typing")
+        a.tap("Smart typing")
         a.tap("What it fixes")
         a.tap("Offer these on the keyboard")
         assertFalse(a.stored().offerRules)
@@ -381,7 +385,7 @@ class SettingsScreenTest {
     @Test
     fun `forgetting the counts asks first`() {
         val a = openWithCounts()
-        a.tap("Typing")
+        a.tap("Smart typing")
         a.tap("What it fixes")
         a.tap("Forget these counts")
         val dialog = ShadowDialog.getLatestDialog() as AlertDialog
@@ -449,7 +453,7 @@ class SettingsScreenTest {
         val a = openWithApps("com.termux", "com.whatsapp") {
             set("com.termux", AppProfiles.Profile(useUsual = false, autocorrect = false))
         }
-        a.tap("Typing")
+        a.tap("Smart typing")
         assertNotNull(a.text("1 app"))
         a.tap("Per-app settings")
         assertNotNull(a.text(a.getString(R.string.per_app_note)))
@@ -460,14 +464,14 @@ class SettingsScreenTest {
         // No app of that name is installed here, so the package name stands in for it.
         assertNotNull(a.text("com.termux"))
         assertNotNull(a.text("com.whatsapp"))
-        a.tap("‹ Typing")
+        a.tap("‹ Smart typing")
         assertNotNull(a.text("Per-app settings"))
     }
 
     @Test
     fun `with no apps yet the list says so`() {
         val a = openWithApps()
-        a.tap("Typing")
+        a.tap("Smart typing")
         assertNotNull(a.text("0 apps"))
         a.tap("Per-app settings")
         assertNotNull(a.text(a.getString(R.string.per_app_empty)))
@@ -478,7 +482,7 @@ class SettingsScreenTest {
     @Test
     fun `an app's own switches are greyed while it uses the usual settings`() {
         val a = openWithApps("com.termux")
-        a.tap("Typing")
+        a.tap("Smart typing")
         a.tap("Per-app settings")
         a.tap("com.termux")
         assertNotNull(a.text("IN COM.TERMUX"))
@@ -507,7 +511,7 @@ class SettingsScreenTest {
     @Test
     fun `fixing typos goes with suggestions on an app's page too`() {
         val a = openWithApps("com.termux") { set("com.termux", AppProfiles.Profile(useUsual = false)) }
-        a.tap("Typing")
+        a.tap("Smart typing")
         a.tap("Per-app settings")
         a.tap("com.termux")
         a.tap("Suggestions")
@@ -521,7 +525,7 @@ class SettingsScreenTest {
         val a = openWithApps("com.termux", "com.whatsapp") {
             set("com.termux", AppProfiles.Profile(useUsual = false, learn = false))
         }
-        a.tap("Typing")
+        a.tap("Smart typing")
         a.tap("Per-app settings")
         a.tap("com.termux")
         a.tap("Forget this app")
@@ -538,7 +542,7 @@ class SettingsScreenTest {
         prefs.edit().clear().commit()
         AppProfiles().apply { typedIn("com.termux", context.packageName) }.save(prefs)
         val controller = Robolectric.buildActivity(SettingsActivity::class.java).setup()
-        controller.get().tap("Typing")
+        controller.get().tap("Smart typing")
         controller.get().tap("Per-app settings")
         controller.get().tap("com.termux")
         controller.recreate()
@@ -562,11 +566,10 @@ class SettingsScreenTest {
     @Test
     fun `pure black is under the light and dark choice, and saves`() {
         val a = open()
-        a.tap("Look and size")
-        assertNotNull(a.text("Saves power on this screen"))
+        a.tap("Style and layout")
         val all = a.all().filterIsInstance<TextView>().map { it.text.toString() }
         assertTrue(all.indexOf(a.getString(R.string.settings_appearance_dark)) < all.indexOf("Pure black when dark"))
-        assertFalse(a.subtitledSwitch("Pure black when dark").isChecked)
+        assertFalse(a.switchIn("Pure black when dark").isChecked)
         a.tap("Pure black when dark")
         assertTrue(a.stored().pureBlack)
     }
