@@ -15,6 +15,7 @@ under Settings › About › What's New.
 - Backspace is quicker in browsers and never splits an emoji.
 - "wont's" is no longer in the English dictionary.
 - Punctuation typed right after a suggestion goes before its space: "hello. ", not "hello .".
+- The keyboard does less work when shift changes, when you scroll long clips, and on every suggestion.
 
 ## [0.3.1] - 2026-09-29
 
