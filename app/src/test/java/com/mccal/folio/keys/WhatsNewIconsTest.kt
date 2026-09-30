@@ -47,6 +47,14 @@ class WhatsNewIconsTest {
     }
 
     @Test
+    fun `0_4_1's features get their own pictures, not spares`() {
+        assertEquals(SettingsIcon.Glyph.MOVE, WhatsNew.glyph("Suggestions fill the width").first)
+        assertEquals(SettingsIcon.Glyph.TRASH, WhatsNew.glyph("Hold a suggestion to remove it").first)
+        assertEquals(SettingsIcon.Glyph.NOT_LEARNING, WhatsNew.glyph("Not learning here").first)
+        assertEquals(SettingsIcon.Glyph.PRIVACY, WhatsNew.glyph("Password manager in the strip").first)
+    }
+
+    @Test
     fun `the five features on any release's sheet never share a picture`() {
         val markdown = File("../CHANGELOG.md").takeIf { it.exists() } ?: File("CHANGELOG.md")
         val releases = WhatsNew.parse(markdown.readText())

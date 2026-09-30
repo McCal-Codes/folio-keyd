@@ -23,7 +23,7 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
     enum class Glyph {
         LANGUAGES, SHORTCUTS, TYPING, KEYS, LOOK, SOUND, CLIPBOARD, PRIVACY, WARNING,
         UNDO, EMOJI, TIP, SEARCH, BACKSPACE, SELECT, MOVE, SYMBOLS, TIMER,
-        WAND, HAND, PALETTE, SPARKLES, REPORT, APPS, CHOICES, LETTERS,
+        WAND, HAND, PALETTE, SPARKLES, REPORT, APPS, CHOICES, LETTERS, TRASH, NOT_LEARNING,
     }
 
     private val density = context.resources.displayMetrics.density
@@ -100,6 +100,8 @@ internal class SettingsIcon(context: Context, private val glyph: Glyph, private 
                 canvas.drawLine(cx, cy - g * .12f, cx, cy + g * .1f, stroke)
                 canvas.drawCircle(cx, cy + g * .24f, stroke.strokeWidth * .7f, fill)
             }
+            Glyph.TRASH -> Icons.trash(canvas, cx, cy, g, stroke)
+            Glyph.NOT_LEARNING -> Icons.eyeOff(canvas, cx, cy, g, stroke)
             Glyph.LETTERS -> {
                 // "Aa": the letters, as a keyboard's own layer key would say it.
                 fill.textSize = g * .78f
