@@ -4,6 +4,11 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.4.1] - Unreleased
+
+### Added
+- **Password manager in the strip:** logins and codes from your password manager show above the keys, drawn by the manager itself. Keyd places them and never sees what they say. It can be turned off in Smart typing.
+
 ## [0.4.0] - 2026-09-30
 
 ### Added
