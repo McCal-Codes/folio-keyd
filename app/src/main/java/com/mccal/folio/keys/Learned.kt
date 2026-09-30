@@ -33,6 +33,15 @@ class Learned(
     fun all(): List<String> = words.entries.sortedByDescending { it.value }.map { it.key }
 
     /**
+     * Every learned word, in no particular order, without copying them.
+     *
+     * For the strip, which looks through all of them on every letter and scores each on its own, so the order is
+     * no help there and sorting up to [LIMIT] words each time was the most expensive part of a lookup. A live view:
+     * read it and let go, rather than keeping it.
+     */
+    val unordered: Collection<String> get() = java.util.Collections.unmodifiableSet(words.keys)
+
+    /**
      * Notes that a word was typed, and says whether it was worth noting.
      *
      * Returns true when the store changed, so the caller knows whether there is anything new to save.

@@ -15,6 +15,15 @@ import org.junit.Test
 class LearnedTest {
 
     @Test
+    fun `the unordered view holds the same words as the sorted list`() {
+        val learned = Learned()
+        listOf("mccal", "keyd", "folio", "keyd").forEach { learned.learn(it) }
+        assertEquals(learned.all().toSet(), learned.unordered.toSet())
+        learned.clear()
+        assertTrue(learned.unordered.isEmpty())
+    }
+
+    @Test
     fun `a word typed once is remembered`() {
         val learned = Learned()
         learned.learn("mccal")
