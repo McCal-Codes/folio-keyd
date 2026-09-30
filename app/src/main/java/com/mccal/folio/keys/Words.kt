@@ -93,5 +93,6 @@ object Spoken {
         KeyKind.LANGUAGE -> key.label
         // Drawn with an ellipsis, since each opens something; read without one.
         KeyKind.OTHER_KEYBOARDS, KeyKind.LANGUAGE_SETTINGS -> key.label.removeSuffix("…")
+        KeyKind.FORGET -> key.label
     }
 }

@@ -75,6 +75,13 @@ interface Ime {
      */
     fun learn(word: String, corrected: Boolean) = learn(word)
 
+    /**
+     * A word held in the strip, and Don't suggest chosen: forgotten if it was learned, and never offered or used as a
+     * correction again if the dictionary has it. Allowed in any field, since it takes something away rather than
+     * keeping anything.
+     */
+    fun forget(word: String) {}
+
     /** Swap the letters for the emoji grid, or back again. */
     fun showEmoji(showing: Boolean)
 
@@ -775,6 +782,15 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
      * Only ever from a tap: nothing here runs on its own. What was typed is removed and the chosen word put in its
      * place, with the space that was going to follow it anyway.
      */
+    override fun onForgetSuggestion(word: String) {
+        ime.forget(word)
+        // The correction waiting for the space was worked out before this, and may be the very word just turned
+        // down. It goes now, and the strip is asked for again; the service forgets first, since both queue up on
+        // its one thread in order.
+        if (verdict?.correction.equals(word, ignoreCase = true)) verdict = verdict?.copy(correction = null)
+        wordChanged()
+    }
+
     override fun onSuggestion(chosen: String) {
         undo = null
         weakSpace = null

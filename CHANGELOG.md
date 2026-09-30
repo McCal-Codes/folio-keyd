@@ -4,6 +4,11 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.4.1] - Unreleased
+
+### Added
+- **Hold a suggestion to remove it:** hold a word in the strip and choose Don’t suggest. A word Keyd learned is forgotten; a dictionary word is never offered or used as a correction again, though you can still type it.
+
 ## [0.4.0] - 2026-09-30
 
 ### Added

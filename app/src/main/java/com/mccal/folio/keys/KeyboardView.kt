@@ -70,6 +70,9 @@ class KeyboardView(context: Context) : View(context) {
         /** A word from the strip, tapped. */
         fun onSuggestion(word: String)
 
+        /** A word from the strip, held, and Don't suggest chosen from the menu that opens under it. */
+        fun onForgetSuggestion(word: String) {}
+
         /** The emoji at the end of the strip, tapped: it goes in after the word. */
         fun onSuggestedEmoji(emoji: String) {}
         fun onHide()
@@ -138,6 +141,8 @@ class KeyboardView(context: Context) : View(context) {
         set(value) {
             if (field == value) return
             field = value
+            // The menu is about one word in one strip; a new strip is the next letter typed, or that word gone.
+            closeForgetMenu()
             tools = placeToolbar()
             keyNodes.invalidateRoot()
             invalidate()
@@ -408,6 +413,7 @@ class KeyboardView(context: Context) : View(context) {
         closePopup()
         closeStyleMenu()
         closeLanguageMenu()
+        closeForgetMenu()
         pill = null
         repeat.removeCallbacks(pillFade)
         for (press in presses.values) cancelHold(press)
@@ -428,6 +434,7 @@ class KeyboardView(context: Context) : View(context) {
         closePopup()
         closeStyleMenu()
         closeLanguageMenu()
+        closeForgetMenu()
         repeat.removeCallbacks(pillFade)
         for (press in presses.values) cancelHold(press)
         presses.clear()
@@ -929,6 +936,7 @@ class KeyboardView(context: Context) : View(context) {
         }
         drawStyleMenu(canvas)
         drawLanguageMenu(canvas)
+        drawForgetMenu(canvas)
         drawPreview(canvas)
         drawPopup(canvas)
         drawPill(canvas)
@@ -1345,6 +1353,111 @@ class KeyboardView(context: Context) : View(context) {
         text.textAlign = Paint.Align.CENTER
     }
 
+    // ---- holding a word in the strip ----------------------------------------------------------------------------
+
+    /**
+     * Don't suggest, in a small menu just under the word that was held.
+     *
+     * Held open, [opener] is the finger that held the word: sliding it down onto the menu and letting go takes it, as
+     * the globe's list works. Let go anywhere else and the menu stays open for a tap; any other touch closes it.
+     * [lit] is whether the opener is over it now.
+     */
+    private class ForgetMenu(val item: Placement) {
+        var opener: Press? = null
+        var lit = false
+    }
+
+    private var forgetMenu: ForgetMenu? = null
+
+    /** The menu's one item while it is open, and nothing when it is closed. */
+    internal val forgetMenuItems: List<Placement> get() = listOfNotNull(forgetMenu?.item)
+
+    /**
+     * Whether holding this key offers Don't suggest: any word in the strip, except what was typed. That one is
+     * already in the text, so there is nothing to stop suggesting; the emoji and the mic are not words at all.
+     */
+    private fun forgettable(placement: Placement): Boolean =
+        placement.key.kind == KeyKind.SUGGESTION && !(typedFirst && placement === tools.firstOrNull())
+
+    private fun openForgetMenu(on: Placement, opener: Press?) {
+        closePopup()
+        closeStyleMenu()
+        closeLanguageMenu()
+        val word = on.key.output
+        val label = context.getString(R.string.forget_suggestion, word)
+        text.textSize = MENU_TEXT_DP * dp
+        sizedAt = -1f
+        // Wide enough for the trash can and the words, never wider than the keys; a long word is cut short in the
+        // drawing, and read whole by a screen reader.
+        val across = min(
+            keysRight - keysLeft,
+            text.measureText(label) + FORGET_ICON_DP * dp + 3 * MENU_TEXT_PAD_DP * dp,
+        )
+        val centre = (on.box.left + on.box.right) / 2
+        val left = (centre - across / 2).coerceIn(keysLeft, max(keysLeft, keysRight - across))
+        // Under the strip, over the top row of keys, a full fingertip tall.
+        val top = on.box.bottom + POPUP_LIFT_DP * dp
+        val item = Placement(Key(label, KeyKind.FORGET, output = word), Box(left, top, left + across, top + MENU_ROW_DP * dp))
+        forgetMenu = ForgetMenu(item).also { it.opener = opener }
+        keyNodes.invalidateRoot()
+        invalidate()
+    }
+
+    private fun closeForgetMenu() {
+        if (forgetMenu == null) return
+        forgetMenu = null
+        keyNodes.invalidateRoot()
+        invalidate()
+    }
+
+    /**
+     * The word goes from the strip at once, rather than when the service next answers. If what is left is only
+     * what was typed, the strip has nothing to offer and the toolbar comes back, as it does for a word with no
+     * suggestions at all.
+     */
+    private fun dropSuggestion(word: String) {
+        val left = suggestions.filter { it != word }
+        suggestions = if (typedFirst && left.size <= 1 && suggestedEmoji == null) emptyList() else left
+    }
+
+    private fun drawForgetMenu(canvas: Canvas) {
+        val menu = forgetMenu ?: return
+        val box = menu.item.box
+        val radius = theme.keyRadiusDp * dp
+        scratch.set(box.left, box.top, box.right, box.bottom)
+        fill.color = if (menu.lit || isHeld(menu.item)) blend(theme.preview, theme.pressTint) else theme.preview
+        canvas.drawRoundRect(scratch, radius, radius, fill)
+        val cy = (box.top + box.bottom) / 2
+        val icon = FORGET_ICON_DP * dp
+        val iconX = box.left + MENU_TEXT_PAD_DP * dp + icon / 2
+        stroke.color = destructive()
+        stroke.strokeWidth = max(1.5f * dp, icon * 0.09f)
+        Icons.trash(canvas, iconX, cy, icon, stroke)
+        text.textSize = MENU_TEXT_DP * dp
+        sizedAt = -1f
+        val start = iconX + icon / 2 + MENU_TEXT_PAD_DP * dp * 0.7f
+        val room = box.right - MENU_TEXT_PAD_DP * dp - start
+        var label = menu.item.key.label
+        if (text.measureText(label) > room) {
+            val fits = text.breakText(label, true, max(0f, room - text.measureText("…")), null)
+            label = label.take(fits).trimEnd() + "…"
+        }
+        text.color = theme.label
+        text.textAlign = Paint.Align.LEFT
+        canvas.drawText(label, start, cy - (text.descent() + text.ascent()) / 2, text)
+        text.textAlign = Paint.Align.CENTER
+    }
+
+    /**
+     * The red of a delete, as iOS draws it: lighter on a dark menu, where the usual red is too dim to read, and the
+     * usual one on a light menu. High contrast keeps the label's own color, the one it has already checked.
+     */
+    private fun destructive(): Int = when {
+        settings.highContrast -> theme.label
+        Color.luminance(theme.preview) < 0.5f -> DESTRUCTIVE_ON_DARK
+        else -> DESTRUCTIVE_ON_LIGHT
+    }
+
     // ---- the pill a two-finger swipe leaves ----------------------------------------------------------------------
 
     /** "Undo Typing" or "Redo Typing", over the toolbar until [pillUntil], fading for the last part of that. */
@@ -1468,7 +1581,8 @@ class KeyboardView(context: Context) : View(context) {
      * them, and the list sits over the keys.
      */
     private fun keyAt(x: Float, y: Float): Placement? =
-        languageMenu?.items?.firstOrNull { it.box.contains(x, y) }
+        forgetMenu?.item?.takeIf { it.box.contains(x, y) }
+            ?: languageMenu?.items?.firstOrNull { it.box.contains(x, y) }
             ?: rail.firstOrNull { it.box.contains(x, y) } ?: styleMenu?.choices?.firstOrNull { it.box.contains(x, y) }
             ?: nearest(placedKeys, x, y) ?: nearest(tools, x, y) ?: nearest(rail, x, y)
 
@@ -1518,6 +1632,7 @@ class KeyboardView(context: Context) : View(context) {
             MotionEvent.ACTION_CANCEL -> {
                 closePopup()
                 languageMenu?.opener = null
+                forgetMenu?.opener = null
                 for (press in presses.values) cancelHold(press)
                 presses.clear()
                 stopRepeat()
@@ -1529,6 +1644,15 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun down(pointer: Int, x: Float, y: Float) {
         if (popup != null && presses.isEmpty()) closePopup()   // left open by a press that never ended
+        forgetMenu?.let { menu ->
+            // The same as the globe's list: the menu is pressed like a key, and a touch anywhere else only closes it,
+            // since a finger reaching for Don't suggest and missing it did not mean the key underneath.
+            if (menu.opener != null) return
+            if (!menu.item.box.contains(x, y)) {
+                closeForgetMenu()
+                return
+            }
+        }
         languageMenu?.let { menu ->
             // The list is open for a tap: one of its rows is pressed like a key, and anywhere else only closes it.
             // Nothing else is typed, since a finger reaching for a row and missing it meant the list, not the key.
@@ -1596,6 +1720,17 @@ class KeyboardView(context: Context) : View(context) {
      * has set for touch and hold in accessibility.
      */
     private fun startHold(press: Press) {
+        if (forgettable(press.origin)) {
+            // Tapped, a word goes in; held, the menu to stop it being suggested opens under it.
+            val task = Runnable {
+                Haptics.feel(this, settings.vibration, Haptics.Touch.HOLD)
+                press.handled = true
+                openForgetMenu(press.origin, press)
+            }
+            press.hold = task
+            repeat.postDelayed(task, settings.holdDelay.millis)
+            return
+        }
         if (press.origin.key.kind == KeyKind.GLOBE) {
             // Tapped, the globe still goes to the next keyboard; held, it lists the languages.
             val task = Runnable {
@@ -1707,6 +1842,15 @@ class KeyboardView(context: Context) : View(context) {
         press.x = x
         press.y = y
         val dy = y - press.downY
+        forgetMenu?.let { menu ->
+            if (menu.opener !== press) return@let
+            val over = menu.item.box.contains(x, y)
+            if (over != menu.lit) {
+                menu.lit = over
+                invalidate()
+            }
+            return
+        }
         languageMenu?.let { menu ->
             if (menu.opener !== press) return@let
             val over = menu.items.indexOfFirst { it.box.contains(x, y) }
@@ -1885,6 +2029,17 @@ class KeyboardView(context: Context) : View(context) {
     private fun up(pointer: Int, x: Float, y: Float): Boolean {
         val press = presses.remove(pointer) ?: return false
         cancelHold(press)
+        forgetMenu?.let { menu ->
+            if (menu.opener !== press) return@let
+            // Let go on it, it is taken; anywhere else, it stays for a tap.
+            menu.opener = null
+            val taken = menu.lit
+            menu.lit = false
+            invalidate()
+            if (!taken) return false
+            dispatch(menu.item.key)
+            return true
+        }
         languageMenu?.let { menu ->
             if (menu.opener !== press) return@let
             // Let go on a row, it is taken; anywhere else, the list stays for a tap.
@@ -1956,6 +2111,7 @@ class KeyboardView(context: Context) : View(context) {
         // Any key closes the Style menu. Only a choice in it, or Style itself, has more to do with it.
         if (key.kind != KeyKind.STYLE && key.kind != KeyKind.STYLE_CHOICE) closeStyleMenu()
         closeLanguageMenu()
+        closeForgetMenu()
         when (key.kind) {
             KeyKind.CHAR, KeyKind.SPACE -> l.onText(key.output)
             KeyKind.BACKSPACE -> l.onBackspace()
@@ -1996,6 +2152,10 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.LANGUAGE -> l.onLanguage(Language.valueOf(key.output))
             KeyKind.OTHER_KEYBOARDS -> l.onOtherKeyboards()
             KeyKind.LANGUAGE_SETTINGS -> l.onLanguageSettings()
+            KeyKind.FORGET -> {
+                dropSuggestion(key.output)
+                l.onForgetSuggestion(key.output)
+            }
         }
     }
 
@@ -2019,18 +2179,22 @@ class KeyboardView(context: Context) : View(context) {
      * open, a held key's row, then the rail.
      */
     private fun nodes(): List<Placement> =
-        placedKeys + tools + styleMenuItems + languageMenuItems + popup?.placements.orEmpty() + rail
+        placedKeys + tools + styleMenuItems + languageMenuItems + popup?.placements.orEmpty() + rail + forgetMenuItems
 
     private fun nodeAt(id: Int): Placement? = nodes().getOrNull(id)
 
     /** What sits over the keys while it is open, and hides the keys under it from a screen reader. */
-    private fun overlays(): List<Box> = listOfNotNull(styleMenu?.panel, languageMenu?.panel)
+    private fun overlays(): List<Box> = listOfNotNull(styleMenu?.panel, languageMenu?.panel, forgetMenu?.item?.box)
 
     /**
      * Holding a key, for a screen reader: the same row or list a finger gets, left open to be explored and tapped,
      * or the one thing a key with a single alternate gives. False for a key that holding does nothing on.
      */
     private fun holdFor(placement: Placement): Boolean {
+        if (forgettable(placement)) {
+            openForgetMenu(placement, null)
+            return true
+        }
         if (placement.key.kind == KeyKind.GLOBE) {
             openLanguageMenu(placement, null)
             return true
@@ -2046,7 +2210,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun holds(placement: Placement): Boolean =
-        placement.key.kind == KeyKind.GLOBE || (onKeys(placement) && holdItems(placement.key).isNotEmpty())
+        placement.key.kind == KeyKind.GLOBE || forgettable(placement) || (onKeys(placement) && holdItems(placement.key).isNotEmpty())
 
     /**
      * The keys are drawn, not laid out, so a screen reader would find one blank rectangle. Each key is published as a
@@ -2056,7 +2220,7 @@ class KeyboardView(context: Context) : View(context) {
         override fun getVirtualViewAt(x: Float, y: Float): Int {
             val all = nodes()
             // A held key's row and the menus sit over the keys, so under them only they are there to be found.
-            val over = popup?.placements.orEmpty() + languageMenuItems + styleMenuItems
+            val over = forgetMenuItems + popup?.placements.orEmpty() + languageMenuItems + styleMenuItems
             over.firstOrNull { it.box.contains(x, y) }?.let { found -> return all.indexOfFirst { it === found } }
             if (overlays().any { it.contains(x, y) }) return HOST_ID
             val index = all.indexOfFirst { it.box.contains(x, y) }
@@ -2089,7 +2253,14 @@ class KeyboardView(context: Context) : View(context) {
                 node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
                 // Whatever a held finger gets - accents, the period's symbols, the language list - a double tap
                 // and hold gets too.
-                if (holds(placement)) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
+                if (forgettable(placement)) {
+                    // Said as what it does, since holding a word is not something a strip usually offers.
+                    node.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat(
+                        AccessibilityNodeInfo.ACTION_LONG_CLICK, context.getString(R.string.forget_suggestion_action),
+                    ))
+                } else if (holds(placement)) {
+                    node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
+                }
             }
             if (placement.key.kind == KeyKind.LANGUAGE) {
                 node.isCheckable = true
@@ -2174,5 +2345,8 @@ class KeyboardView(context: Context) : View(context) {
         const val PILL_MS = 1500L
         const val PILL_FADE_MS = 250L
         const val PILL_PAD_DP = 12f
+        const val FORGET_ICON_DP = 18f
+        const val DESTRUCTIVE_ON_DARK = 0xFFFF6961.toInt()
+        const val DESTRUCTIVE_ON_LIGHT = 0xFFD70015.toInt()
     }
 }

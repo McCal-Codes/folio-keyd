@@ -1852,9 +1852,13 @@ class SettingsActivity : Activity() {
         header(column, getString(R.string.header_what_it_knows))
         val words = Learned.decode(prefs.getString(LEARNED, null)).size
         val counted = Insights.decode(prefs.getString(INSIGHTS, null)).size
+        // Words turned down in the strip go with Forget too: they are as much about how someone writes.
+        val turnedDown = NeverSuggest.decode(prefs.getString(NeverSuggest.KEY, null)).size
         group(column) {
             value(it, getString(R.string.row_learned), words.toString())
-            action(it, getString(R.string.row_forget), enabled = words > 0 || counted > 0) { confirmForget(words) }
+            action(it, getString(R.string.row_forget), enabled = words > 0 || counted > 0 || turnedDown > 0) {
+                confirmForget(words, counted)
+            }
         }
         // The counts have their own Forget beside the lists they fill; Forget above takes them too, since the fixes
         // are words someone typed just as much as the learned ones are.
@@ -1910,6 +1914,7 @@ class SettingsActivity : Activity() {
     private fun exportTo(uri: android.net.Uri) {
         val text = Backup.export(
             Learned.decode(prefs.getString(LEARNED, null)), Shortcuts.decode(prefs.getString(SHORTCUTS, null)),
+            NeverSuggest.decode(prefs.getString(NeverSuggest.KEY, null)),
         )
         val saved = runCatching {
             contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray(Charsets.UTF_8)) }
@@ -1934,6 +1939,7 @@ class SettingsActivity : Activity() {
         }.getOrNull() ?: return toast(getString(R.string.import_failed))
         val result = Backup.merge(
             text, Learned.decode(prefs.getString(LEARNED, null)), Shortcuts.decode(prefs.getString(SHORTCUTS, null)),
+            NeverSuggest.decode(prefs.getString(NeverSuggest.KEY, null)),
         )
         when (result) {
             is Backup.Result.Rejected -> toast(getString(when (result.reason) {
@@ -1945,6 +1951,7 @@ class SettingsActivity : Activity() {
                 prefs.edit()
                     .putString(LEARNED, result.learned.encode())
                     .putString(SHORTCUTS, result.shortcuts.encode())
+                    .putString(NeverSuggest.KEY, result.never.encode())
                     .apply()
                 toast(getString(
                     R.string.import_added,
@@ -2029,16 +2036,19 @@ class SettingsActivity : Activity() {
 
     // ---- Things that can't be undone ask first -------------------------------------------------------------------
 
-    private fun confirmForget(words: Int) {
+    private fun confirmForget(words: Int, counted: Int) {
         AlertDialog.Builder(this)
             .setTitle(
-                if (words > 0) resources.getQuantityString(R.plurals.confirm_forget, words, words)
-                else getString(R.string.confirm_forget_counts),
+                when {
+                    words > 0 -> resources.getQuantityString(R.plurals.confirm_forget, words, words)
+                    counted > 0 -> getString(R.string.confirm_forget_counts)
+                    else -> getString(R.string.confirm_forget_turned_down)
+                },
             )
             .setMessage(R.string.confirm_forget_detail)
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_forget) { _, _ ->
-                prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).apply()
+                prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).remove(NeverSuggest.KEY).apply()
                 render(keepScroll = true)
             }
             .show()

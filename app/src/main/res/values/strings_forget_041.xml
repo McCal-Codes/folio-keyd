@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Holding a word in the strip: the one item in the menu that opens under it. -->
+    <string name="forget_suggestion">Don’t suggest “%1$s”</string>
+    <!-- What a screen reader says holding a word in the strip does. -->
+    <string name="forget_suggestion_action">Don’t suggest</string>
+    <string name="confirm_forget_turned_down">Suggest the words you turned down again?</string>
+</resources>

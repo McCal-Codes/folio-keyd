@@ -4,7 +4,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 /**
- * Learned words and text shortcuts in one file, for moving to a new phone.
+ * Learned words, text shortcuts and the words turned down in the strip in one file, for moving to a new phone.
  *
  * Keyd has no account and no Internet, so there is nowhere for these to sync to. A file the person saves and opens
  * themselves, through Android's own file picker, needs neither a permission nor a server, and they can see where it
@@ -21,7 +21,13 @@ internal object Backup {
     /** What an import did, or why it did nothing. */
     sealed class Result {
         /** The merged stores, ready to save, and how many words and shortcuts are new. */
-        data class Added(val learned: Learned, val shortcuts: Shortcuts, val words: Int, val shortcutsAdded: Int) : Result()
+        data class Added(
+            val learned: Learned,
+            val shortcuts: Shortcuts,
+            val words: Int,
+            val shortcutsAdded: Int,
+            val never: NeverSuggest = NeverSuggest(),
+        ) : Result()
 
         data class Rejected(val reason: Reason) : Result()
     }
@@ -34,7 +40,7 @@ internal object Backup {
         NEWER,
     }
 
-    fun export(learned: Learned, shortcuts: Shortcuts): String {
+    fun export(learned: Learned, shortcuts: Shortcuts, never: NeverSuggest = NeverSuggest()): String {
         val words = JSONObject()
         learned.all().forEach { words.put(it, learned.count(it)) }
         val phrases = JSONObject()
@@ -44,10 +50,12 @@ internal object Backup {
             .put("version", VERSION)
             .put("words", words)
             .put("shortcuts", phrases)
+            // Added in 0.4.1 without a new version: a Keyd before it reads the file as before and skips this.
+            .put("neverSuggest", org.json.JSONArray(never.all()))
             .toString(2)
     }
 
-    fun merge(json: String, learned: Learned, shortcuts: Shortcuts): Result {
+    fun merge(json: String, learned: Learned, shortcuts: Shortcuts, never: NeverSuggest = NeverSuggest()): Result {
         val root = try {
             JSONObject(json)
         } catch (_: JSONException) {
@@ -89,8 +97,19 @@ internal object Backup {
                 if (mergedShortcuts.add(trigger, phrase)) newShortcuts++
             }
         }
-        return Result.Added(mergedWords, mergedShortcuts, newWords, newShortcuts)
+        // Only ever added to, like the rest: a word turned down on either phone stays turned down.
+        val mergedNever = NeverSuggest.decode(never.encode())
+        root.optJSONArray("neverSuggest")?.let { list ->
+            for (index in 0 until list.length()) {
+                val word = list.optString(index)
+                if (word.length <= MAX_WORD && word.none { it.isWhitespace() }) mergedNever.add(word)
+            }
+        }
+        return Result.Added(mergedWords, mergedShortcuts, newWords, newShortcuts, mergedNever)
     }
+
+    /** Longer than any word the strip would offer: anything past it came from somewhere else. */
+    private const val MAX_WORD = 64
 
     /** The name the file picker suggests: `keyd-backup-2026-09-26.json`. */
     fun fileName(date: java.time.LocalDate): String = "keyd-backup-$date.json"

@@ -27,6 +27,8 @@ enum class KeyKind {
     TIP, TIP_DONE,
     /** The list holding the globe opens: one of Keyd's languages, then Android's picker and Keyd's language page. */
     LANGUAGE, OTHER_KEYBOARDS, LANGUAGE_SETTINGS,
+    /** The menu holding a word in the strip opens: Don't suggest it. Its output is the word. */
+    FORGET,
 }
 
 /**
