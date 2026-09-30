@@ -179,6 +179,41 @@ class ServiceStateTest {
         assertFalse(keys.feedback.isListening)
     }
 
+    @Test
+    fun `an open row of tones does not come back after a hide or in a new field`() {
+        val service = service()
+        val root = service.onCreateInputView() as ViewGroup
+        service.showEmoji(true)
+        val panel = root.child<EmojiPanel>()
+        fun holdThumbsUp() {
+            panel.recents = listOf("👍")
+            panel.selectCategory(0)
+            val width = (411 * panel.resources.displayMetrics.density).toInt()
+            panel.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+            )
+            panel.layout(0, 0, panel.measuredWidth, panel.measuredHeight)
+            val box = panel.cellBox(0)
+            val down = android.view.MotionEvent.obtain(
+                0, 0, android.view.MotionEvent.ACTION_DOWN, (box.left + box.right) / 2, (box.top + box.bottom) / 2, 0,
+            )
+            panel.onTouchEvent(down)
+            down.recycle()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1000))
+            assertEquals(6, panel.toneItems.size)
+        }
+        holdThumbsUp()
+        service.onWindowHidden()
+        service.showEmoji(true)
+        assertTrue("after a hide", panel.toneItems.isEmpty())
+        holdThumbsUp()
+        service.onFinishInput()
+        service.onStartInputView(field("com.chat"), false)
+        service.showEmoji(true)
+        assertTrue("in a new field", panel.toneItems.isEmpty())
+    }
+
     private companion object {
         const val KEY_INSIGHTS = "typingInsights"
     }

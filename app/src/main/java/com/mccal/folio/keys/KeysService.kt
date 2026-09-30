@@ -845,7 +845,7 @@ class KeysService : InputMethodService(), Ime {
         emoji?.visibility = if (showing) View.VISIBLE else View.GONE
         // Back to the grid or to the letters, the search closes either way.
         showEmojiSearch(false)
-        if (showing) emoji?.opened()
+        if (showing) emoji?.opened() else emoji?.closeTones()
     }
 
     /**
@@ -1113,6 +1113,7 @@ class KeysService : InputMethodService(), Ime {
         // Chips belong to the field they were offered for. Android offers them again when one is focused.
         clearChips()
         forgetCursor()
+        emoji?.closeTones()
         main.removeCallbacks(countSelection)
         saveCountsNow()
     }
@@ -1136,6 +1137,7 @@ class KeysService : InputMethodService(), Ime {
         // another hides the keyboard would otherwise keep deleting out of sight, and a long-press popup would wait.
         keyboard?.forgetTouches()
         emojiSearch?.forgetTouches()
+        emoji?.closeTones()
         DevLog.flush(this)
     }
 

@@ -437,6 +437,19 @@ class EmojiPanel(context: Context) : View(context) {
         invalidate()
     }
 
+    /**
+     * Puts away the row of tones and any hold that was about to open one. The row belongs to the press that opened it,
+     * so it does not wait for the panel to come back after a hide or a new field.
+     */
+    fun closeTones() {
+        timer.removeCallbacks(hold)
+        pickerFromThisPress = false
+        if (picker == null) return
+        picker = null
+        cells.invalidateRoot()
+        invalidate()
+    }
+
     /** Types [tone] of the open row's emoji, and keeps it as that emoji's tone from now on. */
     private fun pick(open: TonePicker, tone: Int) {
         picker = null
