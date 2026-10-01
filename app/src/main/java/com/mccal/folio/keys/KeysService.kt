@@ -1,6 +1,7 @@
 package com.mccal.folio.keys
 
 import android.content.Context
+import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -8,7 +9,10 @@ import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.util.Size
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InlineSuggestionsRequest
+import android.view.inputmethod.InlineSuggestionsResponse
 import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -32,6 +36,13 @@ class KeysService : InputMethodService(), Ime {
     private var clipboard: ClipboardPanel? = null
     private var pad: CursorPad? = null
     private var root: View? = null
+    private var chips: AutofillStrip? = null
+
+    /**
+     * Counts the password manager's answers, so views still being drawn for an older one, or for a field already
+     * left, are dropped when they arrive instead of showing over the wrong field.
+     */
+    private var autofillAnswer = 0
 
     /**
      * Whether the editor has told us the cursor is behind the keys, confirmed over [CursorWatch.SETTLE_MS].
@@ -86,6 +97,7 @@ class KeysService : InputMethodService(), Ime {
     private var learned: Learned? = null
     private var shortcuts: Shortcuts? = null
     private var insights: Insights? = null
+    private var never: NeverSuggest? = null
 
     /**
      * Counted but not yet saved. A fix is counted on every corrected word, and writing the whole preferences file for
@@ -108,6 +120,13 @@ class KeysService : InputMethodService(), Ime {
     /** Which language's emoji names the search has. Only touched on the suggestion thread, like [loadedFor]. */
     private var emojiNamesFor: Language? = null
     private var emojiNames: EmojiSearch? = null
+
+    /**
+     * Which tone each emoji is typed in: the Settings default, and each one picked by holding it. Read on the
+     * suggestion thread for the strip's emoji, so replaced whole rather than changed.
+     */
+    @Volatile
+    private var skinTones = SkinTones.Choices()
     private var proximityFor: List<Placement>? = null
 
     /**
@@ -152,6 +171,11 @@ class KeysService : InputMethodService(), Ime {
         if (shortcuts == null || rules != written[SHORTCUTS]) {
             shortcuts = Shortcuts.decode(rules)
             written[SHORTCUTS] = rules
+        }
+        val turnedDown = prefs.getString(NeverSuggest.KEY, null)
+        if (never == null || turnedDown != written[NeverSuggest.KEY]) {
+            never = NeverSuggest.decode(turnedDown)
+            written[NeverSuggest.KEY] = turnedDown
         }
         val counts = prefs.getString(INSIGHTS, null)
         if (insights == null || counts != written[INSIGHTS]) {
@@ -340,7 +364,7 @@ class KeysService : InputMethodService(), Ime {
             val shift = actions.shift
             background.postDelayed(
                 {
-                    val found = runCatching { Suggestions.predict(previous, nextWords, shift) }
+                    val found = runCatching { Suggestions.predict(previous, nextWords, shift, never) }
                         .onFailure { DevLog.errorOnce(this, "Suggestions.predict", it) }.getOrDefault(emptyList())
                     main.post {
                         if (mine != asked) return@post
@@ -375,12 +399,12 @@ class KeysService : InputMethodService(), Ime {
                     proximityFor = keys
                 }
                 val found = runCatching {
-                    Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions, previous, nextWords)
+                    Suggestions.forWord(word, words, proximity, learned, shortcuts, contractions, previous, nextWords, never)
                 }.onFailure { DevLog.errorOnce(this, "Suggestions.forWord", it) }.getOrDefault(emptyList())
                 val fix = runCatching {
                     Suggestions.correction(
                         word, words, proximity, learned, contractions, previous,
-                        compounds = language == Language.GERMAN, next = nextWords,
+                        compounds = language == Language.GERMAN, next = nextWords, never = never,
                     )
                 }.onFailure { DevLog.errorOnce(this, "Suggestions.correction", it) }.getOrNull()
                 // "Never heard of it" is a different question from "here is what you probably meant", and a word
@@ -396,7 +420,7 @@ class KeysService : InputMethodService(), Ime {
                 val names = emojiNames?.takeIf { emojiNamesFor == language }
                 if (emojiOn && names == null) background.post { loadEmojiNames(language) }
                 val emoji = if (!emojiOn) null else runCatching {
-                    Suggestions.emoji(word, words, names)?.let { SuggestedEmoji(it, names?.nameOf(it) ?: it) }
+                    Suggestions.emoji(word, words, names)?.let { SuggestedEmoji(skinTones.apply(it), names?.nameOf(it) ?: it) }
                 }.onFailure { DevLog.errorOnce(this, "Suggestions.emoji", it) }.getOrNull()
                 // Timings and counts only: the word itself never goes in the log.
                 val took = android.os.SystemClock.elapsedRealtime() - started
@@ -560,6 +584,25 @@ class KeysService : InputMethodService(), Ime {
         }
     }
 
+    /**
+     * A word held in the strip and turned down. A learned word is forgotten; one the dictionary has, or anything else
+     * the strip found it through, goes on the never-suggest list, since there is nothing to take it out of.
+     */
+    override fun forget(word: String) {
+        background.post {
+            sync()
+            val lower = word.lowercase()
+            val store = learned ?: Learned().also { learned = it }
+            val wasLearned = store.count(lower) > 0
+            if (store.forget(lower)) save(store)
+            val known = dictionary?.let { Suggestions.known(lower, it) } ?: true
+            if (!wasLearned || known) {
+                val list = never ?: NeverSuggest().also { never = it }
+                if (list.add(lower)) save(NeverSuggest.KEY to list.encode())
+            }
+        }
+    }
+
     /** Learned words and their sightings, saved together so the two never disagree. */
     private fun save(store: Learned) = save(LEARNED to store.encode(), SEEN to store.encodeSeen())
 
@@ -567,13 +610,15 @@ class KeysService : InputMethodService(), Ime {
     fun forgetLearned() {
         background.post {
             learned?.clear()
+            never = NeverSuggest()
             insights = Insights()
             insightsDirty = false
             background.removeCallbacks(saveInsights)
             written[LEARNED] = null
             written[INSIGHTS] = null
             written[SEEN] = null
-            prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).apply()
+            written[NeverSuggest.KEY] = null
+            prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).remove(NeverSuggest.KEY).apply()
         }
     }
 
@@ -599,6 +644,8 @@ class KeysService : InputMethodService(), Ime {
                 override fun onLetters() = showEmoji(false)
 
                 override fun onSearch() = showEmojiSearch(true)
+
+                override fun onSkinTone(emoji: String, tone: Int) = pickTone(emoji, tone)
             }
         }
         val finder = EmojiSearchPanel(this).also {
@@ -613,6 +660,8 @@ class KeysService : InputMethodService(), Ime {
                 override fun onBack() = showEmoji(true)
 
                 override fun onHide() = requestHideSelf(0)
+
+                override fun onSkinTone(emoji: String, tone: Int) = pickTone(emoji, tone)
             }
         }
         val clips = ClipboardPanel(this).also {
@@ -682,7 +731,8 @@ class KeysService : InputMethodService(), Ime {
         clipboard = clips
         pad = arrows
         actions.refresh()
-        return KeyboardFrame(this, keys).also { root = it }.apply {
+        val chipRow = AutofillStrip(this).also { chips = it }
+        return KeyboardFrame(this, keys, chipRow).also { root = it }.apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             )
@@ -691,10 +741,95 @@ class KeysService : InputMethodService(), Ime {
             addView(finder)
             addView(clips)
             addView(arrows)
+            // Last, so it is on top of the strip and a chip gets its tap before the keyboard does. Zero high as far as the
+            // frame's own measuring goes: with the default of filling the parent, it took the whole window's height
+            // when the IME window measured the frame, and the keys stretched to match. KeyboardFrame sizes it to the
+            // strip itself.
+            addView(chipRow, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0))
         }
     }
 
+    // ---- Password manager suggestions -----------------------------------------------------------------------------
+
+    /**
+     * Asked by Android when a field that a password manager can fill is focused. Null, with the setting off, means
+     * no chips. Read straight from the saved settings, because this can come before the field's own settings are.
+     */
+    override fun onCreateInlineSuggestionsRequest(uiExtras: Bundle): InlineSuggestionsRequest? {
+        val on = Settings.load(prefs).passwordManagerSuggestions
+        DevLog.event(this, "autofill-asked", "on" to if (on) 1 else 0)
+        val keys = keyboard
+        val widest = keys?.stripLanes?.maxOfOrNull { it.second - it.first }
+            ?: resources.displayMetrics.widthPixels
+        return Autofill.request(this, on, widest, keys?.currentTheme ?: Theme.of(this, Appearance.SYSTEM, false))
+    }
+
+    /**
+     * The password manager's answer: chips to show, or none, which is also how it takes them back when what is
+     * typed stops matching. Each chip is drawn by the manager into a view that is only placed here; Keyd is never
+     * told what a chip says, and nothing here tries to find out.
+     *
+     * Platform glue: Robolectric cannot make a real suggestion, so this part is tried on a phone. What it hands on,
+     * [showChips], is tested.
+     */
+    override fun onInlineSuggestionsResponse(response: InlineSuggestionsResponse): Boolean {
+        val given = response.inlineSuggestions
+        val answer = ++autofillAnswer
+        DevLog.event(this, "autofill-chips", "count" to given.size)
+        if (given.isEmpty() || !Settings.load(prefs).passwordManagerSuggestions) {
+            clearChips()
+            return false
+        }
+        val height = Autofill.chipHeight(resources.displayMetrics.density)
+        // As wide as the chip needs, within what the request allowed; as tall as every chip is.
+        val size = Size(ViewGroup.LayoutParams.WRAP_CONTENT, height)
+        val drawn = arrayOfNulls<View>(given.size)
+        var waiting = given.size
+        for ((index, suggestion) in given.withIndex()) {
+            suggestion.inflate(this, size, mainExecutor) { view ->
+                drawn[index] = view
+                waiting--
+                // Shown together, once all are drawn, so the row does not rearrange itself chip by chip.
+                if (waiting == 0 && answer == autofillAnswer) {
+                    showChips(given.indices.mapNotNull { i ->
+                        drawn[i]?.let { AutofillStrip.Chip(it, given[i].info.isPinned) }
+                    })
+                }
+            }
+        }
+        return true
+    }
+
+    /** Puts [given] over the strip in place of its words and buttons, or takes them away when there are none. */
+    internal fun showChips(given: List<AutofillStrip.Chip>) {
+        if (given.isEmpty()) return clearChips()
+        chips?.show(given)
+        keyboard?.autofilling = chips?.showing == true
+    }
+
+    /** The chips go, and anything still being drawn for them is dropped when it arrives. */
+    internal fun clearChips() {
+        autofillAnswer++
+        chips?.clear()
+        keyboard?.autofilling = false
+    }
+
+    internal val chipsShowing: Boolean get() = chips?.showing == true
+
     override fun rememberEmoji(emoji: String) = remember(emoji)
+
+    /** Held an emoji and picked a tone: it is typed in that one from now on, on the grid, in search and in the strip. */
+    private fun pickTone(emoji: String, tone: Int) {
+        val updated = skinTones.picking(emoji, tone)
+        prefs.edit().putString(SKIN_TONES, SkinTones.encode(updated.picked)).apply()
+        showTones(updated)
+    }
+
+    private fun showTones(choices: SkinTones.Choices) {
+        skinTones = choices
+        emoji?.tones = choices
+        emojiSearch?.tones = choices
+    }
 
     private fun remember(value: String) {
         val grid = emoji ?: return
@@ -713,7 +848,7 @@ class KeysService : InputMethodService(), Ime {
         emoji?.visibility = if (showing) View.VISIBLE else View.GONE
         // Back to the grid or to the letters, the search closes either way.
         showEmojiSearch(false)
-        if (showing) emoji?.opened()
+        if (showing) emoji?.opened() else emoji?.closeTones()
     }
 
     /**
@@ -872,11 +1007,15 @@ class KeysService : InputMethodService(), Ime {
         emoji?.highContrast = chosen.highContrast
         emoji?.keyStyle = chosen.keyStyle
         emoji?.feel(chosen)
+        showTones(SkinTones.Choices(chosen.emojiSkinTone, SkinTones.decode(prefs.getString(SKIN_TONES, null))))
         clipboard?.feel(chosen)
         pad?.feel(chosen)
         main.removeCallbacks(countSelection)
         actions.startInput(info)
         keyboard?.rules = actions.rules   // one reading of the field, not two
+        // Said on the keyboard only where it is about this field or this app: the field asked, or this app's own
+        // settings turned learning off. With learning off everywhere it is not news in any one of them.
+        keyboard?.notLearning = actions.rules.ephemeral || (!chosen.learn && Settings.load(prefs).learn)
         // A keyboard may read the clipboard while it is the one on screen, so this is the moment to look. The field
         // has just been read, which is what decides whether anything may be kept from it at all.
         rememberClip(chosen)
@@ -920,6 +1059,7 @@ class KeysService : InputMethodService(), Ime {
 
     private fun EmojiPanel.feel(settings: Settings) {
         vibration = settings.vibration
+        holdDelay = settings.holdDelay
         pureBlack = settings.pureBlack
     }
 
@@ -973,7 +1113,10 @@ class KeysService : InputMethodService(), Ime {
     /** A new field is a fresh question: whatever was true of the last one says nothing about this one. */
     override fun onFinishInput() {
         super.onFinishInput()
+        // Chips belong to the field they were offered for. Android offers them again when one is focused.
+        clearChips()
         forgetCursor()
+        emoji?.closeTones()
         main.removeCallbacks(countSelection)
         saveCountsNow()
     }
@@ -988,6 +1131,7 @@ class KeysService : InputMethodService(), Ime {
     override fun onWindowHidden() {
         super.onWindowHidden()
         windowShown = false
+        clearChips()
         forgetCursor()
         main.removeCallbacks(countSelection)
         saveCountsNow()
@@ -996,6 +1140,7 @@ class KeysService : InputMethodService(), Ime {
         // another hides the keyboard would otherwise keep deleting out of sight, and a long-press popup would wait.
         keyboard?.forgetTouches()
         emojiSearch?.forgetTouches()
+        emoji?.closeTones()
         DevLog.flush(this)
     }
 
@@ -1050,6 +1195,7 @@ class KeysService : InputMethodService(), Ime {
         /** The subtype mode a voice input method declares. */
         const val VOICE_MODE = "voice"
         const val RECENTS = "emojiRecents"
+        const val SKIN_TONES = "emojiTones"
         const val LEARNED = "learnedWords"
         const val SEEN = "seenWords"
         const val PRUNED_SLIPS = "prunedSlips1"

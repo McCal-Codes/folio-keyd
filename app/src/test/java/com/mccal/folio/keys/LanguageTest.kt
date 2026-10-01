@@ -342,7 +342,7 @@ class LanguageTest {
         for (language in Language.entries) {
             val next = NextWords.load(context, language)
             assertTrue("${language.tag} has only ${next.size} words", next.size > 1_000)
-            assertEquals(language.tag, 3, Suggestions.predict(SENTENCE_START, next).size)
+            assertEquals(language.tag, Suggestions.LIMIT, Suggestions.predict(SENTENCE_START, next).size)
             val words = dictionary(language)
             val strangers = next.after(SENTENCE_START).filterNot { Suggestions.known(it.lowercase(), words) }
             assertEquals(language.tag, emptyList<String>(), strangers)

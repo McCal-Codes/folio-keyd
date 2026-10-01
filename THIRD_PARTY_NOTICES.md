@@ -40,6 +40,11 @@ Unicode License v3 (Unicode-3.0).
 Used in `app/src/main/assets/emoji/`, built by `scripts/emoji-keywords.py` from CLDR's `annotations` and
 `annotationsDerived` files at the `release-48-2` tag, kept only for the emoji Keyd ships.
 
+Which emoji take a skin tone comes from Unicode's emoji data, `emoji-data.txt` for Emoji 16.0
+(`https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt`), under the same copyright and license. Its
+Emoji_Modifier_Base list, kept only for the single-person emoji Keyd ships, is written out in
+`app/src/main/java/com/mccal/folio/keys/SkinTones.kt`.
+
 ```
 UNICODE LICENSE V3
 

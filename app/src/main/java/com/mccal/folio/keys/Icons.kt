@@ -313,6 +313,40 @@ object Icons {
         canvas.drawLine(cx - half, lower, cx - half + head, lower + head, stroke)
     }
 
+    /** A bin with its lid and handle, and two lines down the front: Don't suggest, for a word held in the strip. */
+    fun trash(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        val lidY = cy - half * 0.62f
+        canvas.drawLine(cx - half * 0.8f, lidY, cx + half * 0.8f, lidY, stroke)
+        // The handle on the lid.
+        canvas.drawLine(cx - half * 0.28f, lidY, cx - half * 0.28f, cy - half * 0.88f, stroke)
+        canvas.drawLine(cx - half * 0.28f, cy - half * 0.88f, cx + half * 0.28f, cy - half * 0.88f, stroke)
+        canvas.drawLine(cx + half * 0.28f, cy - half * 0.88f, cx + half * 0.28f, lidY, stroke)
+        // The body narrows a little toward the bottom, the way a bin is drawn everywhere.
+        path.reset()
+        path.moveTo(cx - half * 0.62f, lidY)
+        path.lineTo(cx - half * 0.5f, cy + half * 0.88f)
+        path.lineTo(cx + half * 0.5f, cy + half * 0.88f)
+        path.lineTo(cx + half * 0.62f, lidY)
+        canvas.drawPath(path, stroke)
+        canvas.drawLine(cx - half * 0.2f, cy - half * 0.28f, cx - half * 0.2f, cy + half * 0.55f, stroke)
+        canvas.drawLine(cx + half * 0.2f, cy - half * 0.28f, cx + half * 0.2f, cy + half * 0.55f, stroke)
+    }
+
+    /** An eye with a line through it: nothing typed here is kept. */
+    fun eyeOff(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
+        val half = size / 2
+        // The eye's outline as two shallow curves meeting in points at the corners, and the pupil in the middle.
+        path.reset()
+        path.moveTo(cx - half, cy)
+        path.quadTo(cx, cy - half * 1.15f, cx + half, cy)
+        path.quadTo(cx, cy + half * 1.15f, cx - half, cy)
+        path.close()
+        canvas.drawPath(path, stroke)
+        canvas.drawCircle(cx, cy, half * 0.26f, stroke)
+        canvas.drawLine(cx - half * 0.8f, cy - half * 0.8f, cx + half * 0.8f, cy + half * 0.8f, stroke)
+    }
+
     /** A cross, for forgetting one clip. */
     fun close(canvas: Canvas, cx: Float, cy: Float, size: Float, stroke: Paint) {
         val half = size / 2 * 0.62f

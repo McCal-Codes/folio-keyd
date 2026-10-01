@@ -1166,9 +1166,26 @@ class SettingsActivity : Activity() {
                 it, getString(R.string.settings_suggest_emoji), settings.suggestEmoji,
                 subtitle = getString(R.string.settings_suggest_emoji_sub), enabled = settings.suggestions,
             ) { on -> change(settings.copy(suggestEmoji = on)) }
+            // Not tied to the strip's switch: the chips are the password manager's, not Keyd's words.
+            switchRow(
+                it, getString(R.string.settings_password_manager), settings.passwordManagerSuggestions,
+                subtitle = getString(R.string.settings_password_manager_sub),
+            ) { on -> change(settings.copy(passwordManagerSuggestions = on)) }
         }
         // Kept from the old page: where the emoji come from is a privacy answer, not decoration.
         footer(column, getString(R.string.settings_suggest_emoji_note))
+        // And so is what Keyd sees of the chips, which is nothing.
+        footer(column, getString(R.string.settings_password_manager_note))
+        header(column, getString(R.string.header_emoji))
+        group(column) {
+            // The raised hand in each tone, the way iOS shows the choice; each is read out by name.
+            val tones = (0 until SkinTones.COUNT).toList()
+            segmented(
+                it, getString(R.string.settings_skin_tone), tones.map { tone -> SkinTones.withTone("✋", tone) to tone },
+                settings.emojiSkinTone, spoken = tones.map { tone -> SkinTones.spoken(this, tone) },
+            ) { tone -> settings.copy(emojiSkinTone = tone) }
+        }
+        footer(column, getString(R.string.settings_skin_tone_note))
         header(column, getString(R.string.header_corrections))
         group(column) {
             // Autocorrect is the strip's top answer applied for you, so with the strip off it is off too, whatever it
@@ -1852,9 +1869,13 @@ class SettingsActivity : Activity() {
         header(column, getString(R.string.header_what_it_knows))
         val words = Learned.decode(prefs.getString(LEARNED, null)).size
         val counted = Insights.decode(prefs.getString(INSIGHTS, null)).size
+        // Words turned down in the strip go with Forget too: they are as much about how someone writes.
+        val turnedDown = NeverSuggest.decode(prefs.getString(NeverSuggest.KEY, null)).size
         group(column) {
             value(it, getString(R.string.row_learned), words.toString())
-            action(it, getString(R.string.row_forget), enabled = words > 0 || counted > 0) { confirmForget(words) }
+            action(it, getString(R.string.row_forget), enabled = words > 0 || counted > 0 || turnedDown > 0) {
+                confirmForget(words, counted)
+            }
         }
         // The counts have their own Forget beside the lists they fill; Forget above takes them too, since the fixes
         // are words someone typed just as much as the learned ones are.
@@ -1910,6 +1931,7 @@ class SettingsActivity : Activity() {
     private fun exportTo(uri: android.net.Uri) {
         val text = Backup.export(
             Learned.decode(prefs.getString(LEARNED, null)), Shortcuts.decode(prefs.getString(SHORTCUTS, null)),
+            NeverSuggest.decode(prefs.getString(NeverSuggest.KEY, null)),
         )
         val saved = runCatching {
             contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray(Charsets.UTF_8)) }
@@ -1934,6 +1956,7 @@ class SettingsActivity : Activity() {
         }.getOrNull() ?: return toast(getString(R.string.import_failed))
         val result = Backup.merge(
             text, Learned.decode(prefs.getString(LEARNED, null)), Shortcuts.decode(prefs.getString(SHORTCUTS, null)),
+            NeverSuggest.decode(prefs.getString(NeverSuggest.KEY, null)),
         )
         when (result) {
             is Backup.Result.Rejected -> toast(getString(when (result.reason) {
@@ -1945,6 +1968,7 @@ class SettingsActivity : Activity() {
                 prefs.edit()
                     .putString(LEARNED, result.learned.encode())
                     .putString(SHORTCUTS, result.shortcuts.encode())
+                    .putString(NeverSuggest.KEY, result.never.encode())
                     .apply()
                 toast(getString(
                     R.string.import_added,
@@ -2029,16 +2053,19 @@ class SettingsActivity : Activity() {
 
     // ---- Things that can't be undone ask first -------------------------------------------------------------------
 
-    private fun confirmForget(words: Int) {
+    private fun confirmForget(words: Int, counted: Int) {
         AlertDialog.Builder(this)
             .setTitle(
-                if (words > 0) resources.getQuantityString(R.plurals.confirm_forget, words, words)
-                else getString(R.string.confirm_forget_counts),
+                when {
+                    words > 0 -> resources.getQuantityString(R.plurals.confirm_forget, words, words)
+                    counted > 0 -> getString(R.string.confirm_forget_counts)
+                    else -> getString(R.string.confirm_forget_turned_down)
+                },
             )
             .setMessage(R.string.confirm_forget_detail)
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_forget) { _, _ ->
-                prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).apply()
+                prefs.edit().remove(LEARNED).remove(INSIGHTS).remove(SEEN).remove(NeverSuggest.KEY).apply()
                 render(keepScroll = true)
             }
             .show()
@@ -2358,7 +2385,10 @@ class SettingsActivity : Activity() {
      * One choice out of a few fixed ones, all in one row: [Segmented], under its label. Saved at once, like [pick],
      * and nothing else on the page moves.
      */
-    private fun <T> segmented(card: LinearLayout, title: String, options: List<Pair<String, T>>, current: T, update: (T) -> Settings) {
+    private fun <T> segmented(
+        card: LinearLayout, title: String, options: List<Pair<String, T>>, current: T,
+        spoken: List<String>? = null, update: (T) -> Settings,
+    ) {
         if (indexed(title, options.joinToString(", ") { it.first })) return
         divider(card, iconSpace = false)
         card.addView(LinearLayout(this).apply {
@@ -2375,7 +2405,7 @@ class SettingsActivity : Activity() {
             })
             addView(Segmented(
                 context, title, options.map { it.first }, options.indexOfFirst { it.second == current }.coerceAtLeast(0),
-                Segmented.Colors(colors.track, colors.raised, colors.text, colors.outline),
+                Segmented.Colors(colors.track, colors.raised, colors.text, colors.outline), spoken,
             ) { chosen -> change(update(options[chosen].second)) })
         })
     }

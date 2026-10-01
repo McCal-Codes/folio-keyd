@@ -122,6 +122,10 @@ internal object WhatsNew {
         listOf("clipboard") to (SettingsIcon.Glyph.CLIPBOARD to "#636366"),
         listOf("permission", "privacy", "password") to (SettingsIcon.Glyph.PRIVACY to "#1B7A33"),
         listOf("letters") to (SettingsIcon.Glyph.LETTERS to "#6E5DC6"),
+        // 0.4.1's: the strip's width, taking a word out of it, and the fields that aren't learned from.
+        listOf("width") to (SettingsIcon.Glyph.MOVE to "#0A6E75"),
+        listOf("remove") to (SettingsIcon.Glyph.TRASH to "#D70015"),
+        listOf("learning") to (SettingsIcon.Glyph.NOT_LEARNING to "#636366"),
         listOf("split", "fold", "look") to (SettingsIcon.Glyph.LOOK to "#8944AB"),
         listOf("correct", "corrected", "correction", "typing") to (SettingsIcon.Glyph.TYPING to "#248A3D"),
     )

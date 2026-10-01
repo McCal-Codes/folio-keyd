@@ -4,6 +4,15 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.4.1] - 2026-09-30
+
+### Added
+- **Emoji skin tones:** hold an emoji to pick its skin tone, and it keeps that tone. Settings sets the one they start with.
+- **Suggestions fill the width:** the strip offers four words, and five when unfolded or on a wide screen.
+- **Password manager in the strip:** logins and codes from your password manager show above the keys, drawn by the manager itself. Keyd places them and never sees what they say. It can be turned off in Smart typing.
+- **Hold a suggestion to remove it:** hold a word in the strip and choose Don’t suggest. A word Keyd learned is forgotten; a dictionary word is never offered or used as a correction again, though you can still type it.
+- **Not learning here:** in a password field, a private tab, or an app you turned learning off for, the toolbar says so. While words are in the strip it is just the eye, so no suggestion loses its place.
+
 ## [0.4.0] - 2026-09-30
 
 ### Added

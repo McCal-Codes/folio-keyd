@@ -3,7 +3,7 @@ plugins {
 }
 
 // Semantic version, same rule as Folio: versionCode = MAJOR * 10000 + MINOR * 100 + PATCH.
-val keysVersion = "0.4.0"
+val keysVersion = "0.4.1"
 
 // Bundle the changelog so Keyd can show What's New after an update, the same way Folio does.
 val bundleChangelog = tasks.register<Copy>("bundleChangelog") {
@@ -91,8 +91,11 @@ android {
 
 // A keyboard has no business on the network, so it asks for no permissions and takes no networking libraries.
 dependencies {
-    // The one dependency: ExploreByTouchHelper, so TalkBack can find keys that are drawn rather than laid out.
+    // ExploreByTouchHelper, so TalkBack can find keys that are drawn rather than laid out.
     implementation("androidx.customview:customview:1.1.0")
+    // The style format every password manager reads, so its chips in the strip look like the keys. Style only: the
+    // chips themselves are drawn by the manager, and this library never sees them either.
+    implementation("androidx.autofill:autofill:1.1.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core:1.6.1")

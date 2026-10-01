@@ -46,6 +46,9 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
 
         /** Swiped down off the space bar, which hides the keyboard everywhere else too. */
         fun onHide() {}
+
+        /** A tone picked for [emoji] by holding it, just before [onEmoji] types it in that tone. */
+        fun onSkinTone(emoji: String, tone: Int) {}
     }
 
     var listener: Listener? = null
@@ -65,6 +68,13 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
      */
     var recents: List<String> = emptyList()
 
+    /** Which tone each emoji is typed in, the same as on the grid. */
+    var tones: SkinTones.Choices = SkinTones.Choices()
+        set(value) {
+            field = value
+            bar.changed()
+        }
+
     /** What has been typed so far. Only ever changed by the keys here, and cleared each time the search opens. */
     var query: String = ""
         private set
@@ -83,6 +93,7 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
     private var keyStyle = KeyStyle.FOLIO
     private var vibration = Vibration.MEDIUM
     private var pureBlack = false
+    private var holdDelay = HoldDelay.FOLLOW_PHONE
     private var theme = Theme.of(context)
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -113,6 +124,7 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
         keyStyle = settings.keyStyle
         vibration = settings.vibration
         pureBlack = settings.pureBlack
+        holdDelay = settings.holdDelay
         keys.settings = settings.copy(accents = false)
         keys.language = language
         keys.rows = Layouts.searchRows(language)
@@ -127,6 +139,7 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
     /** Closed: the touches, and what was typed and found, all let go. */
     fun closed() {
         keys.forgetTouches()
+        bar.closeTones()
         if (query.isEmpty() && results.isEmpty()) return
         query = ""
         results = emptyList()
@@ -152,7 +165,9 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
 
     /** Looks again. Cheap enough to do on every keystroke: it is a scan of a few hundred short lists of words. */
     private fun refresh() {
-        results = search?.search(query, bar.columns, recents).orEmpty()
+        // The recents are kept in the tone they were typed in; the search knows each emoji only by its plain form.
+        results = search?.search(query, bar.columns, recents.map { SkinTones.withTone(it, 0) }).orEmpty()
+        bar.closeTones()
         bar.changed()
     }
 
@@ -258,6 +273,13 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
         private val nodes = Nodes()
         private var pressed = NONE
 
+        /** A held result's row of tones, while it is open, and whether this press is the one that opened it. */
+        private var picker: TonePicker? = null
+        private var pickerFromThisPress = false
+        private val hold = Runnable { held() }
+        /** Its own handler rather than the view's, which only runs once the view is attached to a window. */
+        private val timer = android.os.Handler(android.os.Looper.getMainLooper())
+
         init {
             isHapticFeedbackEnabled = true
             ViewCompat.setAccessibilityDelegate(this, nodes)
@@ -289,6 +311,43 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
             invalidate()
         }
 
+        fun closeTones() {
+            timer.removeCallbacks(hold)
+            picker = null
+        }
+
+        /** Result [index] as it is drawn and typed: in its tone, if it has them. */
+        private fun shown(index: Int): String? = results.getOrNull(index)?.let { tones.apply(it) }
+
+        /** Held long enough on a result with tones: its row, over the search field, lit on the tone it has now. */
+        private fun held() {
+            val index = pressed - FIRST_RESULT
+            val emoji = results.getOrNull(index)?.takeIf { SkinTones.supports(it) } ?: return
+            openTones(index, emoji)
+            pickerFromThisPress = true
+            pressed = NONE
+            Haptics.feel(this, vibration)
+        }
+
+        private fun openTones(index: Int, emoji: String) {
+            picker = TonePicker.place(
+                emoji, tones.toneFor(emoji), resultBox(index),
+                left = panelPad + sideInset, right = width - panelPad - sideInset, top = 0f, dp = dp,
+            )
+            changed()
+        }
+
+        private fun pick(open: TonePicker, tone: Int) {
+            picker = null
+            Haptics.feel(this, vibration)
+            listener?.onSkinTone(open.emoji, tone)
+            listener?.onEmoji(open.items[tone])
+            changed()
+        }
+
+        internal val toneItems: List<String> get() = picker?.items.orEmpty()
+        internal val toneBoxes: List<Box> get() = picker?.boxes.orEmpty()
+
         /** Where result [index] sits, in this view's pixels. */
         fun resultBox(index: Int): Box {
             val left = edge + index * cell
@@ -314,7 +373,10 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
             FIELD -> if (query.isEmpty()) context.getString(R.string.emoji_search)
                 else context.getString(R.string.emoji_search_field, query)
             CLEAR -> context.getString(R.string.emoji_search_clear)
-            else -> results.getOrNull(id - FIRST_RESULT)?.let { search?.nameOf(it) ?: it }.orEmpty()
+            else -> results.getOrNull(id - FIRST_RESULT)?.let { emoji ->
+                val name = search?.nameOf(emoji) ?: emoji
+                if (SkinTones.supports(emoji)) SkinTones.spoken(context, name, tones.toneFor(emoji)) else name
+            }.orEmpty()
         }
 
         /** Does what tapping [id] does. False for the field, which is only there to be read. */
@@ -323,7 +385,7 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
                 BACK -> listener?.onBack()
                 CLEAR -> clear()
                 FIELD, NONE -> return false
-                else -> listener?.onEmoji(results.getOrNull(id - FIRST_RESULT) ?: return false)
+                else -> listener?.onEmoji(shown(id - FIRST_RESULT) ?: return false)
             }
             return true
         }
@@ -404,8 +466,9 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
                     fill.color = theme.pressTint
                     canvas.drawRoundRect(rect, 10 * dp, 10 * dp, fill)
                 }
-                canvas.drawText(glyph, cx, cy + baseline, centred)
+                canvas.drawText(tones.apply(glyph), cx, cy + baseline, centred)
             }
+            picker?.draw(canvas, theme, fill, centred, dp)
         }
 
         override fun performClick(): Boolean {
@@ -416,10 +479,40 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    pickerFromThisPress = false
+                    if (picker != null) return true
                     pressed = idAt(event.x, event.y)
+                    val emoji = results.getOrNull(pressed - FIRST_RESULT)
+                    if (emoji != null && SkinTones.supports(emoji)) timer.postDelayed(hold, holdDelay.millis)
                     invalidate()
                 }
+                MotionEvent.ACTION_MOVE -> {
+                    val open = picker
+                    if (open != null && pickerFromThisPress) {
+                        val over = open.near(event.x, event.y)
+                        if (over != open.over) {
+                            open.over = over
+                            invalidate()
+                        }
+                    } else if (open == null && pressed != NONE && idAt(event.x, event.y) != pressed) {
+                        // Slid off: not a hold any more, and not a tap either.
+                        timer.removeCallbacks(hold)
+                    }
+                }
                 MotionEvent.ACTION_UP -> {
+                    timer.removeCallbacks(hold)
+                    picker?.let { open ->
+                        val tone = if (pickerFromThisPress) open.near(event.x, event.y) else open.at(event.x, event.y)
+                        when {
+                            tone >= 0 -> pick(open, tone)
+                            pickerFromThisPress -> open.over = -1
+                            else -> closeTones()
+                        }
+                        pickerFromThisPress = false
+                        changed()
+                        performClick()
+                        return true
+                    }
                     val id = idAt(event.x, event.y)
                     // Only a tap that lets go where it landed: sliding off is how you change your mind.
                     if (id == pressed && id != NONE && id != FIELD) {
@@ -431,6 +524,9 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
                     invalidate()
                 }
                 MotionEvent.ACTION_CANCEL -> {
+                    timer.removeCallbacks(hold)
+                    if (pickerFromThisPress) closeTones()
+                    pickerFromThisPress = false
                     pressed = NONE
                     invalidate()
                 }
@@ -445,17 +541,46 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
         internal fun spoken(): List<String> = visibleIds().map { nameOf(it) }
 
         private fun visibleIds(): List<Int> =
-            (listOf(BACK, FIELD, CLEAR) + results.indices.map { FIRST_RESULT + it }).filter { boxOf(it) != null }
+            (listOf(BACK, FIELD, CLEAR) + results.indices.map { FIRST_RESULT + it }).filter { boxOf(it) != null } +
+                (picker?.boxes?.indices?.map { TONE_ID + it } ?: emptyList())
+
+        private fun tonesAt(id: Int): Boolean =
+            results.getOrNull(id - FIRST_RESULT)?.let { SkinTones.supports(it) } == true
 
         /** Every part of the row is a node of its own: the arrow, the field, the cross, and each result by its name. */
         private inner class Nodes : ExploreByTouchHelper(this@Bar) {
-            override fun getVirtualViewAt(x: Float, y: Float): Int = idAt(x, y).let { if (it == NONE) HOST_ID else it }
+            override fun getVirtualViewAt(x: Float, y: Float): Int {
+                picker?.let { open ->
+                    // The row covers the field, so under it only the tones are there to be found.
+                    val tone = open.at(x, y)
+                    if (tone >= 0) return TONE_ID + tone
+                    if (open.outline.contains(x, y)) return HOST_ID
+                }
+                return idAt(x, y).let { if (it == NONE) HOST_ID else it }
+            }
 
             override fun getVisibleVirtualViews(ids: MutableList<Int>) {
                 ids.addAll(visibleIds())
             }
 
             override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
+                if (id >= TONE_ID) {
+                    val open = picker
+                    val tone = id - TONE_ID
+                    val box = open?.boxes?.getOrNull(tone)
+                    if (box == null) {
+                        node.contentDescription = ""
+                        node.setBoundsInParent(Rect(0, 0, 1, 1))
+                        return
+                    }
+                    val name = search?.nameOf(open.emoji) ?: open.emoji
+                    node.contentDescription = SkinTones.spoken(context, name, tone)
+                    node.className = "android.widget.Button"
+                    node.isSelected = tone == open.current
+                    node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+                    node.setBoundsInParent(Rect(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt()))
+                    return
+                }
                 val box = boxOf(id)
                 if (box == null) {
                     node.contentDescription = ""
@@ -468,12 +593,29 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
                 } else {
                     node.className = "android.widget.Button"
                     node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
+                    // The tones a held finger gets, a double tap and hold gets too.
+                    if (tonesAt(id)) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
                 }
                 node.setBoundsInParent(Rect(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt()))
             }
 
             override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: Bundle?): Boolean {
+                if (action == AccessibilityNodeInfo.ACTION_LONG_CLICK) {
+                    val emoji = results.getOrNull(id - FIRST_RESULT)?.takeIf { SkinTones.supports(it) } ?: return false
+                    openTones(id - FIRST_RESULT, emoji)
+                    sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_LONG_CLICKED)
+                    return true
+                }
                 if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
+                picker?.let { open ->
+                    if (id >= TONE_ID) {
+                        pick(open, id - TONE_ID)
+                        return true
+                    }
+                    closeTones()
+                    changed()
+                }
+                if (id >= TONE_ID) return false
                 if (!activate(id)) return false
                 sendEventForVirtualView(id, AccessibilityEvent.TYPE_VIEW_CLICKED)
                 return true
@@ -516,5 +658,8 @@ internal class EmojiSearchPanel(context: Context) : ViewGroup(context) {
         const val FIELD = 1
         const val CLEAR = 2
         const val FIRST_RESULT = 3
+
+        /** The tones' virtual view ids, clear of the results'. */
+        const val TONE_ID = 1_000
     }
 }

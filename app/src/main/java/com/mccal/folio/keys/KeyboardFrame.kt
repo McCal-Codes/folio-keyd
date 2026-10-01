@@ -15,8 +15,16 @@ import android.widget.FrameLayout
  * across whatever width it is given, so rather than teach each of them about one-handed, each is given the width of
  * the letters' board and put where that board is. The rail stays with the letters: beside a panel its strip is left
  * empty, and the way back to it is the panel's own letters key.
+ *
+ * The password manager's [chips], when there are any, go over the letters' strip rather than in it: they are other
+ * apps' views, and the strip is a drawing. They are not a panel, so they keep the strip's size and place, and they
+ * go with the letters when a panel is opened.
  */
-internal class KeyboardFrame(context: Context, private val keys: KeyboardView) : FrameLayout(context) {
+internal class KeyboardFrame(
+    context: Context,
+    private val keys: KeyboardView,
+    private val chips: AutofillStrip? = null,
+) : FrameLayout(context) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
@@ -31,18 +39,29 @@ internal class KeyboardFrame(context: Context, private val keys: KeyboardView) :
         val height = keys.measuredHeight
         val (left, right) = keys.boardSpan(measuredWidth)
         for (panel in panels()) panel.measure(exactly(right - left), exactly(height))
+        chips?.measure(exactly(measuredWidth), exactly(keys.stripBottom))
         setMeasuredDimension(measuredWidth, resolveSize(height + paddingTop + paddingBottom, heightMeasureSpec))
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
+        chips?.let {
+            // Laid out at nothing while a panel is in the letters' place, so the chips go with the strip they are on.
+            if (keys.visibility == View.VISIBLE) {
+                it.stripTop = keys.stripTop
+                it.lanes = keys.stripLanes
+                it.layout(0, 0, it.measuredWidth, it.measuredHeight)
+            } else {
+                it.layout(0, 0, 0, 0)
+            }
+        }
         val (start, end) = keys.boardSpan(right - left)
         if (end - start == right - left) return
         for (panel in panels()) panel.layout(start, panel.top, start + panel.measuredWidth, panel.top + panel.measuredHeight)
     }
 
     private fun panels(): List<View> =
-        (0 until childCount).map(::getChildAt).filter { it !== keys && it.visibility != View.GONE }
+        (0 until childCount).map(::getChildAt).filter { it !== keys && it !== chips && it.visibility != View.GONE }
 
     private fun exactly(size: Int) = MeasureSpec.makeMeasureSpec(size, MeasureSpec.EXACTLY)
 }
