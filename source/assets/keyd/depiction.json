@@ -63,6 +63,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.4.1",
+          "notes": {
+            "en": "Keyd 0.4.1 adds emoji skin tones, a wider suggestion strip, password manager chips, a way to stop a word from being suggested, and a sign when Keyd is not learning."
+          }
+        },
+        {
           "version": "0.4.0",
           "notes": {
             "en": "Keyd 0.4.0 has new Settings you can search, one-tap choices, a new What's New, digits in password fields, and back to letters after a space."
