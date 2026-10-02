@@ -20,6 +20,10 @@ jobs:
         run: ./gradlew :app:testDebugUnitTest
       - name: Assemble
         run: ./gradlew :app:assembleDebug
+      # Keyd says it asks for no permissions at all, and Folio's help page repeats it. This reads the merged manifest the
+      # build just produced, so a permission a library adds fails here instead of shipping.
+      - name: Keyd asks for no permissions
+        run: python3 tools/check-no-permissions.py
       - name: Keep the reports when something fails
         if: failure()
         uses: actions/upload-artifact@v4
