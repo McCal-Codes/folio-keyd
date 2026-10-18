@@ -155,7 +155,24 @@
           "size": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 20971520
+            "maximum": 104857600
+          },
+          "signerSha256": {
+            "type": "array",
+            "description": "For an app: SHA-256 digests of the certificates its APK is signed with, lowercase hex, as apksigner verify --print-certs prints them. A first install is refused unless the APK is signed by these.",
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "versionCode": {
+            "type": "integer",
+            "description": "For an app: the lowest versionCode its APK may have.",
+            "minimum": 1,
+            "maximum": 9007199254740991
           },
           "manifest": {
             "$ref": "manifest.schema.json"
@@ -181,6 +198,29 @@
                 "maxLength": 200
               }
             }
+          },
+          "signedBy": {
+            "type": "object",
+            "description": "The author's signature over folio-pkg:<id>:<version>:<sha256>, base64. Separate from the source's signature: it says who wrote the package, not who is handing it out.",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "signature"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "The author's public key, base64 SPKI (ECDSA P-256).",
+                "minLength": 40,
+                "maxLength": 512
+              },
+              "signature": {
+                "type": "string",
+                "description": "Base64 signature over the payload.",
+                "minLength": 40,
+                "maxLength": 512
+              }
+            }
           }
         },
         "dependentRequired": {
@@ -195,6 +235,12 @@
           "size": [
             "url",
             "sha256"
+          ],
+          "signerSha256": [
+            "url"
+          ],
+          "versionCode": [
+            "url"
           ]
         }
       }

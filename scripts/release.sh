@@ -24,6 +24,8 @@ signer="bad8e099557b70c690e71a3fffe13561c8662c20612047ce1e2559a1c14d8441"
 
 die() { echo "release: $*" >&2; exit 1; }
 version() { sed -n 's/^val keysVersion = "\(.*\)"$/\1/p' "$gradle"; }
+# versionCode the way app/build.gradle.kts computes it: MAJOR * 10000 + MINOR * 100 + PATCH.
+code() { local v=${1%%-*}; IFS=. read -r ma mi pa <<< "$v"; echo $((10#$ma * 10000 + 10#$mi * 100 + 10#$pa)); }
 # The bullets of one version's CHANGELOG section, headings and all.
 section() { awk -v v="$1" '$0 ~ "^## \\[" v "\\]" { on = 1; next } /^## \[/ { on = 0 } on' CHANGELOG.md; }
 wait_checks() {
@@ -110,7 +112,9 @@ publish() {
 {
   "url": "https://github.com/$repo/releases/download/v$v/Keyd-$v.apk",
   "sha256": "$sha",
-  "size": $size
+  "size": $size,
+  "signerSha256": ["$signer"],
+  "versionCode": $(code "$v")
 }
 JSON
         python3 - "$v" "$summary" <<'PY'

@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -126,7 +127,18 @@ def app_download(folder: pathlib.Path) -> dict | None:
         fail(f"{path.relative_to(ROOT)} is missing {', '.join(missing)}")
     if not str(app["url"]).startswith("https://"):
         fail(f"{path.relative_to(ROOT)}: an app's url must be an https:// link")
-    return {"url": app["url"], "sha256": app["sha256"].lower(), "size": int(app["size"])}
+    download = {"url": app["url"], "sha256": app["sha256"].lower(), "size": int(app["size"])}
+    # Who signs the APK and the lowest build it may be: a first install is refused unless the APK matches both.
+    if "signerSha256" in app:
+        signers = [str(s).lower() for s in app["signerSha256"]]
+        if not signers or any(not re.fullmatch(r"[0-9a-f]{64}", s) for s in signers):
+            fail(f"{path.relative_to(ROOT)}: signerSha256 must be SHA-256 certificate digests in hex")
+        download["signerSha256"] = signers
+    if "versionCode" in app:
+        if not isinstance(app["versionCode"], int) or app["versionCode"] < 1:
+            fail(f"{path.relative_to(ROOT)}: versionCode must be a whole number of at least 1")
+        download["versionCode"] = app["versionCode"]
+    return download
 
 
 def build_index(source: dict, packages: list[dict]) -> dict:
