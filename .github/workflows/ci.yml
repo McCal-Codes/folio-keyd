@@ -4,7 +4,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # `edited`, `labeled` and `unlabeled` are for the release-rules job, as in Folio's CI: REL-5 reads the description and
+  # its waivers are labels, so fixing either has to rerun it. A re-run alone replays the old description.
   pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 jobs:
   test:
