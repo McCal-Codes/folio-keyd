@@ -62,12 +62,20 @@ for variant in release dev; do
     sha=$(shasum -a 256 "$out/$name" | cut -d' ' -f1)
     size=$(stat -f%z "$out/$name" 2>/dev/null || stat -c%s "$out/$name")
     [[ $variant == release && $version != *-* ]] || continue
+    # Folio refuses a first install unless the APK is signed by a key the listing names, so the listing carries the
+    # signer read from this APK, and the build it is (versionCode = MAJOR * 10000 + MINOR * 100 + PATCH).
+    signer=$(grep -m1 "certificate SHA-256 digest" "$out/signing-certificate-$variant.txt" | awk '{print tolower($NF)}')
+    [[ $signer =~ ^[0-9a-f]{64}$ ]] || { echo "Could not read the signer's SHA-256 digest from apksigner." >&2; exit 1; }
+    IFS=. read -r major minor patch <<< "$version"
+    code=$((10#$major * 10000 + 10#$minor * 100 + 10#$patch))
     mkdir -p "$root/source/packages/$package"
     cat > "$root/source/packages/$package/app.json" <<JSON
 {
   "url": "https://github.com/$repo/releases/download/v$version/$name",
   "sha256": "$sha",
-  "size": $size
+  "size": $size,
+  "signerSha256": ["$signer"],
+  "versionCode": $code
 }
 JSON
 done
