@@ -1137,6 +1137,7 @@ class KeyboardView(context: Context) : View(context) {
             KeyKind.BACKSPACE -> Icons.backspace(canvas, cx, cy, icon, stroke, stroke)
             KeyKind.GLOBE -> Icons.globe(canvas, cx, cy, icon, stroke)
             KeyKind.EMOJI -> Icons.smiley(canvas, cx, cy, icon, stroke, fill)
+            KeyKind.VOICE -> Icons.mic(canvas, cx, cy, icon, stroke)
             KeyKind.ACTION -> if (key.label.length > 4) drawLabel(canvas, key.label, cx, cy, box, ink)
                 else Icons.enter(canvas, cx, cy, icon * 1.1f, stroke)
             // The space bar is labelled where its width is known, which is here rather than in the row.

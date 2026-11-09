@@ -437,7 +437,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     }
 
     fun refresh() =
-        ime.show(Layouts.rows(layer, shift != Shift.OFF, rules, settings.numberRow, language), shift)
+        ime.show(Layouts.rows(layer, shift != Shift.OFF, rules, settings.numberRow, language, micKey = settings.micOnSpaceRow && !rules.password), shift)
 
     /** Sentence capitals, but only when the field asked for them and there is nothing typed yet. */
     private fun autoCaps(info: EditorInfo?): Boolean {

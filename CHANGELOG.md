@@ -4,6 +4,11 @@ All notable changes to Keyd. Versions follow [Semantic Versioning](https://semve
 [Keep a Changelog](https://keepachangelog.com). Keyd shows the newest section after an update, and every version
 under Settings › About › What's New.
 
+## [0.5.0] - Unreleased
+
+### Added
+- **Mic next to the space bar:** an optional mic key to the right of the space bar on the letters, off by default. It hands over to your phone's voice keyboard, shows only where the phone has one, and never appears in a password field. Turn it on under Keys.
+
 ## [0.4.1] - 2026-09-30
 
 ### Added

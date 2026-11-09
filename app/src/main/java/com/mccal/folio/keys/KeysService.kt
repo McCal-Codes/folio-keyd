@@ -1086,7 +1086,8 @@ class KeysService : InputMethodService(), Ime {
     override fun show(rows: List<Row>, shift: Shift) {
         keyboard?.let {
             it.shift = shift
-            it.rows = rows
+            // The mic on the space row is only drawn where there is a voice keyboard to hand over to.
+            it.rows = if (it.voiceAvailable) rows else rows.map { row -> row.filter { key -> key.kind != KeyKind.VOICE } }
         }
     }
 
