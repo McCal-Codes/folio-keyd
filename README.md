@@ -79,18 +79,14 @@ in; what follows is ordered by what someone would notice first, not by what is m
 
 **Next — the reason to write this keyboard rather than use Gboard**
 
-4. **Per-app profiles.** Theme, layout, shelf, gestures and learning, decided per app from `EditorInfo.packageName`,
-   which needs no accessibility service. Nothing else offers it, the keyboard already knows which app it is typing
-   into, and it is the line in *Why another keyboard* that is still a promise.
+4. ~~**Per-app profiles.**~~ Done: theme, layout, shelf, gestures and learning are decided per app from
+   `EditorInfo.packageName`, which needs no accessibility service.
 5. ~~**Export and import what it learned.**~~ Done in 0.2.0, through the file picker, with no permission.
 
 **Then — the quality that decides whether anyone keeps it**
 
-6. **Context in the corrections.** `Suggestions` already costs edits against where the finger really was, which is
-   the hard half; nothing knows the *previous word*, which is the half people feel. "in a nin" cannot prefer "min"
-   over "nib" without it. The code is the easy part: the word lists are built from a unigram frequency list, so this
-   starts with an hour spent finding out whether a permissively licensed bigram source exists that is small enough to
-   ship. If it doesn't, that answers the question.
+6. ~~**Context in the corrections.**~~ Done: `NextWords` ships a bigram list built from Tatoeba's sentences, so
+   the word before now weighs on which correction wins and on what the strip offers after a space.
 7. **Typing insights, and rules from them.** The words you correct most and the keys you miss, shown back to you,
    with one tap to make a rule. `Learned` already collects what this would show, and `Shortcuts` can hold the rule.
 
@@ -101,7 +97,7 @@ in; what follows is ordered by what someone would notice first, not by what is m
 9. ~~**A cursor pad.**~~ Done in 0.2.0: arrows, word jumps, line start and end, select, cut and select all.
 10. **Multilingual typing.** Two dictionaries at once rather than one subtype at a time, which is what bilingual
     typing actually needs.
-11. **One-handed and floating.** Split solves the reach problem on a fold; a tall slab is the case this answers.
+11. **Floating.** One-handed is done; floating is not. Split solves the reach problem on a fold; a tall slab is the case this answers.
 12. **Glide typing.** The feature that decides whether anyone switches keyboard, and a month of work rather than an
     afternoon. Worth doing; not worth starting casually.
 13. **Themes and layouts as signed Folio Market packages**, once the Market ships in Folio 0.7.0.
