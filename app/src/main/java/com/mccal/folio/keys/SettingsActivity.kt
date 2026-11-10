@@ -1498,6 +1498,7 @@ class SettingsActivity : Activity() {
         header(column, getString(R.string.header_keys))
         group(column) {
             toggle(it, getString(R.string.settings_number_row), settings.numberRow) { on -> settings.copy(numberRow = on) }
+            toggle(it, getString(R.string.settings_mic_on_space_row), settings.micOnSpaceRow) { on -> settings.copy(micOnSpaceRow = on) }
             toggle(it, getString(R.string.settings_accents), settings.accents) { on -> settings.copy(accents = on) }
             switchRow(
                 it, getString(R.string.settings_back_to_letters), settings.backToLetters,
