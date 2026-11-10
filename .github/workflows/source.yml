@@ -58,3 +58,17 @@ jobs:
           path: source/_site
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  # GitHub turns scheduled workflows off after 60 days with no repository activity, and the weekly re-sign would stop
+  # with it: the source would pass its maxAge and Folio would refuse it. Re-enabling the workflow through the API resets
+  # that clock without a commit. This job holds no secrets and can't touch the repository's contents.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Keep the weekly re-sign scheduled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PUT "repos/${{ github.repository }}/actions/workflows/source.yml/enable"
