@@ -8,6 +8,7 @@ under Settings › About › What's New.
 
 ### Added
 - **Mic next to the space bar:** an optional mic key to the right of the space bar on the letters, off by default. It hands over to your phone's voice keyboard, shows only where the phone has one, and never appears in a password field. Turn it on under Keys.
+- **One mic at a time:** with the mic next to the space bar on, the toolbar and the suggestion strip no longer show a second one.
 
 ## [0.4.1] - 2026-09-30
 
