@@ -32,6 +32,7 @@ internal object Motion {
     /** A panel (emoji, clipboard, cursor pad) or the letters coming back. */
     const val PANEL_MS = 170L
     const val PANEL_RISE_DP = 8f
+    const val PANEL_START_ALPHA = 0.35f
 
     /** False when the person turned animations off in the system settings (an animator scale of zero). */
     fun enabled(context: Context): Boolean = try {
@@ -66,7 +67,8 @@ internal object Motion {
             view.translationY = 0f
             return
         }
-        view.alpha = 0f
+        // Not from nothing: the keys it replaces are gone at once, and a panel at zero left the board black for a frame.
+        view.alpha = PANEL_START_ALPHA
         view.translationY = PANEL_RISE_DP * view.resources.displayMetrics.density
         view.animate().alpha(1f).translationY(0f).setDuration(PANEL_MS).setInterpolator(DecelerateInterpolator()).start()
     }

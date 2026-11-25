@@ -65,10 +65,11 @@ class MotionTest {
     }
 
     @Test
-    fun `a panel revealed with animations on starts transparent and a little low`() {
+    fun `a panel revealed with animations on starts faint and a little low, never from nothing`() {
         val view = View(context)
         Motion.reveal(view)
-        assertEquals(0f, view.alpha, 0.001f)
+        assertEquals(Motion.PANEL_START_ALPHA, view.alpha, 0.001f)
+        assertTrue(view.alpha in 0.2f..0.5f)
         assertTrue(view.translationY > 0f)
     }
 }

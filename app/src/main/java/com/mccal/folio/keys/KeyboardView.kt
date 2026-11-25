@@ -778,7 +778,25 @@ class KeyboardView(context: Context) : View(context) {
             }
             return
         }
-        // A different arrangement (a split opening, another layer): match keys by what they are, in order.
+        if (shapeBefore == shape) {
+            // Another layer at the same width: nothing travels. Keys that never had a twin sliding across the board
+            // looked like a mistake on a real fold, so each key fades from whatever sat under it to what is there now.
+            val faded = arrayOfNulls<Placement>(after.size)
+            for (i in after.indices) {
+                val box = after[i].box
+                val cx = (box.left + box.right) / 2
+                val cy = (box.top + box.bottom) / 2
+                val old = before.firstOrNull { cx in it.box.left..it.box.right && cy in it.box.top..it.box.bottom }
+                // Only a key of the same kind: the space bar's word squeezed into a comma-sized box is not a fade.
+                faded[i] = Placement(old?.key?.takeIf { it.kind == after[i].key.kind } ?: Key(""), box)
+            }
+            moveFrom = null
+            fadeFrom = faded
+            fadeAt = now
+            fadeMs = Motion.LAYER_MS
+            return
+        }
+        // A different arrangement (a split opening): match keys by what they are, in order.
         val unused = HashMap<String, ArrayDeque<Int>>()
         for (i in before.indices) unused.getOrPut(signature(before[i].key)) { ArrayDeque() }.addLast(i)
         val from = arrayOfNulls<Box>(after.size)
