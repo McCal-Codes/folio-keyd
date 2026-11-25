@@ -135,6 +135,9 @@ interface Ime {
     /** Switch to one of those, the way Android's own picker would. */
     fun switchLanguage(language: Language) {}
 
+    /** Whether there is another keyboard or language to go to. With none, the globe key has nothing to do and is left off. */
+    fun canSwitchKeyboard(): Boolean = true
+
     /** Android's list of every keyboard on the phone. */
     fun pickKeyboard() {}
 
@@ -372,6 +375,7 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
     /** A new field: read what it asks for, start on the right layer, and capitalise if it wants that. */
     fun startInput(info: EditorInfo?) {
         rules = Layouts.rulesFor(info)
+        canSwitch = ime.canSwitchKeyboard()
         typedHere = 0
         layer = if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) Layer.NUMBERS else Layer.LETTERS
         val capitals = autoCaps(info)
@@ -436,8 +440,11 @@ class TextActions(private val ime: Ime) : KeyboardView.Listener {
         return Selected.of(text)
     }
 
+    /** Read when a field starts, not per key: it asks Android. */
+    private var canSwitch = true
+
     fun refresh() =
-        ime.show(Layouts.rows(layer, shift != Shift.OFF, rules, settings.numberRow, language, micKey = settings.micOnSpaceRow && !rules.password), shift)
+        ime.show(Layouts.rows(layer, shift != Shift.OFF, rules, settings.numberRow, language, micKey = settings.micOnSpaceRow && !rules.password, globeKey = settings.globeKey && canSwitch), shift)
 
     /** Sentence capitals, but only when the field asked for them and there is nothing typed yet. */
     private fun autoCaps(info: EditorInfo?): Boolean {

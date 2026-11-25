@@ -447,6 +447,7 @@ class KeyboardView(context: Context) : View(context) {
 
     /** Everything a finger might have left behind. Called when a new field opens, in case one did. */
     fun forgetTouches() {
+        motionOn = Motion.enabled(context)
         closePopup()
         closeStyleMenu()
         closeLanguageMenu()
@@ -464,8 +465,16 @@ class KeyboardView(context: Context) : View(context) {
         repeatingFor = null
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        motionOn = Motion.enabled(context)
+    }
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        moveFrom = null
+        fadeFrom = null
+        squish.clear()
         feedback.stop()
         stopRepeat()   // a keyboard hidden mid-hold must not keep deleting
         closePopup()
@@ -545,14 +554,30 @@ class KeyboardView(context: Context) : View(context) {
      * width there rather than splitting it, because there is no reach problem to solve and no height to spare.
      * Splitting is for a screen that is genuinely large in both directions.
      */
-    private fun shapeFor(widthDp: Float, heightDp: Float) = when {
-        // Asked for outright, or refused outright. Only a window with room for it can be split either way.
-        settings.split == Split.NEVER -> if (widthDp >= CAP_AT_DP) Shape.CAPPED else Shape.FULL
-        settings.split == Split.ALWAYS && widthDp >= SPLIT_AT_DP -> Shape.SPLIT
-        heightDp < SHORT_DP -> Shape.FULL
-        widthDp >= SPLIT_AT_DP -> Shape.SPLIT
-        widthDp >= CAP_AT_DP -> Shape.CAPPED
-        else -> Shape.FULL
+    private fun spreadFor(across: Float): Geometry.Spread = Geometry.spread(
+        usableDp = (across - 2 * edgeFor(across)) / dp,
+        windowWidthDp = across / dp,
+        windowHeightDp = resources.configuration.screenHeightDp.toFloat(),
+        // Asked for outright, or refused outright.
+        allowSplit = settings.split != Split.NEVER,
+        ignoreHeight = settings.split == Split.ALWAYS,
+    )
+
+    /** The space between the window's edge and the keys, which the cutout's side, the board's padding and a margin share. */
+    private fun edgeFor(across: Float): Float = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+
+    /**
+     * Which of the four arrangements the window is in. The sizes inside each arrangement are not stepped: they come
+     * from [spreadFor], which changes smoothly with the window, so this only names what that gave.
+     */
+    private fun shapeFor(across: Float): Shape {
+        val spread = spreadFor(across)
+        val usable = (across - 2 * edgeFor(across)) / dp
+        return when {
+            spread.split -> Shape.SPLIT
+            usable - spread.board >= CAPPED_BY_DP -> Shape.CAPPED
+            else -> Shape.FULL
+        }
     }
 
     /**
@@ -564,7 +589,7 @@ class KeyboardView(context: Context) : View(context) {
      */
     private fun oneHandedSpan(across: Float): Pair<Float, Float>? {
         if (settings.oneHanded == OneHanded.OFF || searchKeys || across <= 0f) return null
-        if (shapeFor(across / dp, resources.configuration.screenHeightDp.toFloat()) != Shape.FULL) return null
+        if (shapeFor(across) != Shape.FULL) return null
         // A phone on its side has no reach problem either: both thumbs are on the long edge, and a 360 dp keyboard
         // with the rest of the width empty only wastes it. Gboard switches one-handed off in landscape too.
         if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) return null
@@ -600,9 +625,13 @@ class KeyboardView(context: Context) : View(context) {
 
     /** Places everything for the size the view has now. Also run straight away when the rail moves the keyboard. */
     private fun arrange() {
+        val before = placedKeys
+        val shownBefore = before.mapIndexed { index, placement -> shownBox(index, placement.box, Motion.now()) }
+        val shapeBefore = shape
         val span = oneHandedSpan(width.toFloat())
-        shape = if (span != null) Shape.ONE_HANDED else shapeFor(width / dp, resources.configuration.screenHeightDp.toFloat())
-        val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp
+        shape = if (span != null) Shape.ONE_HANDED else shapeFor(width.toFloat())
+        val spread = spreadFor(width.toFloat())
+        val edge = edgeFor(width.toFloat())
         boardLeft = span?.first ?: 0f
         boardRight = span?.second ?: width.toFloat()
         keysLeft = if (boardLeft > 0f) boardLeft + panelPad + Geometry.SIDE_PAD_DP * dp else edge
@@ -621,8 +650,8 @@ class KeyboardView(context: Context) : View(context) {
                 evenKeys = searchKeys, centre = searchKeys,
             )
             Shape.CAPPED -> {
-                // Centred and no wider than a large phone: the keys stay the size hands expect.
-                val capped = min(usable, CAP_WIDTH_DP * dp)
+                // Centred and easing towards a large phone's width: the keys stay the size hands expect.
+                val capped = min(usable, spread.board * dp)
                 Geometry.place(
                     rows, width, height, dp, bottomInset = bottom, top = top,
                     startX = (width - capped) / 2, fillWidth = capped,
@@ -630,21 +659,24 @@ class KeyboardView(context: Context) : View(context) {
                 )
             }
             Shape.SPLIT -> {
-                val gutter = min(max(usable * 0.16f, 80 * dp), 220 * dp)
-                val half = (usable - gutter) / 2
-                gapLeft = edge + half
-                gapRight = edge + half + gutter
+                // The board and the gap both come from the window's size and change smoothly with it. The board is
+                // centred, so a window wider than a split board needs leaves equal room at both edges.
+                val gutter = spread.gutter * dp
+                val half = (min(usable, spread.board * dp) - gutter) / 2
+                val start = edge + (usable - (2 * half + gutter)) / 2
+                gapLeft = start + half
+                gapRight = start + half + gutter
                 lanes = listOf(
-                    edge.roundToInt() to (edge + half).roundToInt(),
-                    (edge + half + gutter).roundToInt() to (edge + 2 * half + gutter).roundToInt(),
+                    start.roundToInt() to (start + half).roundToInt(),
+                    (start + half + gutter).roundToInt() to (start + 2 * half + gutter).roundToInt(),
                 )
                 val (leftRows, rightRows) = Layouts.split(rows)
                 Geometry.place(
                     leftRows, width, height, dp, bottomInset = bottom, top = top,
-                    startX = edge, fillWidth = half, evenKeys = true,
+                    startX = start, fillWidth = half, evenKeys = true,
                 ) + Geometry.place(
                     rightRows, width, height, dp, bottomInset = bottom, top = top,
-                    startX = edge + half + gutter, fillWidth = half, evenKeys = true, alignEnd = true,
+                    startX = start + half + gutter, fillWidth = half, evenKeys = true, alignEnd = true,
                 )
             }
             Shape.ONE_HANDED -> Geometry.place(
@@ -656,6 +688,146 @@ class KeyboardView(context: Context) : View(context) {
         tools = placeToolbar()
         keyNodes.invalidateRoot()
         openPendingHold()
+        startMotion(before, shownBefore, shapeBefore)
+    }
+
+    // ---- motion ------------------------------------------------------------------------------------------------
+    //
+    // Everything below only paints: where a key is hit, and what it types, is always its final place, so an
+    // animation can never make a letter go to the wrong key. See Motion for what moves and for how long.
+
+    private var motionOn = true
+
+    /** Where each key was drawn when the layout last changed, aligned with [placedKeys]; null for a key that stays put. */
+    private var moveFrom: Array<Box?>? = null
+    private var moveAt = 0L
+
+    /** The face each key had before a label change, aligned with [placedKeys], to fade out as the new one fades in. */
+    private var fadeFrom: Array<Placement?>? = null
+    private var fadeAt = 0L
+    private var fadeMs = Motion.CASE_MS
+
+    private var stripKind: KeyKind? = null
+    private var stripAt = Long.MIN_VALUE / 2
+
+    private class Squish(var from: Float, var to: Float, var at: Long) {
+        private fun duration() = if (to < 1f) Motion.PRESS_DOWN_MS else Motion.PRESS_UP_MS
+
+        fun value(now: Long): Float = Motion.lerp(from, to, Motion.ease((now - at) / duration().toFloat()))
+
+        fun settled(now: Long): Boolean = now - at >= duration()
+    }
+
+    private val squish = HashMap<Placement, Squish>()
+    private var squishMoving = false
+
+    private fun shownBox(index: Int, target: Box, now: Long): Box {
+        val from = moveFrom?.getOrNull(index) ?: return target
+        val t = (now - moveAt) / Motion.MOVE_MS.toFloat()
+        return if (t >= 1f) target else Motion.lerp(from, target, Motion.ease(t))
+    }
+
+    private fun signature(key: Key) = "${key.kind}|${key.label}|${key.output}"
+
+    private fun differs(a: Box, b: Box) =
+        kotlin.math.abs(a.left - b.left) > 1f || kotlin.math.abs(a.top - b.top) > 1f ||
+            kotlin.math.abs(a.right - b.right) > 1f || kotlin.math.abs(a.bottom - b.bottom) > 1f
+
+    /**
+     * Notes how the keys have changed since [before], so the next frames can ease between the two.
+     *
+     * Moves and label changes are worked out separately. A window that changed size moves keys whose labels stay;
+     * shift and 123 change labels and leave the boxes alone; a split opening does the first, and its extra space bar
+     * arrives by fading in. A change that arrives while one is running starts from what is on screen, not from the
+     * place the last one was heading.
+     */
+    private fun startMotion(before: List<Placement>, shownBefore: List<Box>, shapeBefore: Shape) {
+        val now = Motion.now()
+        val after = placedKeys
+        val firstKind = tools.firstOrNull()?.key?.kind
+        if (motionOn && isShown && firstKind != stripKind && stripKind != null && firstKind != null) stripAt = now
+        stripKind = firstKind
+        if (!motionOn || !isShown || before.isEmpty() || after.isEmpty()) {
+            moveFrom = null
+            fadeFrom = null
+            return
+        }
+        val paired = before.size == after.size && shapeBefore == shape &&
+            before.indices.all { before[it].key.kind == after[it].key.kind }
+        if (paired) {
+            if (before.indices.any { differs(before[it].box, after[it].box) }) {
+                moveFrom = Array(after.size) { shownBefore[it] }
+                moveAt = now
+            }
+            var caseOnly = true
+            val faded = arrayOfNulls<Placement>(after.size)
+            var any = false
+            for (i in after.indices) {
+                val was = before[i].key
+                val now_ = after[i].key
+                if (was.label == now_.label) continue
+                any = true
+                if (!was.label.equals(now_.label, ignoreCase = true)) caseOnly = false
+                faded[i] = Placement(was, after[i].box)
+            }
+            // A capital letter typed at speed turns shift off again; fading every key at that moment is just noise.
+            if (any && !(caseOnly && presses.isNotEmpty())) {
+                fadeFrom = faded
+                fadeAt = now
+                fadeMs = if (caseOnly) Motion.CASE_MS else Motion.LAYER_MS
+            }
+            return
+        }
+        // A different arrangement (a split opening, another layer): match keys by what they are, in order.
+        val unused = HashMap<String, ArrayDeque<Int>>()
+        for (i in before.indices) unused.getOrPut(signature(before[i].key)) { ArrayDeque() }.addLast(i)
+        val from = arrayOfNulls<Box>(after.size)
+        val faded = arrayOfNulls<Placement>(after.size)
+        var moved = false
+        for (i in after.indices) {
+            val match = unused[signature(after[i].key)]?.removeFirstOrNull()
+            if (match != null) {
+                if (differs(before[match].box, after[i].box)) {
+                    from[i] = shownBefore[match]
+                    moved = true
+                }
+            } else {
+                // Nothing like it was there before: the key arrives by fading in.
+                faded[i] = Placement(Key(""), after[i].box)
+            }
+        }
+        moveFrom = if (moved) from else null
+        moveAt = now
+        fadeFrom = faded
+        fadeAt = now
+        fadeMs = Motion.LAYER_MS
+    }
+
+    /** How far a key is pressed in, 1 when it is not. Starts, and settles, each key's own little spring. */
+    private fun squeeze(placement: Placement, held: Boolean, now: Long): Float {
+        if (!motionOn || (squish.isEmpty() && !held)) return 1f
+        var s = squish[placement]
+        if (held) {
+            if (s == null) {
+                s = Squish(1f, Motion.PRESS_SCALE, now)
+                squish[placement] = s
+            } else if (s.to != Motion.PRESS_SCALE) {
+                s.from = s.value(now)
+                s.to = Motion.PRESS_SCALE
+                s.at = now
+            }
+        } else if (s != null && s.to != 1f) {
+            s.from = s.value(now)
+            s.to = 1f
+            s.at = now
+        }
+        if (s == null) return 1f
+        if (s.to == 1f && s.settled(now)) {
+            squish.remove(placement)
+            return 1f
+        }
+        if (!s.settled(now)) squishMoving = true
+        return s.value(now)
     }
 
     /**
@@ -1042,14 +1214,33 @@ class KeyboardView(context: Context) : View(context) {
             canvas.drawRoundRect(scratch, PANEL_RADIUS_DP * dp, PANEL_RADIUS_DP * dp, fill)
         }
 
-        drawToolbar(canvas)
+        val now = Motion.now()
+        var busy = false
+        val stripT = (now - stripAt) / Motion.STRIP_MS.toFloat()
+        if (motionOn && stripT < 1f) {
+            canvas.saveLayerAlpha(0f, 0f, width.toFloat(), panelPad + toolbarHeight, (255 * Motion.ease(stripT)).toInt())
+            drawToolbar(canvas)
+            canvas.restore()
+            busy = true
+        } else {
+            drawToolbar(canvas)
+        }
         drawRail(canvas)
 
         val radius = theme.keyRadiusDp * dp
-        for (placement in placedKeys) {
-            val box = placement.box
+        val moving = motionOn && moveFrom != null && now - moveAt < Motion.MOVE_MS
+        val fading = motionOn && fadeFrom != null && now - fadeAt < fadeMs
+        squishMoving = false
+        for ((index, placement) in placedKeys.withIndex()) {
             val key = placement.key
             val held = isHeld(placement)
+            val drawn = if (moving) Placement(key, shownBox(index, placement.box, now)) else placement
+            val box = drawn.box
+            val scale = squeeze(placement, held, now)
+            if (scale != 1f) {
+                canvas.save()
+                canvas.scale(scale, scale, (box.left + box.right) / 2, (box.top + box.bottom) / 2)
+            }
             fill.color = when {
                 key.kind == KeyKind.ACTION -> theme.accent
                 key.kind != KeyKind.CHAR && key.kind != KeyKind.SPACE -> theme.altKey
@@ -1058,8 +1249,24 @@ class KeyboardView(context: Context) : View(context) {
             if (held) fill.color = blend(fill.color, theme.pressTint)
             scratch.set(box.left, box.top, box.right, box.bottom)
             canvas.drawRoundRect(scratch, radius, radius, fill)
-            drawKeyFace(canvas, placement, held)
+            val old = if (fading) fadeFrom?.getOrNull(index) else null
+            if (old == null) {
+                drawKeyFace(canvas, drawn, held)
+            } else {
+                val e = Motion.ease((now - fadeAt) / fadeMs.toFloat())
+                canvas.saveLayerAlpha(box.left, box.top, box.right, box.bottom, (255 * (1f - e)).toInt())
+                drawKeyFace(canvas, Placement(old.key, box), false)
+                canvas.restore()
+                canvas.saveLayerAlpha(box.left, box.top, box.right, box.bottom, (255 * e).toInt())
+                drawKeyFace(canvas, drawn, held)
+                canvas.restore()
+            }
+            if (scale != 1f) canvas.restore()
         }
+        if (!moving) moveFrom = null
+        if (!fading) fadeFrom = null
+        if (squish.isNotEmpty()) squish.values.removeAll { now - it.at > 300 && (it.to == 1f || presses.isEmpty()) }
+        if (busy || moving || fading || squishMoving) postInvalidateOnAnimation()
         drawStyleMenu(canvas)
         drawLanguageMenu(canvas)
         drawForgetMenu(canvas)
@@ -1451,6 +1658,9 @@ class KeyboardView(context: Context) : View(context) {
 
     /** What the list is showing: the languages, then Other keyboards and Language settings. Empty when it is closed. */
     internal val languageMenuItems: List<Placement> get() = languageMenu?.items.orEmpty()
+
+    /** Whether holding the space bar opens the language list: always, as on Gboard, except on the search keyboards. */
+    private fun spaceHoldsLanguages(): Boolean = !searchKeys
 
     private fun openLanguageMenu(globe: Placement, opener: Press?) {
         closePopup()
@@ -1905,6 +2115,18 @@ class KeyboardView(context: Context) : View(context) {
                 Haptics.feel(this, settings.vibration, Haptics.Touch.HOLD)
                 press.handled = true
                 openForgetMenu(press.origin, press)
+            }
+            press.hold = task
+            repeat.postDelayed(task, settings.holdDelay.millis)
+            return
+        }
+        if (press.origin.key.kind == KeyKind.SPACE && spaceHoldsLanguages()) {
+            // Holding the space bar is always a way to the language list and to other keyboards, globe key or not.
+            val task = Runnable {
+                Haptics.feel(this, settings.vibration, Haptics.Touch.HOLD)
+                press.handled = true
+                listener?.onGesture(Tip.GLOBE_LANGUAGES)
+                openLanguageMenu(press.origin, press)
             }
             press.hold = task
             repeat.postDelayed(task, settings.holdDelay.millis)
@@ -2374,7 +2596,7 @@ class KeyboardView(context: Context) : View(context) {
             openForgetMenu(placement, null)
             return true
         }
-        if (placement.key.kind == KeyKind.GLOBE) {
+        if (placement.key.kind == KeyKind.GLOBE || (placement.key.kind == KeyKind.SPACE && spaceHoldsLanguages())) {
             openLanguageMenu(placement, null)
             return true
         }
@@ -2389,7 +2611,8 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun holds(placement: Placement): Boolean =
-        placement.key.kind == KeyKind.GLOBE || forgettable(placement) || (onKeys(placement) && holdItems(placement.key).isNotEmpty())
+        placement.key.kind == KeyKind.GLOBE || (placement.key.kind == KeyKind.SPACE && spaceHoldsLanguages()) ||
+            forgettable(placement) || (onKeys(placement) && holdItems(placement.key).isNotEmpty())
 
     /**
      * The keys are drawn, not laid out, so a screen reader would find one blank rectangle. Each key is published as a
@@ -2496,10 +2719,8 @@ class KeyboardView(context: Context) : View(context) {
         const val WORD_SLOT_DP = 100f     // the strip width each word it offers wants
         const val MIN_WORDS = 4
         const val MAX_WORDS = 5
-        const val CAP_AT_DP = 480f      // wider than a large phone: stop stretching, start centring
-        const val CAP_WIDTH_DP = 460f
-        const val SPLIT_AT_DP = 600f    // an unfolded Fold or a tablet: split, the way Samsung does
-        const val SHORT_DP = 480f       // below this the window is a phone on its side, however wide
+        /** An unsplit board this much narrower than its window is centred rather than filling it: the name for "capped". */
+        const val CAPPED_BY_DP = 4f
         const val NARROW_OFFER_DP = 400f  // narrower than this, the strip's question is asked in fewer words
         const val OFFER_BUTTON_DP = 56f   // no answer narrower than this, whatever its label
         const val OFFER_BUTTON_PAD_DP = 14f

@@ -9,7 +9,7 @@
     <string name="tip_edit_swipes">Tip: swipe up on C to copy, V to paste</string>
     <string name="tip_shift_select">Tip: slide from shift to select text</string>
     <string name="tip_two_finger_undo">Tip: swipe two fingers left to undo</string>
-    <string name="tip_globe_languages">Tip: hold the globe for your languages</string>
+    <string name="tip_globe_languages">Tip: hold the space bar for your languages</string>
     <string name="tip_period_symbols">Tip: hold the period for more symbols</string>
     <string name="tip_got_it">Got it</string>
 

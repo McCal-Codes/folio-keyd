@@ -138,6 +138,7 @@ object Layouts {
         numberRow: Boolean = false,
         language: Language = Language.ENGLISH,
         micKey: Boolean = false,
+        globeKey: Boolean = true,
     ): List<Row> {
         if (rules.kind == FieldKind.NUMBER || rules.kind == FieldKind.PHONE) return numberPad(rules)
         val source = when (layer) {
@@ -161,7 +162,7 @@ object Layouts {
         // are where letters and digits mix most, and the 123 key there means hopping layers blind, with every
         // character hidden as it is typed. The setting itself is left alone. A PIN never reaches here; it has the pad.
         val top = if ((numberRow || rules.password) && letters) listOf(DIGITS) else emptyList()
-        return top + rows + listOf(spaceRow(layer, rules, micKey))
+        return top + rows + listOf(spaceRow(layer, rules, micKey, globeKey))
     }
 
     /**
@@ -190,7 +191,7 @@ object Layouts {
      * The bottom row is where the field shows: an email keyboard has @ and .com, a web address has / and .com, and the
      * action key says what the app asked for rather than always "return".
      */
-    private fun spaceRow(layer: Layer, rules: FieldRules, micKey: Boolean = false): Row {
+    private fun spaceRow(layer: Layer, rules: FieldRules, micKey: Boolean = false, globeKey: Boolean = true): Row {
         val toLetters = layer != Layer.LETTERS
         val layerKey = Key(
             if (toLetters) "ABC" else "123", KeyKind.LAYER, weight = 1.5f,
@@ -215,8 +216,11 @@ object Layouts {
         // The mic sits right of the space bar, where a thumb already is, rather than on the left as on an iPhone. It
         // takes a slice of the space bar's width, and only on the letters: the symbol layers keep their row as it was.
         val mic = if (micKey && punctuation) listOf(Key("Voice", KeyKind.VOICE)) else emptyList()
-        val spaceWeight = if (mic.isEmpty()) 4.2f else 3.4f
-        return listOf(layerKey, Key("🌐", KeyKind.GLOBE)) + extras.take(1) +
+        // Without the globe its width goes to the space bar, which is what holds the language list then.
+        val spaceWeight = (if (mic.isEmpty()) 4.2f else 3.4f) + (if (globeKey) 0f else 1f)
+        // 123 is in the corner and the globe right beside it, as on iOS and Gboard. The globe is only here when there is
+        // somewhere to switch to and it has not been turned off, so on a phone with one keyboard nothing can be hit.
+        return (if (globeKey) listOf(layerKey, Key("🌐", KeyKind.GLOBE)) else listOf(layerKey)) + extras.take(1) +
             listOf(Key("space", KeyKind.SPACE, weight = spaceWeight, output = " ")) +
             tail + extras.drop(1) + mic + Key(rules.actionLabel, KeyKind.ACTION, weight = 1.5f)
     }

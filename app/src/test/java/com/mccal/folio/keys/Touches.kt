@@ -60,7 +60,7 @@ internal class Touches(widthDp: Int = 411) {
     ) {
         view.settings = settings
         view.rules = rules
-        view.rows = Layouts.rows(layer, false, rules)
+        view.rows = Layouts.rows(layer, false, rules, globeKey = settings.globeKey)
         val width = (widthDp * density).toInt()
         view.measure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),

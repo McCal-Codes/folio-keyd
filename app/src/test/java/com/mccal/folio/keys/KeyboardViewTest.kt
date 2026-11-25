@@ -217,7 +217,8 @@ class KeyboardViewTest {
         val spaces = split.placements.filter { it.key.kind == KeyKind.SPACE }
         assertEquals(2, spaces.size)
         for (space in spaces) {
-            assertTrue("space is ${space.box.width / density} dp", space.box.width / density >= 120f)
+            // Each thumb needs a bar well over a fingertip wide. It was 120 when split keys ran 73 dp across; they are about 59 now.
+            assertTrue("space is ${space.box.width / density} dp", space.box.width / density >= 100f)
             assertEquals(" ", space.key.output)
         }
     }

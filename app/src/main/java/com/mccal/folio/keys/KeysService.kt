@@ -844,8 +844,10 @@ class KeysService : InputMethodService(), Ime {
             showClipboard(false)
             showCursorPad(false)
         }
+        val was = emoji?.visibility == View.VISIBLE
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         emoji?.visibility = if (showing) View.VISIBLE else View.GONE
+        if (showing && !was) Motion.reveal(emoji) else if (!showing && was) Motion.reveal(keyboard)
         // Back to the grid or to the letters, the search closes either way.
         showEmojiSearch(false)
         if (showing) emoji?.opened() else emoji?.closeTones()
@@ -903,8 +905,10 @@ class KeysService : InputMethodService(), Ime {
             clipboard?.keyStyle = actions.settings.keyStyle
             clipboard?.feel(actions.settings)
         }
+        val was = clipboard?.visibility == View.VISIBLE
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         clipboard?.visibility = if (showing) View.VISIBLE else View.GONE
+        if (showing && !was) Motion.reveal(clipboard) else if (!showing && was) Motion.reveal(keyboard)
     }
 
     /** Swaps the letters for the arrows and selection keys, or back. It opens with selecting off every time. */
@@ -920,8 +924,10 @@ class KeysService : InputMethodService(), Ime {
             shown.feel(actions.settings)
             shown.opened()
         }
+        val was = shown.visibility == View.VISIBLE
         keyboard?.visibility = if (showing) View.GONE else View.VISIBLE
         shown.visibility = if (showing) View.VISIBLE else View.GONE
+        if (showing && !was) Motion.reveal(shown) else if (!showing && was) Motion.reveal(keyboard)
     }
 
     /**
@@ -1274,6 +1280,21 @@ class KeysService : InputMethodService(), Ime {
         // The same call the voice key uses; Android then tells onCurrentInputMethodSubtypeChanged, as its picker would.
         runCatching { switchInputMethod(id, subtype) }
     }
+
+    override fun canSwitchKeyboard(): Boolean = runCatching {
+        // Android's own answer, the one Gboard uses for its globe: another keyboard, or another language of this one.
+        val manager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        val token = window?.window?.attributes?.token
+        if (token != null && manager.shouldOfferSwitchingToNextInputMethod(token)) return@runCatching true
+        // The token is not there yet when a field starts before the keyboard is on screen, so count them too: another
+        // turned-on keyboard that can be typed with (voice typing only has auxiliary subtypes), or another language.
+        val another = manager.enabledInputMethodList.any { method ->
+            if (method.packageName == packageName) return@any false
+            val subtypes = manager.getEnabledInputMethodSubtypeList(method, true)
+            subtypes.isEmpty() || subtypes.any { !it.isAuxiliary }
+        }
+        another || languages().size > 1
+    }.getOrDefault(true)
 
     override fun pickKeyboard() {
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()

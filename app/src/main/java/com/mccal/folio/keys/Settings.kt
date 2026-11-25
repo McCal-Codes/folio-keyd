@@ -100,6 +100,11 @@ data class Settings(
     /** A mic key on the bottom row, right of the space bar, as well as the toolbar's. Only where there is a voice keyboard. */
     val micOnSpaceRow: Boolean = false,
     /**
+     * The globe key on the bottom row. Off, the space bar does its job: holding it lists the languages and the way to
+     * other keyboards, so a person who never switches is not left with a key to hit by mistake.
+     */
+    val globeKey: Boolean = true,
+    /**
      * After the numbers or symbols, a space goes back to the letters, as it does on an iPhone and on Gboard: "at 3 pm"
      * without a trip to ABC. Never in a number or phone field, where the digits are the keyboard, or an address.
      */
@@ -181,6 +186,7 @@ data class Settings(
             putBoolean(DOUBLE_SPACE, doubleSpaceFullStop)
             putBoolean(NUMBER_ROW, numberRow)
             putBoolean(MIC_ON_SPACE_ROW, micOnSpaceRow)
+            putBoolean(GLOBE_KEY, globeKey)
             putBoolean(BACK_TO_LETTERS, backToLetters)
             putBoolean(ACCENTS, accents)
             putBoolean(KEY_PREVIEW, keyPreview)
@@ -230,6 +236,7 @@ data class Settings(
         const val DOUBLE_SPACE = "doubleSpace"
         const val NUMBER_ROW = "numberRow"
         const val MIC_ON_SPACE_ROW = "micOnSpaceRow"
+        const val GLOBE_KEY = "globeKey"
         const val BACK_TO_LETTERS = "backToLetters"
         const val ACCENTS = "accents"
         const val KEY_PREVIEW = "keyPreview"
@@ -417,6 +424,7 @@ data class Settings(
                 doubleSpaceFullStop = read(DOUBLE_SPACE, fallback.doubleSpaceFullStop),
                 numberRow = read(NUMBER_ROW, fallback.numberRow),
                 micOnSpaceRow = read(MIC_ON_SPACE_ROW, fallback.micOnSpaceRow),
+                globeKey = read(GLOBE_KEY, fallback.globeKey),
                 backToLetters = read(BACK_TO_LETTERS, fallback.backToLetters),
                 accents = read(ACCENTS, fallback.accents),
                 keyPreview = read(KEY_PREVIEW, fallback.keyPreview),

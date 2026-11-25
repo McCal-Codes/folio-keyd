@@ -112,6 +112,9 @@ class KeysServiceTest {
 
         var quietGaps = 0
         override fun quietGap() { quietGaps++ }
+
+        var somewhereToSwitch = true
+        override fun canSwitchKeyboard() = somewhereToSwitch
     }
 
     private lateinit var ime: FakeIme
@@ -949,6 +952,19 @@ class KeysServiceTest {
     fun `the globe is passed to Android`() {
         actions.onSwitchKeyboard()
         assertEquals(1, ime.switches)
+    }
+
+    @Test
+    fun `the globe shows only when there is somewhere to switch to`() {
+        fun globes() = ime.shown.flatten().count { it.kind == KeyKind.GLOBE }
+        actions.startInput(EditorInfo())
+        assertEquals(1, globes())
+        ime.somewhereToSwitch = false
+        actions.startInput(EditorInfo())
+        assertEquals("nowhere to go, no globe", 0, globes())
+        ime.somewhereToSwitch = true
+        actions.startInput(EditorInfo())
+        assertEquals(1, globes())
     }
 
     // ---- return, search and go ------------------------------------------------------------------------------------
