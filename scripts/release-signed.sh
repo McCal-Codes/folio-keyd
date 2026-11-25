@@ -64,7 +64,8 @@ for variant in release dev; do
     sha=$(sha256 "$out/$name")
     echo "$sha  $name" >> "$out/SHA256SUMS.txt"
     size=$(stat -f%z "$out/$name" 2>/dev/null || stat -c%s "$out/$name")
-    [[ $variant == release && $version != *-* ]] || continue
+    # A beta is for McCal's phone only and leaves source/ alone, unless KEYD_LIST_BETA is set: then Folio betas can get it.
+    [[ $variant == release && ( $version != *-* || -n "${KEYD_LIST_BETA:-}" ) ]] || continue
     # Folio refuses a first install unless the APK is signed by a key the listing names, so the listing carries the
     # signer read from this APK, and the build it is (versionCode = MAJOR * 10000 + MINOR * 100 + PATCH).
     signer=$(grep -m1 "certificate SHA-256 digest" "$out/signing-certificate-$variant.txt" | awk '{print tolower($NF)}')
