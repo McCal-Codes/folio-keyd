@@ -8,6 +8,7 @@ under Settings › About › What's New.
 
 ### Added
 - **Mic next to the space bar:** an optional mic key to the right of the space bar on the letters, off by default. It hands over to your phone's voice keyboard, shows only where the phone has one, and never appears in a password field. Turn it on under Keys.
+- **One mic at a time:** with the mic next to the space bar on, the toolbar and the suggestion strip no longer show a second one.
 
 ### Changed
 - **Layout follows the window smoothly:** key size, the width of the board and the gap in a split keyboard now change a little at a time as a window gets wider or taller, instead of jumping at set sizes. A split opens from an ordinary gap at 600 dp and is fully apart by about 760 dp, and a short window such as a phone on its side still fills its width.

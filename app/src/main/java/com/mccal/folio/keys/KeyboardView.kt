@@ -301,7 +301,8 @@ class KeyboardView(context: Context) : View(context) {
             invalidate()
         }
 
-    private val showVoice get() = voiceAvailable && ToolKey.VOICE in settings.toolbar && !rules.password
+    // The mic on the bottom row stands in for the toolbar's and the strip's, so there is never one above and one below.
+    private val showVoice get() = voiceAvailable && ToolKey.VOICE in settings.toolbar && !rules.password && !settings.micOnSpaceRow
 
     /**
      * The letters under the emoji search, rather than the keyboard.
