@@ -63,6 +63,12 @@
       "type": "changelog",
       "entries": [
         {
+          "version": "0.5.0-beta.1",
+          "notes": {
+            "en": "A beta of Keyd 0.5.0: the keyboard now follows the window smoothly, the globe key sits beside 123 and shows only when there is somewhere to switch to, holding the space bar lists your languages, an optional mic key, and a little motion that stops when animations are off."
+          }
+        },
+        {
           "version": "0.4.1",
           "notes": {
             "en": "Keyd 0.4.1 adds emoji skin tones, a wider suggestion strip, password manager chips, a way to stop a word from being suggested, and a sign when Keyd is not learning."

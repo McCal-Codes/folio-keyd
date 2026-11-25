@@ -29,7 +29,8 @@ grep -q "^## \[$base\]" CHANGELOG.md || {
 git rev-parse -q --verify "refs/tags/v$next" >/dev/null && { echo "beta: tag v$next already exists." >&2; exit 1; }
 
 echo "beta: $current -> $next"
-sed -i '' "s/^val keysVersion = \".*\"$/val keysVersion = \"$next\"/" "$gradle"
+# -i.bak is the one spelling a Mac and GNU sed both take.
+sed -i.bak "s/^val keysVersion = \".*\"$/val keysVersion = \"$next\"/" "$gradle" && rm -f "$gradle.bak"
 restore() { git checkout -- "$gradle"; echo "beta: nothing committed, version is back to $current." >&2; }
 trap restore ERR
 rm -rf "dist/Keyd-$next"
@@ -39,5 +40,6 @@ trap - ERR
 git commit -q -am "$base beta ${next##*-beta.}"
 git tag "v$next"
 echo "beta: committed and tagged v$next"
+[[ -z "${KEYD_BETA_NO_INSTALL:-}" ]] || { echo "beta: built and tagged v$next. Not installed (KEYD_BETA_NO_INSTALL is set)."; exit 0; }
 scripts/phone.sh install "dist/Keyd-$next/Keyd-Dev-$next.apk" ||
     echo "beta: built and tagged, but not installed. Connect the phone and run: scripts/phone.sh install dist/Keyd-$next/Keyd-Dev-$next.apk"

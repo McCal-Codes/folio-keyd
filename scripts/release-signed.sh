@@ -38,10 +38,13 @@ done
 case "$(cd "$(dirname "$FOLIO_RELEASE_STORE_FILE")" && pwd -P)/" in
     "$root"/*) echo "The keystore must live outside the repository." >&2; exit 1 ;;
 esac
+# shasum on a Mac, sha256sum where that is what there is (Git Bash on Windows has both).
+sha256() { if command -v shasum >/dev/null; then shasum -a 256 "$1" | cut -d' ' -f1; else sha256sum "$1" | cut -d' ' -f1; fi; }
 [[ ! -e "$out" ]] || { echo "Refusing to replace $out. Delete it to build again." >&2; exit 1; }
 
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$(sed -n 's/^sdk\.dir=//p' "$root/local.properties" 2>/dev/null)}}
-apksigner=$(ls -d "$sdk"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+# On Windows the tool is apksigner.bat, so look for both.
+apksigner=$(ls -d "$sdk"/build-tools/*/apksigner "$sdk"/build-tools/*/apksigner.bat 2>/dev/null | sort -V | tail -1 || true)
 [[ -n "$apksigner" ]] || { echo "apksigner not found. Set ANDROID_HOME." >&2; exit 1; }
 # A JAVA_HOME that isn't a folder (some shells export a message there) would stop Gradle, so only a real one is kept.
 [[ -d "${JAVA_HOME:-}" ]] || export JAVA_HOME=/opt/homebrew/opt/openjdk@17
@@ -58,10 +61,11 @@ for variant in release dev; do
     [[ -f "$apk" ]] || { echo "No signed $variant APK was produced: are all four signing variables right?" >&2; exit 1; }
     cp -p "$apk" "$out/$name"
     "$apksigner" verify --print-certs "$out/$name" > "$out/signing-certificate-$variant.txt"
-    (cd "$out" && shasum -a 256 "$name" >> SHA256SUMS.txt)
-    sha=$(shasum -a 256 "$out/$name" | cut -d' ' -f1)
+    sha=$(sha256 "$out/$name")
+    echo "$sha  $name" >> "$out/SHA256SUMS.txt"
     size=$(stat -f%z "$out/$name" 2>/dev/null || stat -c%s "$out/$name")
-    [[ $variant == release && $version != *-* ]] || continue
+    # A beta is for McCal's phone only and leaves source/ alone, unless KEYD_LIST_BETA is set: then Folio betas can get it.
+    [[ $variant == release && ( $version != *-* || -n "${KEYD_LIST_BETA:-}" ) ]] || continue
     # Folio refuses a first install unless the APK is signed by a key the listing names, so the listing carries the
     # signer read from this APK, and the build it is (versionCode = MAJOR * 10000 + MINOR * 100 + PATCH).
     signer=$(grep -m1 "certificate SHA-256 digest" "$out/signing-certificate-$variant.txt" | awk '{print tolower($NF)}')

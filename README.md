@@ -24,14 +24,20 @@ unmade on their own screen.
 Portuguese.
 
 **The window.** A book fold splits the keyboard around the crease so no key sits on the hinge, automatically or
-always. Height in three sizes, the room left under the keys, and a check that the line you're typing on hasn't gone
-behind the keyboard.
+always. The board follows the window a little at a time, so it fits the cover, the open screen and anything between, with
+no jump at set sizes. Height in three sizes, the room left under the keys, and a check that the line you're typing on
+hasn't gone behind the keyboard.
+
+**Switching keyboards.** The globe key sits beside 123 and shows only when Android has another keyboard or language to
+switch to; it can be turned off. Hold the space bar for your languages and the way to other keyboards. An optional mic
+key sits right of the space bar.
 
 **Gestures.** Flick a key up or down for what's printed on it, swipe the space bar to move the cursor, swipe backspace
 to take a word, double-space for a full stop — each one a switch, because everyone's thumbs disagree.
 
 **How it looks.** Light, dark or the system's, a high-contrast option, and every colour pair checked against WCAG AA
-for the label that sits on it. The click and the haptic are yours to turn off.
+for the label that sits on it. Keys press in slightly under a finger, labels and panels fade, and nothing repeats or
+flashes; all of it stops when the phone's animations are off. The click and the haptic are yours to turn off.
 
 ## Why another keyboard
 
@@ -50,7 +56,7 @@ Not to beat Gboard at autocorrect — that's years of data. The things it can do
 JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :app:assembleDebug
 ```
 
-The checks: `./gradlew :app:testDebugUnitTest` — **289 of them**, and CI runs them on every push and pull request.
+The checks: `./gradlew :app:testDebugUnitTest` — **over 900 of them**, and CI runs them on every push and pull request.
 They cover the field rules, where the keys land at every window size a phone can give us, word deletion, the
 dictionary and the corrections, every language's word list and its order, what a screen reader reads, the contrast of
 the colours that ship — and, through Robolectric, the keyboard being typed on: real touch sequences including two

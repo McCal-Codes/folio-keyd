@@ -4,6 +4,7 @@
 |---|---|
 | `release.sh` | `prepare "summary"`: final version, dated notes, tests, signing, the release PR. `publish`: merge, GitHub release (Keyd only), the Folio source, and a check of the live index. |
 | `beta.sh` | The next beta: bump, test, sign, commit, tag, install on the phone. Nothing is pushed. |
+| `beta.ps1` | The same beta on Windows: asks for the keystore password (hidden), runs `beta.sh` in Git's bash, and leaves the phone alone unless `-Install` is given. |
 | `release-signed.sh` | Signs Keyd and Keyd Dev into `dist/Keyd-<version>/`. A release also points `source/` at it. |
 | `phone.sh` | Finds the Fold (USB, then wireless debugging), installs on it, screenshots it, taps it. |
 | `emoji-keywords.py`, `bigrams.py` | Rebuild the emoji names and next-word data from their sources. |

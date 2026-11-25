@@ -1,9 +1,9 @@
 {
-  "url": "https://github.com/McCal-Codes/folio-keyd/releases/download/v0.4.1/Keyd-0.4.1.apk",
-  "sha256": "3024420f62cb556c029b5340dcef4aeb32fa16aaca384d45588b73f2013f77de",
-  "size": 1621473,
+  "url": "https://github.com/McCal-Codes/folio-keyd/releases/download/v0.5.0-beta.1/Keyd-0.5.0-beta.1.apk",
+  "sha256": "1750db32667a3eea83bae829ebd4c8bd4a87688923852c2145af675e4a1b1a19",
+  "size": 1635569,
   "signerSha256": [
     "bad8e099557b70c690e71a3fffe13561c8662c20612047ce1e2559a1c14d8441"
   ],
-  "versionCode": 401
+  "versionCode": 500
 }
