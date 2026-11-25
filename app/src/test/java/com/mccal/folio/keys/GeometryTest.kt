@@ -274,4 +274,105 @@ class GeometryTest {
         assertTrue(Geometry.place(rows, 0, 500, 2f).isEmpty())
         assertTrue(Geometry.place(emptyList(), 800, 500, 2f).isEmpty())
     }
+    // ---- a layout that follows the window instead of stepping ---------------------------------------------------
+
+    private fun spreads(heightDp: Float, from: Int = 300, to: Int = 1100, step: Int = 1, split: Boolean = true) =
+        (from..to step step).map { w ->
+            // The keys' room is the window less the edges they keep clear, as the view works it out.
+            Geometry.spread(w - 18f, w.toFloat(), heightDp, allowSplit = split)
+        }
+
+    /** The point of the change: widen a window one dp at a time and nothing jumps. */
+    @Test
+    fun `the board and the gap change in small steps as the window widens`() {
+        for (height in listOf(360f, 480f, 520f, 600f, 704f, 891f)) {
+            val all = spreads(height)
+            for ((a, b) in all.zipWithNext()) {
+                assertTrue("board jumps ${a.board} to ${b.board} at height $height", kotlin.math.abs(b.board - a.board) <= 2.5f)
+                assertTrue("gap jumps ${a.gutter} to ${b.gutter} at height $height", kotlin.math.abs(b.gutter - a.gutter) <= 4f)
+            }
+        }
+    }
+
+    @Test
+    fun `the same goes for a window that gets taller`() {
+        for (width in listOf(600f, 700f, 800f, 932f)) {
+            val all = (300..1000).map { h -> Geometry.spread(width - 18f, width, h.toFloat()) }
+            for ((a, b) in all.zipWithNext()) {
+                assertTrue("board jumps ${a.board} to ${b.board} at width $width", kotlin.math.abs(b.board - a.board) <= 5f)
+                assertTrue("gap jumps ${a.gutter} to ${b.gutter} at width $width", kotlin.math.abs(b.gutter - a.gutter) <= 4f)
+            }
+        }
+    }
+
+    @Test
+    fun `a phone is left exactly as it was`() {
+        for (width in listOf(320, 360, 392, 411, 440)) {
+            val s = Geometry.spread(width - 18f, width.toFloat(), 891f)
+            assertEquals(width - 18f, s.board, 0.001f)
+            assertEquals(0f, s.opened, 0f)
+        }
+    }
+
+    @Test
+    fun `the board never outgrows the window and never shrinks as it widens`() {
+        for (height in listOf(360f, 600f, 891f)) {
+            var last = 0f
+            for ((index, s) in spreads(height).withIndex()) {
+                val usable = 300 + index - 18f
+                assertTrue("board ${s.board} is wider than its $usable dp", s.board <= usable + 0.001f)
+                assertTrue("board shrank to ${s.board} from $last", s.board >= last - 0.001f)
+                last = s.board
+            }
+        }
+    }
+
+    @Test
+    fun `a split opens from one ordinary gap, so the keys do not change size when it starts`() {
+        val before = Geometry.spread(582f, 599f, 891f)
+        val after = Geometry.spread(584f, 601f, 891f)
+        assertTrue(!before.split)
+        assertTrue(after.split)
+        assertEquals(Geometry.GAP_X_DP, after.gutter, 0.5f)
+        // The top row has five keys a half and ten in all, so a key is the board less its gaps over ten.
+        fun key(s: Geometry.Spread) = (s.board - 8 * Geometry.GAP_X_DP - s.gutter) / 10
+        assertEquals((before.board - 9 * Geometry.GAP_X_DP) / 10, key(after), 0.2f)
+    }
+
+    @Test
+    fun `an unfolded Fold gets keys a hand can use and a gap the hinge fits in`() {
+        val s = Geometry.spread(732f, 750f, 833f)
+        val key = (s.board - 8 * Geometry.GAP_X_DP - s.gutter) / 10
+        assertTrue("a key is $key dp", key in 40f..62f)
+        assertTrue("the gap is ${s.gutter} dp", s.gutter in 80f..Geometry.GUTTER_MAX_DP)
+    }
+
+    @Test
+    fun `a window too big to use stops growing the keys instead of stretching them`() {
+        for (width in listOf(932f, 1280f, 1920f)) {
+            val s = Geometry.spread(width - 18f, width, 900f)
+            val key = (s.board - 8 * Geometry.GAP_X_DP - s.gutter) / 10
+            assertTrue("a key is $key dp at $width", key <= 62f)
+            assertTrue(s.board <= Geometry.SPLIT_BOARD_MAX_DP + 0.001f)
+        }
+    }
+
+    @Test
+    fun `a short window fills its width however wide, and a tall one is held to a hand's reach`() {
+        assertEquals(873f, Geometry.spread(873f, 891f, 411f).board, 0.001f)
+        assertEquals(0f, Geometry.spread(873f, 891f, 411f).opened, 0f)
+        assertTrue(Geometry.spread(873f, 891f, 891f).opened > 0.99f)
+        // Between the two, the answer is between too.
+        val between = Geometry.spread(873f, 891f, 540f)
+        assertTrue(between.opened > 0f && between.opened < 1f)
+    }
+
+    @Test
+    fun `never splitting centres the keys at any height, and always splitting ignores the height`() {
+        val never = Geometry.spread(873f, 891f, 411f, allowSplit = false)
+        assertTrue(never.board < 500f && !never.split)
+        assertTrue(Geometry.spread(873f, 891f, 411f, ignoreHeight = true).split)
+        // Always still opens with the width, so a narrow window is not forced to split.
+        assertTrue(!Geometry.spread(400f, 411f, 411f, ignoreHeight = true).split)
+    }
 }

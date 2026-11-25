@@ -70,6 +70,78 @@ object Geometry {
     const val SHARE = 0.46f
     const val MAX_HEIGHT_DP = 360f
 
+    /**
+     * How a window shares its width between keys and a gap, in dp.
+     *
+     * [board] is how wide the keys' board is, [gutter] is the gap between a split board's halves (the gap between two
+     * ordinary keys when not split), and [opened] says how far the board has pulled apart, 0 to 1. All three change
+     * smoothly with the window, so dragging a window wider or taller never makes the keys jump.
+     */
+    data class Spread(val board: Float, val gutter: Float, val opened: Float) {
+        /** Whether the halves are laid out apart at all; at the very start of opening they are one gap wide. */
+        val split: Boolean get() = opened > 0f
+    }
+
+    /** Up to this wide, the board is the whole window. Phones, and the Fold's cover screen. */
+    const val FILL_DP = 440f
+
+    /** Past [FILL_DP] an unsplit board eases towards [FILL_DP] plus this, and never further: keys stay the size hands expect. */
+    const val EASE_DP = 40f
+
+    /** A split starts to pull apart at this window width, and is fully apart [OPEN_OVER_DP] later. */
+    const val OPEN_AT_DP = 600f
+    const val OPEN_OVER_DP = 160f
+
+    /** Window heights between these open the split gradually: a window that is wide but short is a phone on its side. */
+    const val TALL_FROM_DP = 480f
+    const val TALL_OVER_DP = 160f
+
+    /** A fully split board is never wider than this, or its gap wider than [GUTTER_MAX_DP], so its keys stop growing too. */
+    const val SPLIT_BOARD_MAX_DP = 772f
+    const val GUTTER_MAX_DP = 220f
+    const val GUTTER_SHARE = 0.19f
+
+    /** Eases from 0 to 1 over [0, 1] with no corner at either end. */
+    fun smooth(x: Float): Float {
+        val t = x.coerceIn(0f, 1f)
+        return t * t * (3 - 2 * t)
+    }
+
+    /**
+     * An unsplit board in a window with [usableDp] to spend: all of it up to [FILL_DP], then easing towards a ceiling
+     * rather than stopping dead, so there is no width at which the keys quit growing all at once.
+     */
+    fun eased(usableDp: Float): Float =
+        if (usableDp <= FILL_DP) usableDp else FILL_DP + EASE_DP * (1 - kotlin.math.exp(-(usableDp - FILL_DP) / EASE_DP))
+
+    /**
+     * What the window gives the board.
+     *
+     * [usableDp] is the width between the keyboard's edges; [windowWidthDp] and [windowHeightDp] are the window's
+     * own size, which are what decide how far a split opens. [allowSplit] and [ignoreHeight] carry the person's
+     * choice: never splitting, and splitting even in a short window.
+     *
+     * Everything here is continuous: the key size a split starts with is the size the unsplit board had just before
+     * it, and the gap grows from one ordinary gap. The only thing that is not continuous is which keys sit where
+     * once a board splits, which no number can smooth.
+     */
+    fun spread(
+        usableDp: Float,
+        windowWidthDp: Float,
+        windowHeightDp: Float,
+        allowSplit: Boolean = true,
+        ignoreHeight: Boolean = false,
+    ): Spread {
+        val tall = if (ignoreHeight) 1f else smooth((windowHeightDp - TALL_FROM_DP) / TALL_OVER_DP)
+        // A short window fills its width, however wide. Only a tall one is held to what a hand can reach.
+        val unsplit = usableDp + (eased(usableDp) - usableDp) * (if (allowSplit) tall else 1f)
+        val opened = if (allowSplit) smooth((windowWidthDp - OPEN_AT_DP) / OPEN_OVER_DP) * tall else 0f
+        if (opened <= 0f) return Spread(unsplit, GAP_X_DP, 0f)
+        val board = unsplit + (min(usableDp, SPLIT_BOARD_MAX_DP) - unsplit) * opened
+        val gutter = GAP_X_DP + (min(GUTTER_MAX_DP, GUTTER_SHARE * board) - GAP_X_DP) * opened
+        return Spread(board, gutter, opened)
+    }
+
     const val ONE_HANDED_MAX_DP = 360f
     const val ONE_HANDED_MIN_DP = 280f
     const val RAIL_DP = 56f

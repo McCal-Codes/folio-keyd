@@ -190,9 +190,9 @@ internal class CursorPad(context: Context) : View(context) {
         val gapY = Geometry.GAP_Y_DP * dp
         val edge = panelPad + sideInset + Geometry.SIDE_PAD_DP * dp + gapX
         // Twelve keys stretched across an unfolded Fold are a reach from one to the next and look like a toy, so
-        // past a large phone's width they stop growing and sit in the middle, the way the letters do.
+        // past a large phone's width they ease off and sit in the middle, by the same curve the letters follow.
         val room = width - 2 * edge
-        val span = min(room, CAP_WIDTH_DP * dp)
+        val span = min(room, Geometry.eased(room / dp) * dp)
         val left = edge + (room - span) / 2
         val top = panelPad + gapY
         val bottom = height - bottomInset - panelPad
@@ -530,7 +530,6 @@ internal class CursorPad(context: Context) : View(context) {
         private const val PANEL_RADIUS_DP = 22f
         private const val KEY_RADIUS_DP = 14f
         private const val TAB_DP = 42f
-        private const val CAP_WIDTH_DP = 460f
         private const val LABELED_ROW_DP = 46f   // below this a caption squeezes the icon to nothing
         private const val LABEL_PAD_DP = 4f
         private const val FIRST_REPEAT_MS = 400L   // the same timing as backspace on the letters

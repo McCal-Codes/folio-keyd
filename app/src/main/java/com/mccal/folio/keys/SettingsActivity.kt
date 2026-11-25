@@ -254,7 +254,7 @@ class SettingsActivity : Activity() {
     private fun refreshDependents() {
         preview?.let { board ->
             board.settings = settings
-            board.rows = Layouts.rows(Layer.LETTERS, false, board.rules, numberRow = settings.numberRow)
+            board.rows = Layouts.rows(Layer.LETTERS, false, board.rules, numberRow = settings.numberRow, globeKey = settings.globeKey)
             board.requestLayout()
             board.invalidate()
         }
@@ -1499,6 +1499,10 @@ class SettingsActivity : Activity() {
         group(column) {
             toggle(it, getString(R.string.settings_number_row), settings.numberRow) { on -> settings.copy(numberRow = on) }
             toggle(it, getString(R.string.settings_mic_on_space_row), settings.micOnSpaceRow) { on -> settings.copy(micOnSpaceRow = on) }
+            switchRow(
+                it, getString(R.string.settings_globe_key), settings.globeKey,
+                subtitle = getString(R.string.settings_globe_key_note),
+            ) { on -> change(settings.copy(globeKey = on)) }
             toggle(it, getString(R.string.settings_accents), settings.accents) { on -> settings.copy(accents = on) }
             switchRow(
                 it, getString(R.string.settings_back_to_letters), settings.backToLetters,
@@ -1804,7 +1808,7 @@ class SettingsActivity : Activity() {
         val board = KeyboardView(this).apply {
             settings = this@SettingsActivity.settings
             rules = FieldRules()
-            rows = Layouts.rows(Layer.LETTERS, false, rules, numberRow = this@SettingsActivity.settings.numberRow)
+            rows = Layouts.rows(Layer.LETTERS, false, rules, numberRow = this@SettingsActivity.settings.numberRow, globeKey = this@SettingsActivity.settings.globeKey)
         }
         preview = board
         column.addView(object : android.widget.FrameLayout(this) {
